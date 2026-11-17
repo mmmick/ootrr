@@ -1,5 +1,6 @@
 pub mod area;
 pub mod cond;
+pub mod drops;
 pub mod grid;
 pub mod icon_map;
 pub mod index;
@@ -14,6 +15,7 @@ pub mod seedlog;
 pub mod state;
 pub mod targets;
 
+use std::collections::BTreeMap as BM;
 use std::collections::BTreeSet as BS;
 use std::fs;
 use std::path::{Path as P, PathBuf as PB};
@@ -118,6 +120,7 @@ pub struct Inner {
     pub loaded: bool,
     pub items: Option<Vec<grid::St>>,
     pub now: NowState,
+    pub placed: Option<BM<String, String>>,
 }
 
 pub struct Tracker {
@@ -173,6 +176,7 @@ impl Tracker {
                 loaded: false,
                 items: None,
                 now: NowState::default(),
+                placed: None,
             }),
             events: Events::new(),
             data: data.map(|d| datadir::cache_root(&d)),
@@ -344,6 +348,7 @@ impl Tracker {
         };
         let mut g: MutexGuard<'_, Inner> = self.lock();
         g.track.rewire(ts, &over);
+        g.placed = sf.map(|f| f.placements.clone());
         g.seeded = sf.map(|f| Seeded { seed: f.seed.clone(), checksum: f.checksum(), rewired: seed::rewired(&over) });
         let base: u64 = self.events.seq() + 1;
         if let Some(p) = g.peek.clone() {

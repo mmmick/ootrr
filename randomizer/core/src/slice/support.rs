@@ -72,6 +72,7 @@ pub struct Plan {
     pub chus: bool,
     pub qol: crate::qol::Opts,
     pub treasure: bool,
+    pub scarecrow: bool,
     pub kit: crate::start_items::Kit,
     pub open: crate::open_world::Opts,
     pub npc: crate::npc_hints::Opts,
@@ -174,6 +175,9 @@ impl Plan {
         if self.rewards.potion {
             out.push((crate::flow_extra::potion::KEY, crate::flow_extra::potion::ON));
         }
+        if self.scarecrow {
+            out.push((crate::slice::scarecrow::KEY, crate::slice::scarecrow::ON));
+        }
         out
     }
 
@@ -237,6 +241,7 @@ pub fn plan(s: &Settings) -> Res<Plan> {
     let qol: crate::qol::Opts = crate::qol::read(s, &mut bad);
     let npc: crate::npc_hints::Opts = crate::npc_hints::read(s, gates.kakariko, &mut bad);
     let treasure: bool = crate::slice::treasure::mode(s, &mut bad);
+    let scarecrow: bool = toggle(s, crate::slice::scarecrow::SETTING, &mut bad);
     let open: crate::open_world::Opts = crate::open_world::read(s, &mut bad);
     rewards.read_merchants(s, open.beans, &mut bad);
     // Always on in this randomizer, like the other cutscene skips (no setting).
@@ -284,6 +289,7 @@ pub fn plan(s: &Settings) -> Res<Plan> {
         (rewards.frog_songs, crate::flow_extra::frogs::SONGS_NOTE),
         (rewards.frog_bug, crate::flow_extra::frogs::BUG_NOTE),
         (rewards.potion, crate::flow_extra::potion::NOTE),
+        (scarecrow, crate::slice::scarecrow::NOTE),
     ] {
         if on {
             notes.push(text.to_string());
@@ -333,7 +339,7 @@ pub fn plan(s: &Settings) -> Res<Plan> {
     if silver {
         notes.push(crate::slice::silver::NOTE.to_string());
     }
-    Ok(Plan { chests, keys, rewards, hearts, world, songs, hints, fast, chest_sizes, intro, start, gates, excluded, notes, drops, skulls, remake, chus, qol, treasure, kit, open, npc, shops, bridge, silver, story, endings })
+    Ok(Plan { chests, keys, rewards, hearts, world, songs, hints, fast, chest_sizes, intro, start, gates, excluded, notes, drops, skulls, remake, chus, qol, treasure, scarecrow, kit, open, npc, shops, bridge, silver, story, endings })
 }
 
 #[cfg(test)]

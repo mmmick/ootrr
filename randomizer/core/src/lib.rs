@@ -34,6 +34,7 @@ pub mod flow_sim;
 pub mod hints;
 pub mod intro_skip;
 pub mod medal_gate;
+pub mod pierre;
 pub mod npc_hints;
 pub mod open_world;
 pub mod pickup_pack;

@@ -423,6 +423,10 @@ pub fn build() -> Schema {
             .when_not("shuffle_chests", "off"),
     );
     s.push(
+        Setting::toggle(201, crate::slice::scarecrow::SETTING, "shuffle", "Scarecrow's Song", false)
+            .tip("One Scarecrow's Song joins the item pool and can be found anywhere. Bonooru still teaches it the old way, but the logic never counts on that. Pierre then stands at every scarecrow spot as soon as you hold the song and an ocarina, so no notes are needed. Experimental."),
+    );
+    s.push(
         Setting::toggle(46, crate::flow_extra::potion::SETTING, "shuffle", "Market Potion Shop bottle and Red Potion", false)
             .tip("The Market Potion Shop keeper's free empty bottle and the Red Potion he pours as thanks for the escaped bug become two shuffled checks, and one more Bottle joins the pool. Both checks need a child who has met Zelda, by day, who carries an empty bottle, because while the free bottle holds another item he starts the bug tutorial only for a child with an empty bottle. His shelves still open after the tutorial.")
             .when("shuffle_rewards", "supported"),

@@ -79,6 +79,9 @@ pub fn spec(d: &Data, over: &[(&str, &str)]) -> Res<Spec> {
     if crate::flow_extra::potion::wanted(over) {
         crate::flow_extra::potion::apply(&mut files)?;
     }
+    if crate::slice::scarecrow::wanted(over) {
+        crate::slice::scarecrow::apply(&mut files)?;
+    }
     if crate::slice::tracker_fixes::wanted(over) {
         crate::slice::tracker_fixes::apply(&mut files)?;
     }

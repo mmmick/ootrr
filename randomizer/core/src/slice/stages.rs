@@ -26,7 +26,7 @@ pub struct Ctx<'a> {
 
 pub type Stage = fn(&mut Romfs, &Ctx, &mut Vec<Out>) -> Res<()>;
 
-pub const STAGES: [(&str, Stage); 21] = [
+pub const STAGES: [(&str, Stage); 22] = [
     ("boss heart chests", boss_hearts),
     ("songs", songs),
     ("song models", song_models),
@@ -44,6 +44,7 @@ pub const STAGES: [(&str, Stage); 21] = [
     ("medallion gate", medal_gate),
     ("start reward and flags", start_reward),
     ("starting items", start_items),
+    ("pierre at every scarecrow spot", pierre),
     ("dpad items", dpad),
     ("pot rows", pot_rows),
     ("start defaults", start_defaults),
@@ -157,6 +158,13 @@ fn start_reward(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
 
 fn start_items(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
     crate::start_items::stage::stage(rf, more, &c.p.kit)
+}
+
+fn pierre(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
+    if c.p.scarecrow || c.p.kit.logic().iter().any(|(n, _)| *n == crate::slice::scarecrow::ITEM) {
+        crate::pierre::stage(rf, more, Some(c.work))?;
+    }
+    Ok(())
 }
 
 fn dpad(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {

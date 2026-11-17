@@ -101,7 +101,8 @@ const USAGE: &str = "usage:
   ootrr check-msbt <romfs_root> [language ... | all]
   ootrr msbt-dump <romfs_root> [language] [file_filter]
   ootrr settings-dump [--compact] [--presets <dir>] [--decode <settings_string>]
-  ootrr serve [--port N] [--lan] [--no-open] [--no-update-check]
+  ootrr serve [--port N] [--lan] [--no-open] [--no-update-check] [--now]
+  ootrr now [--port N] [--no-open]   serve and open the live Available now page
   ootrr mem-watch [--flags data/flags.json] [--out log.txt]   print every flag the running game flips
   ootrr generate <settings_string_or_preset_or_file> <seed> <out.ootrr> [--spoiler <file>] [--plando Location=Item]... [--plando-file <file>]
   ootrr build <seed.ootrr> <romfs_root> <load_dir> <mod_name> [--host eden|hookshot|longshot|nx2navi] [--music off|grouped|anywhere] [--sfx off|grouped|anywhere] [--colors off|random|shared] [--cosmetic-seed <text>]
@@ -390,6 +391,7 @@ fn main() -> ExitCode {
         Some("settings-dump") => settings_cmd::run(&a[1..]),
         Some("serve") => serve_cmd::run(&a[1..]),
         Some("mem-watch") => mem_watch_cmd::run(&a[1..]),
+        Some("now") => serve_cmd::run(&[&["--now".to_string()], &a[1..]].concat()),
         None => serve_cmd::run(&[]),
         Some("help") | Some("--help") | Some("-h") => {
             println!("{USAGE}");

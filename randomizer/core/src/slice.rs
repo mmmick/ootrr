@@ -27,9 +27,11 @@ pub mod place_rules;
 #[cfg(test)]
 pub mod pins;
 pub mod pickups;
+pub mod rebuild;
 pub mod plando;
 pub mod remake_chests;
 pub mod remake_overworld;
+pub mod tracker_fixes;
 pub mod scan;
 pub mod seed_packs;
 pub mod silver;

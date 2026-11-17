@@ -4,7 +4,7 @@ use crate::error::{Fail, Hr};
 use crate::req::Req;
 use crate::resp::Resp;
 use crate::state::Shared;
-use crate::{update, api_build, api_fs, api_generate, api_info, api_items, api_open, api_seed, api_settings, api_tracker, api_validate, assets, body};
+use crate::{update, api_build, api_fs, api_generate, api_info, api_items, api_now, api_open, api_seed, api_settings, api_tracker, api_validate, assets, body};
 
 fn need(r: &Req, m: &str) -> Hr<()> {
     if r.method == m {
@@ -117,6 +117,18 @@ fn api(sh: &Shared, r: &Req) -> Hr<Resp> {
         "/api/tracker/live" => {
             need(r, "POST")?;
             api_tracker::live(sh, &body::json(r)?)?
+        }
+        "/api/now/state" => {
+            need(r, "GET")?;
+            api_now::state(sh)
+        }
+        "/api/now/mark" => {
+            need(r, "POST")?;
+            api_now::mark(sh, &body::json(r)?)?
+        }
+        "/api/now/spoiler" => {
+            need(r, "POST")?;
+            api_now::spoiler(sh, &body::json(r)?)?
         }
         "/api/build" => {
             need(r, "POST")?;

@@ -666,7 +666,7 @@ pub const MENU: &[Page] = &[
         heading: GAMEPLAY,
         sections: &[
             sec("Cutscenes", &["skip_intro", "skip_cutscenes", "skip_story_scenes", "faster_chests"]),
-            sec("Side quests", &["skip_mask_quest", "anju_one_cucco"]),
+            sec("Side quests", &["skip_mask_quest", "anju_one_cucco", "easy_fishing"]),
             sec("Dungeons", &["deku_bridge_safe"]),
         ],
     },

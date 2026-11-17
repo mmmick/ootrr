@@ -551,6 +551,10 @@ pub fn build() -> Schema {
             .tip("Anju in Kakariko Village counts the cucco game as won when one cucco is in the pen instead of seven. The Bottle reward is the same. The logic needs one cucco too."),
     );
     s.push(
+        Setting::toggle(crate::easy_fishing::NUM, crate::easy_fishing::SETTING, "world", "Easy fishing", false)
+            .tip("The fishing pond owner gives his prize for any fish you catch, whatever its size: the Piece of Heart for child Link and the Golden Scale for adult Link, or whatever is placed there. You still pay, cast and land one fish. A loach and the sinking lure work as before. Experimental."),
+    );
+    s.push(
         Setting::toggle(72, crate::qol::POE, "world", "Big poe bottle at the first big poe", false)
             .tip("The Ghost Shop owner in the Market gives the Bottle for the first big poe, where the game wants five. The golden reward after ten big poes is unchanged. The logic needs one big poe."),
     );

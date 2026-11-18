@@ -368,9 +368,92 @@ fn title_only(mod_root: &P, rf: &mut Romfs, p: &Patch) -> Res<Option<Vec<String>
     Ok(Some(notes))
 }
 
+pub const SETTING_WHERE: &str = "turn off \"Randomizer line under the logo\" in the Title screen section of the Cosmetics page (--no-title-logo on the command line)";
+
+pub fn layout_of(f: &str) -> String {
+    f.replace(".bntx.zs", ".blarc.zs")
+}
+
+pub fn touched(p: &Patch) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for f in &p.files {
+        for x in [f.clone(), layout_of(f)] {
+            if !out.contains(&x) {
+                out.push(x);
+            }
+        }
+    }
+    out
+}
+
+pub fn ours(raw: &[u8], p: &Patch) -> bool {
+    NEW_NAMES.iter().any(|n| raw.windows(n.len()).any(|w| w == n.as_bytes())) || matches!(state(raw, p), Ok(State::Done))
+}
+
+pub fn conflicts(mod_root: &P, files: &[String], rf: &mut Romfs, p: &Patch) -> Vec<(String, String)> {
+    let Some(dir) = mod_root.parent() else {
+        return Vec::new();
+    };
+    let Ok(rd) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let own = mod_root.file_name();
+    let mut mods: Vec<PB> = rd.filter_map(|e| e.ok()).map(|e| e.path()).filter(|d| d.is_dir() && d.file_name() != own).collect();
+    mods.sort();
+    let mut out: Vec<(String, String)> = Vec::new();
+    for d in mods {
+        let hit: Vec<&String> = files.iter().filter(|f| d.join("romfs").join(f).is_file()).collect();
+        let mut theirs = |f: &String| -> bool { fs::read(d.join("romfs").join(f)).ok().and_then(|z| rf.zs.decompress(&z).ok()).is_some_and(|raw| ours(&raw, p)) };
+        if hit.iter().any(|f| theirs(f)) {
+            continue;
+        }
+        let name: String = d.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        out.extend(hit.into_iter().map(|f| (name.clone(), f.clone())));
+    }
+    out
+}
+
+pub fn conflict_message(found: &[(String, String)], dir: &P) -> String {
+    let mut by: Vec<(String, Vec<String>)> = Vec::new();
+    for (m, f) in found {
+        let name: String = f.rsplit('/').next().unwrap_or(f).to_string();
+        match by.iter_mut().find(|x| x.0 == *m) {
+            Some(x) => x.1.push(name),
+            None => by.push((m.clone(), vec![name])),
+        }
+    }
+    let list: Vec<String> = by.iter().map(|(m, fs)| format!("\"{m}\" ({})", fs.join(", "))).collect();
+    format!(
+        "The Randomizer line under the title logo conflicts with another mod in {}: {} also changes the title screen files the line is drawn into. Two mods cannot both change the same file, so one of them would be lost. To build, {SETTING_WHERE}, or move the other mod out of that folder.",
+        dir.display(),
+        list.join(" and ")
+    )
+}
+
+pub fn preflight(mod_root: &P, romfs: &P) -> Res<()> {
+    let p: Patch = patch()?;
+    let mut rf: Romfs = Romfs::open(romfs)?;
+    check(mod_root, &mut rf, &p)
+}
+
+fn check(mod_root: &P, rf: &mut Romfs, p: &Patch) -> Res<()> {
+    let found: Vec<(String, String)> = conflicts(mod_root, &touched(p), rf, p);
+    if !found.is_empty() {
+        return Err(E::Msg(conflict_message(&found, mod_root.parent().unwrap_or(mod_root))));
+    }
+    for f in &p.files {
+        let raw: Vec<u8> = rf.read_zs(f)?;
+        if let Err(e) = state(&raw, p) {
+            return Err(E::Msg(format!("The Randomizer line under the title logo cannot be drawn: {f} in the game folder is not the game's own ({e}). A mod's files were probably copied into the game folder. Use a clean copy of the game, or {SETTING_WHERE}.")));
+        }
+    }
+    Ok(())
+}
+
 pub fn apply(mod_root: &P, romfs: &P) -> Res<Vec<String>> {
     let p: Patch = patch()?;
     let mut rf: Romfs = Romfs::open(romfs)?;
+    check(mod_root, &mut rf, &p)?;
     if let Some(notes) = title_only(mod_root, &mut rf, &p)? {
         return Ok(notes);
     }
@@ -468,5 +551,42 @@ mod tests {
             let outside: bool = raw.chunks(BLOCK).zip(old.chunks(BLOCK)).enumerate().any(|(k, (a, b))| a != b && (k * BLOCK < t.off || k * BLOCK >= t.off + t.size));
             assert!(!outside, "{f}");
         }
+    }
+
+    #[test]
+    fn another_mod_on_the_title_files_is_named_and_an_earlier_ootrr_build_is_not() {
+        let root: PB = ootrr_game::test_romfs::path();
+        if !root.join("Pack").join("ZsDic.pack.zs").is_file() {
+            eprintln!("skipped, no RomFS dump at {}", root.display());
+            return;
+        }
+        let p: Patch = patch().unwrap();
+        let files: Vec<String> = touched(&p);
+        assert_eq!(files.len(), 4);
+        assert!(files.iter().any(|f| f.ends_with("Common.Product.100.Nin_Ounce_NVN2.blarc.zs")));
+        let dir: PB = std::env::temp_dir().join(format!("ootrr_logo_conflict_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let own: PB = dir.join("OOTRR Seed");
+        let put = |m: &str, f: &str, data: &[u8]| {
+            let o: PB = dir.join(m).join("romfs").join(f);
+            fs::create_dir_all(o.parent().unwrap()).unwrap();
+            fs::write(o, data).unwrap();
+        };
+        fs::create_dir_all(own.join("romfs")).unwrap();
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        assert!(conflicts(&own, &files, &mut rf, &p).is_empty());
+        let common: String = layout_of(&p.files[1]);
+        put("Old OOTRR Seed", &common, &compress(format!("layout pointing at {}", NEW_NAMES[0]).as_bytes()).unwrap());
+        put("Skin Pack", "Model/Something.bfres.zs", b"not a title file");
+        assert!(conflicts(&own, &files, &mut rf, &p).is_empty());
+        put("Menu Mod", &common, &compress(b"someone else's layout").unwrap());
+        let found: Vec<(String, String)> = conflicts(&own, &files, &mut rf, &p);
+        assert_eq!(found, vec![("Menu Mod".to_string(), common.clone())]);
+        let m: String = conflict_message(&found, &dir);
+        assert!(m.contains("\"Menu Mod\" (Common.Product.100.Nin_Ounce_NVN2.blarc.zs)"), "{m}");
+        assert!(m.contains("Randomizer line under the logo") && m.contains("Cosmetics page") && m.contains("--no-title-logo"), "{m}");
+        let e: String = apply(&own, &root).unwrap_err().to_string();
+        assert!(e.contains("Menu Mod") && e.contains("Cosmetics page"), "{e}");
+        let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -56,11 +56,12 @@ pub struct Cosmetics {
     pub sfx: Sfx,
     pub colors: Colors,
     pub seed: String,
+    pub title: bool,
 }
 
 impl Default for Cosmetics {
     fn default() -> Cosmetics {
-        Cosmetics { music: Music::Off, sfx: Sfx::Off, colors: Colors::Off, seed: String::new() }
+        Cosmetics { music: Music::Off, sfx: Sfx::Off, colors: Colors::Off, seed: String::new(), title: true }
     }
 }
 
@@ -501,7 +502,7 @@ mod tests {
         for text in ["first", "second"] {
             let out: PB = std::env::temp_dir().join(format!("ootrr_music_{}_{text}", std::process::id()));
             let _ = fs::remove_dir_all(&out);
-            let c: Cosmetics = Cosmetics { music: Music::Grouped, sfx: Sfx::Off, colors: Colors::Off, seed: text.to_string() };
+            let c: Cosmetics = Cosmetics { music: Music::Grouped, sfx: Sfx::Off, colors: Colors::Off, seed: text.to_string(), title: true };
             let notes: Vec<String> = apply(&out, &root, &c, "seed").unwrap();
             assert!(notes[0].contains("music tracks moved"), "{notes:?}");
             assert!(!out.join("romfs").join(BGM_FILE).exists());

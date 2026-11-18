@@ -126,7 +126,8 @@ pub fn plan(b: &Json) -> Hr<Plan> {
     if seed_text.len() > 64 {
         return Err(refuse("Cosmetic seed: at most 64 characters."));
     }
-    let cos: Cosmetics = Cosmetics { music, sfx, colors, seed: seed_text };
+    let title: bool = b.get("title_logo").and_then(|x| x.as_bool()) != Some(false);
+    let cos: Cosmetics = Cosmetics { music, sfx, colors, seed: seed_text, title };
     let spoiler: Option<String> = match body::opt_text(b, "spoiler_text")? {
         None | Some("") => None,
         Some(t) if t.len() > SPOILER_MAX => return Err(refuse("Spoiler: the spoiler log is too large.")),
@@ -155,11 +156,19 @@ pub fn run(jobs: &Arc<Jobs>, b: &Json) -> Hr<Json> {
             }
         };
         let romfs: PB = game.romfs.clone();
+        if p.cos.title {
+            c.begin("Check that no other mod changes the title screen");
+            if let Err(e) = ootrr_core::title_logo::preflight(&p.target, &romfs) {
+                c.mark("failed");
+                c.finish("failed", &e.to_string());
+                return;
+            }
+        }
         c.begin("Read the game files and edit the chests");
         match slice::build_for(&p.seed, &romfs, &p.load, &p.name, p.host) {
             Ok(mut built) => {
-                c.begin("Draw the Randomizer line under the title logo");
-                match ootrr_core::title_logo::apply(&built.root, &romfs) {
+                c.begin(if p.cos.title { "Draw the Randomizer line under the title logo" } else { "Leave the title logo as the game's" });
+                match if p.cos.title { ootrr_core::title_logo::apply(&built.root, &romfs) } else { Ok(Vec::new()) } {
                     Ok(notes) => {
                         for n in notes {
                             built.report.push_str(&format!("{n}
@@ -366,6 +375,9 @@ mod tests {
         assert_eq!(plan(&base()).unwrap().cos.colors, Colors::Off);
         assert!(plan(&base().with("colors", "neon".into())).is_err());
         assert!(plan(&base().with("cosmetic_seed", "x".repeat(65).into())).is_err());
+        assert!(plan(&base()).unwrap().cos.title);
+        assert!(plan(&base().with("title_logo", true.into())).unwrap().cos.title);
+        assert!(!plan(&base().with("title_logo", false.into())).unwrap().cos.title);
         let _ = fs::remove_dir_all(&d);
     }
 }

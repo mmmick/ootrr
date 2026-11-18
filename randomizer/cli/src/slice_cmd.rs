@@ -127,6 +127,11 @@ pub fn build(a: &[String]) -> Res<()> {
             i += 2;
             continue;
         }
+        if a[i] == "--no-title-logo" {
+            cos.title = false;
+            i += 1;
+            continue;
+        }
         if a[i] == "--cosmetic-seed" {
             cos.seed = a.get(i + 1).cloned().ok_or(Error::Format("missing text after --cosmetic-seed"))?;
             i += 2;
@@ -168,11 +173,17 @@ pub fn build(a: &[String]) -> Res<()> {
         None => None,
     };
     let romfs: &P = prepared.as_ref().map(|p| p.romfs.as_path()).unwrap_or(P::new(game));
+    if cos.title {
+        let target: std::path::PathBuf = if host.flat() { P::new(load).join(name) } else { P::new(load).join(ootrr_core::TITLE_ID).join(name) };
+        ootrr_core::title_logo::preflight(&target, romfs)?;
+    }
     let b: Built = slice::build_for(&seed, romfs, P::new(load), name, host)?;
     let c: &BuildCounts = &b.counts;
     print!("{}", b.report);
-    for n in ootrr_core::title_logo::apply(&b.root, P::new(romfs))? {
-        println!("{n}");
+    if cos.title {
+        for n in ootrr_core::title_logo::apply(&b.root, P::new(romfs))? {
+            println!("{n}");
+        }
     }
     for n in cosmetic::apply(&b.root, P::new(romfs), &cos, &seed.seed)? {
         println!("{n}");

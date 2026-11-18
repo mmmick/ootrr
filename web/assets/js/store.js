@@ -11,7 +11,7 @@ export const state = {
   plando: [],
   paths: { game: "", update: "", mod: "", name: "My Seed", host: "eden" },
   include_update: false,
-  cosmetic: { music: "off", sfx: "off", colors: "off", seed: "" },
+  cosmetic: { music: "off", sfx: "off", colors: "off", seed: "", title: true },
   game_check: null,
   mod_check: null,
   result: null,
@@ -77,6 +77,7 @@ export function restore(schema) {
     if (["off", "grouped", "anywhere"].includes(s.cosmetic.sfx)) state.cosmetic.sfx = s.cosmetic.sfx;
     if (["off", "random", "shared"].includes(s.cosmetic.colors)) state.cosmetic.colors = s.cosmetic.colors;
     if (typeof s.cosmetic.seed === "string") state.cosmetic.seed = s.cosmetic.seed.slice(0, 64);
+    if (typeof s.cosmetic.title === "boolean") state.cosmetic.title = s.cosmetic.title;
   }
   const r = take(sessionStorage, RKEY);
   if (r && typeof r.seed_text === "string") state.result = r;

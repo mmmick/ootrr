@@ -53,6 +53,7 @@ async function build(res) {
     sfx: state.cosmetic.sfx,
     colors: state.cosmetic.colors,
     cosmetic_seed: state.cosmetic.seed,
+    title_logo: state.cosmetic.title !== false,
     spoiler_text: spoiler_for(res),
   });
   run.target = r.target || run.target;

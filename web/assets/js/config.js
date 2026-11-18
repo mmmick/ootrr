@@ -75,6 +75,8 @@ export const FIELDS = [
   { id: "colors", page: COSMETICS, section: "Colours", label: "Colour shuffle", choices: COLORS,
     tip: "Colours cover the three tunics, the swords, the shields, Navi, hair, the boomerang gem, the gauntlet jewels and recovery hearts. Particle glows, trails and the menu keep their own colours." },
   { id: "cosseed", page: COSMETICS, section: "Colours", label: "Cosmetic seed", tip: "Leave empty to use the seed text. Set it to get the same music and colours with a different seed." },
+  { id: "title_logo", page: COSMETICS, section: "Title screen", label: "Randomizer line under the logo",
+    tip: "Draws a Randomizer line under the title screen logo. It changes the title screen files, so turn it off if another mod (a title screen, menu or UI mod) changes them too. The build stops and names the other mod when they clash. The seed is not changed." },
 ].map((f) => ({ ...f, page_label: f.page.label, heading: f.page.heading, page: f.page.id }));
 
 function set_status(el, kind, title) {
@@ -291,6 +293,14 @@ export function field_el(f, terms = []) {
     const box = h("input", { type: "checkbox", id: "f_spoiler_log", checked: state.spoiler_log });
     box.addEventListener("change", () => {
       state.spoiler_log = box.checked;
+      touch();
+    });
+    return row(f, terms, box);
+  }
+  if (f.id === "title_logo") {
+    const box = h("input", { type: "checkbox", id: "f_title_logo", checked: cos.title !== false });
+    box.addEventListener("change", () => {
+      cos.title = box.checked;
       touch();
     });
     return row(f, terms, box);

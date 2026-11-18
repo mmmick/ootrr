@@ -26,10 +26,11 @@ pub struct Ctx<'a> {
 
 pub type Stage = fn(&mut Romfs, &Ctx, &mut Vec<Out>) -> Res<()>;
 
-pub const STAGES: [(&str, Stage); 22] = [
+pub const STAGES: [(&str, Stage); 23] = [
     ("boss heart chests", boss_hearts),
     ("songs", songs),
     ("song models", song_models),
+    ("scarecrow song model", scarecrow_model),
     ("hints", hints),
     ("dungeon item text", dungeon_text),
     ("scrub hint text", scrub_hints),
@@ -75,6 +76,13 @@ fn songs(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
 fn song_models(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
     if c.p.songs == Songs::Anywhere {
         more.extend(crate::song_models::stage(rf)?);
+    }
+    Ok(())
+}
+
+fn scarecrow_model(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
+    if crate::slice::scarecrow::pooled(c.p) {
+        crate::slice::scarecrow_model::stage(rf, more, Some(c.work))?;
     }
     Ok(())
 }

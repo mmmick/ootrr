@@ -32,6 +32,7 @@ pub mod plando;
 pub mod remake_chests;
 pub mod remake_overworld;
 pub mod scarecrow;
+pub mod scarecrow_model;
 pub mod tracker_fixes;
 pub mod scan;
 pub mod seed_packs;

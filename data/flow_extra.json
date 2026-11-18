@@ -282,12 +282,54 @@
 ]
 },
 {
+"name": "DMT Great Fairy Reward",
+"why": "a returning visit asks IsGet.Item_DinFire (event 21) and while it is false offers the gift again for 25 rupees, a shuffled gift never sets it, so the check reads a spare persistent flag that is set right after the gift (event 308)",
+"ops": [
+{"kind": "set", "file": "Dm_FairyFountain_Din.bfevfl", "index": 21, "event": "Event78", "param": "GameDataName", "old": "IsGet.Item_DinFire", "new": "HavePlayedEvent.Dm_Title_0080"},
+{"kind": "insert_set", "file": "Dm_FairyFountain_Din.bfevfl", "index": 308, "event": "Event212", "flag": "HavePlayedEvent.Dm_Title_0080"}
+]
+},
+{
+"name": "HC Great Fairy Reward",
+"why": "a returning visit asks IsGet.Item_FairyBless_MP (event 4) and while it is false offers the gift again, a shuffled gift never sets it, so the check reads a spare persistent flag that is set right after the gift (event 108)",
+"ops": [
+{"kind": "set", "file": "Dm_FairyFountain_Power.bfevfl", "index": 4, "event": "Event11", "param": "GameDataName", "old": "IsGet.Item_FairyBless_MP", "new": "HavePlayedEvent.Dm_Title_0096"},
+{"kind": "insert_set", "file": "Dm_FairyFountain_Power.bfevfl", "index": 108, "event": "Event141", "flag": "HavePlayedEvent.Dm_Title_0096"}
+]
+},
+{
+"name": "ZF Great Fairy Reward",
+"why": "a returning visit asks IsGet.Item_FaroreWind (event 4) and while it is false offers the gift again, a shuffled gift never sets it, so the check reads a spare persistent flag that is set right after the gift (event 107)",
+"ops": [
+{"kind": "set", "file": "Dm_FairyFountain_Frore.bfevfl", "index": 4, "event": "Event11", "param": "GameDataName", "old": "IsGet.Item_FaroreWind", "new": "HavePlayedEvent.Dm_Title_0110"},
+{"kind": "insert_set", "file": "Dm_FairyFountain_Frore.bfevfl", "index": 107, "event": "Event174", "flag": "HavePlayedEvent.Dm_Title_0110"}
+]
+},
+{
+"name": "Colossus Great Fairy Reward",
+"why": "a returning visit asks IsGet.Item_NayruLove (event 4) and while it is false offers the gift again, a shuffled gift never sets it, so the check reads a spare persistent flag that is set right after the gift (event 98)",
+"ops": [
+{"kind": "set", "file": "Dm_FairyFountain_Nayru.bfevfl", "index": 4, "event": "Event10", "param": "GameDataName", "old": "IsGet.Item_NayruLove", "new": "HavePlayedEvent.Dm_Title_0120"},
+{"kind": "insert_set", "file": "Dm_FairyFountain_Nayru.bfevfl", "index": 98, "event": "Event163", "flag": "HavePlayedEvent.Dm_Title_0120"}
+]
+},
+{
+"name": "OGC Great Fairy Reward",
+"why": "a returning visit asks IsGet.Item_FairyBless_DefenseDouble (event 4) and while it is false offers the gift again, a shuffled gift never sets it, so the check reads a spare persistent flag that is set right after the gift (event 75)",
+"ops": [
+{"kind": "set", "file": "Dm_FairyFountain_Courage.bfevfl", "index": 4, "event": "Event11", "param": "GameDataName", "old": "IsGet.Item_FairyBless_DefenseDouble", "new": "HavePlayedEvent.Dm_Title_0056"},
+{"kind": "insert_set", "file": "Dm_FairyFountain_Courage.bfevfl", "index": 75, "event": "Event144", "flag": "HavePlayedEvent.Dm_Title_0056"}
+]
+},
+{
 "name": "DMC Great Fairy Reward",
-"why": "the Wisdom gift sub plays the double magic gauge birth after the item (events 75 to 78 of Dm_SY_GetInEvent) whatever the item is, only the magic meter items can create that gauge, so another item is handed over with the plain fountain gift sub that the other fountains use",
+"why": "the Wisdom gift sub plays the double magic gauge birth after the item (events 75 to 78 of Dm_SY_GetInEvent) whatever the item is, only the magic meter items can create that gauge, so another item is handed over with the plain fountain gift sub that the other fountains use. A returning visit asks IsGet.Item_FairyBless_MPDouble (event 4) and while it is false offers the gift again, a shuffled gift never sets it, so the check reads a spare persistent flag that is set right after the gift",
 "ops": [
 {"kind": "swap_sub", "file": "Dm_FairyFountain_Wisdom.bfevfl", "index": 72, "event": "Event144",
  "from": "Dm_SY_GetInEvent:GetInEvent_GreatFairyWisdom", "to": "Dm_SY_GetInEvent:GetInEvent_Demo_NotLookatObjectEntry",
- "params": [["ActorName", "$item"]]}
+ "params": [["ActorName", "$item"]]},
+{"kind": "set", "file": "Dm_FairyFountain_Wisdom.bfevfl", "index": 4, "event": "Event10", "param": "GameDataName", "old": "IsGet.Item_FairyBless_MPDouble", "new": "HavePlayedEvent.Dm_Title_0100"},
+{"kind": "insert_set", "file": "Dm_FairyFountain_Wisdom.bfevfl", "index": 72, "event": "Event144", "flag": "HavePlayedEvent.Dm_Title_0100"}
 ]
 },
 {

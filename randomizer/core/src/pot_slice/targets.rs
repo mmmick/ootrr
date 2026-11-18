@@ -57,7 +57,7 @@ pub fn targets_with(d: &Data, seed: &SeedFile, fixed: &BM<String, String>) -> Re
     Ok(out)
 }
 
-pub fn balance(d: &Data, seed: &SeedFile, item: &str, acts: &mut Vec<String>) {
+pub fn delta(d: &Data, seed: &SeedFile, item: &str) -> isize {
     let mut here: isize = 0;
     for (loc, got) in &seed.placements {
         if !is_loc(d, loc) {
@@ -70,15 +70,11 @@ pub fn balance(d: &Data, seed: &SeedFile, item: &str, acts: &mut Vec<String>) {
             here -= 1;
         }
     }
-    if here > 0 {
-        let canon: Option<String> = d.item(item).and_then(|i| i.actor.clone());
-        for _ in 0..here {
-            acts.extend(canon.clone());
-        }
-    } else if here < 0 {
-        let cut: usize = acts.len().saturating_sub((-here) as usize);
-        acts.truncate(cut);
-    }
+    here
+}
+
+pub fn balance(d: &Data, seed: &SeedFile, item: &str, acts: &mut Vec<String>) {
+    crate::slice::chest_targets::adjust(d, item, delta(d, seed, item), acts);
 }
 
 #[cfg(test)]

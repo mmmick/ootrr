@@ -57,6 +57,18 @@ pub fn is_sale(d: &Data, loc: &str) -> bool {
     d.flow.by_name(loc).is_some() && d.cat.by_name(loc).is_none_or(|c| c.kind == "scrub" || (c.kind == "cow" && crate::flow_extra::cows::is(loc)))
 }
 
+pub(crate) fn adjust(d: &Data, item: &str, net: isize, acts: &mut Vec<String>) {
+    if net > 0 {
+        let canon: Option<String> = d.item(item).and_then(|i| i.actor.clone());
+        for _ in 0..net {
+            acts.extend(canon.clone());
+        }
+    } else if net < 0 {
+        let cut: usize = acts.len().saturating_sub(net.unsigned_abs());
+        acts.truncate(cut);
+    }
+}
+
 pub(crate) fn actors_for(d: &Data, seed: &SeedFile) -> Res<BM<String, String>> {
     let mut pool: BM<String, Vec<String>> = BM::new();
     let mut dests: BM<String, Vec<String>> = BM::new();
@@ -80,9 +92,8 @@ pub(crate) fn actors_for(d: &Data, seed: &SeedFile) -> Res<BM<String, String>> {
     let mut out: BM<String, String> = BM::new();
     for (item, locs) in &dests {
         let mut acts: Vec<String> = pool.get(item).cloned().unwrap_or_default();
-        crate::pot_slice::targets::balance(d, seed, item, &mut acts);
-        crate::shops::seed::balance(d, seed, item, &mut acts);
-        crate::slice::silver::balance(seed, item, &mut acts);
+        let net: isize = crate::pot_slice::targets::delta(d, seed, item) + crate::shops::seed::delta(seed, item) + crate::slice::silver::delta(seed, item);
+        adjust(d, item, net, &mut acts);
         if stripped {
             crate::start_items::pool::fit_actors(d, item, locs.len(), &mut acts);
         }
@@ -265,4 +276,40 @@ fn unshuffled_bomb_chests(d: &Data, seed: &SeedFile) -> Vec<Target> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings::Settings;
+    use crate::slice::generate::generate;
+
+    const DEALS_AND_POTS: &str = "OOTRR1-BEAQGCQBAMGACAQOAEDA6AIGCAAQOEQBAYRQCBBGAEASQAICFEAQCNABAE5ACASHAEAUQAIBJQAQCTYBAJIAUCIAAEBAGBAFAYDQQYABAHFOQ";
+
+    #[test]
+    fn shop_deals_give_back_the_copies_pots_took_before_the_chest_count_is_cut() {
+        let d: Data = Data::load().unwrap();
+        let s: Settings = Settings::decode(DEALS_AND_POTS).unwrap().settings;
+        let g = generate(&s, "auditb12").unwrap();
+        let item: &str = "Bombs (20)";
+        let f: &SeedFile = &g.seed_file;
+        assert!(crate::pot_slice::targets::delta(&d, f, item) < 0);
+        assert!(crate::shops::seed::delta(f, item) > 0);
+        let given: BM<String, String> = actors_for(&d, f).unwrap();
+        let placed: usize = given.keys().filter(|l| f.placements.get(*l).is_some_and(|i| i == item)).count();
+        assert!(placed > 0);
+    }
+
+    #[test]
+    fn the_net_count_is_applied_once() {
+        let d: Data = Data::load().unwrap();
+        let canon: String = d.item("Bombs (20)").and_then(|i| i.actor.clone()).unwrap();
+        let mut acts: Vec<String> = vec!["a".to_string()];
+        adjust(&d, "Bombs (20)", -4 + 5, &mut acts);
+        assert_eq!(acts, vec!["a".to_string(), canon.clone()]);
+        adjust(&d, "Bombs (20)", -3, &mut acts);
+        assert!(acts.is_empty());
+        adjust(&d, "Bombs (20)", 0, &mut acts);
+        assert!(acts.is_empty());
+    }
 }

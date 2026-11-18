@@ -499,6 +499,58 @@ mod tests {
     );
 
     #[test]
+    fn every_fountain_gives_its_shuffled_reward_once() {
+        let Some(r) = root() else { return };
+        let x: crate::flow_extra::Extra = crate::flow_extra::Extra::load().unwrap();
+        let mut rf: Romfs = Romfs::open(&r).unwrap();
+        let mut flags: Vec<String> = Vec::new();
+        for (loc, fountain) in FOUNTAINS {
+            let flag: String = x
+                .by_name(loc)
+                .unwrap()
+                .ops
+                .iter()
+                .find_map(|o| match &o.how {
+                    crate::flow_extra::op::How::Insert { flag } => Some(flag.clone()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("{loc} has no once flag"));
+            flags.push(flag.clone());
+            let sc: Scene = scene(fountain, "EntryPoint0", &[("PlayerStatus.CurrentRupee", "500"), ("PlayerStatus.MPMax", "240"), ("GreatFairy_MeetFirst", "true")], &[]);
+            let mut base: Sim = sim(&r, HM::new()).unwrap();
+            let a: Vec<Fin> = run(&mut base, &sc).unwrap();
+            let mut s: Sim = sim(&r, edited(&mut rf, loc, NEW).unwrap()).unwrap();
+            let b: Vec<Fin> = run(&mut s, &sc).unwrap();
+            let gave: Vec<&Fin> = b.iter().filter(|f| f.end == End::Done && granted(f, NEW) == 1).collect();
+            assert!(!gave.is_empty(), "{loc}");
+            assert!(gave.iter().all(|f| f.m.writes.get(&flag).map(|v| v.as_str()) == Some("true")), "{loc}");
+            assert_eq!(broken(&b), broken(&a), "{loc}");
+            let played: String = format!("HavePlayedEvent.{fountain}");
+            let visit = |given: &str| scene(fountain, "EntryPoint0", &[("PlayerStatus.CurrentRupee", "500"), ("PlayerStatus.MPMax", "240"), ("GreatFairy_MeetFirst", "true"), (&played, "true"), (&flag, given)], &[]);
+            let before: Vec<Fin> = run(&mut s, &visit("false")).unwrap();
+            assert_eq!(max(&before, NEW), 1, "{loc}");
+            let mut vanilla: Sim = sim(&r, HM::new()).unwrap();
+            assert!(run(&mut vanilla, &visit("false")).unwrap().iter().any(|f| !f.m.gr.is_empty()), "{loc}");
+            let again: Vec<Fin> = run(&mut s, &visit("true")).unwrap();
+            assert!(!again.is_empty(), "{loc}");
+            assert!(again.iter().all(|f| f.m.gr.is_empty()), "{loc}");
+            assert_eq!(broken(&again), broken(&before), "{loc}");
+        }
+        let distinct: std::collections::BTreeSet<&String> = flags.iter().collect();
+        assert_eq!(distinct.len(), FOUNTAINS.len());
+        let rows: &str = include_str!("../../../../data/flags.json");
+        let extra: &str = include_str!("../../../../data/flow_extra.json");
+        let names: Vec<String> = flags.iter().map(|f| f.trim_start_matches("HavePlayedEvent.").to_string()).collect();
+        for f in &flags {
+            let row: &str = rows.lines().find(|l| l.contains(&format!("\"name\":\"{f}\""))).unwrap_or_else(|| panic!("{f} is not in flags.json"));
+            assert!(row.contains("\"type\":\"Bool\"") && row.contains("\"default\":false") && row.contains("\"reset\":8") && row.contains("\"save\":0"), "{f}");
+            assert_eq!(extra.matches(&format!("\"{f}\"")).count(), 2, "{f}");
+            assert!(!crate::slice::silver::spare_flags().contains(&f.as_str()), "{f}");
+        }
+        assert!(crate::slice::silver::refs(&mut rf, &names).unwrap().is_empty());
+    }
+
+    #[test]
     fn medigoron_sells_once_even_with_the_biggoron_sword() {
         let Some(r) = root() else { return };
         let flag: &str = "HaveTalked_Special.Npc_Goron_Medigoron_Adult_Talk_Event26";

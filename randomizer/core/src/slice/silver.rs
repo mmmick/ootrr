@@ -195,10 +195,8 @@ pub fn select(w: &World, p: &Plan, free: &mut Vec<LocId>, left: &mut BM<String, 
     n
 }
 
-pub fn balance(seed: &SeedFile, item: &str, acts: &mut Vec<String>) {
-    let here: usize = seed.placements.iter().filter(|(l, i)| is_spot(l) && i.as_str() == item).count();
-    let cut: usize = acts.len().saturating_sub(here);
-    acts.truncate(cut);
+pub fn delta(seed: &SeedFile, item: &str) -> isize {
+    -(seed.placements.iter().filter(|(l, i)| is_spot(l) && i.as_str() == item).count() as isize)
 }
 
 pub fn targets(loc: &str, item: &str) -> Res<Option<Vec<Target>>> {

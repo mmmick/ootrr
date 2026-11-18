@@ -17,8 +17,7 @@ pub fn after(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Host, m
         return Ok(b);
     };
     let d: Data = Data::load()?;
-    let tiers = crate::slice::tier_order::fixed_actors(&d, seed)?.assign;
-    let jobs: Vec<Job> = crate::shops::jobs::of(&d, &l, &tiers)?;
+    let jobs: Vec<Job> = crate::shops::jobs::of(&d, &l)?;
     let base: PB = b.root.join("romfs");
     let done: Done = run(romfs, Some(&base), load, mod_name, host, &jobs)?;
     if done.root != b.root {

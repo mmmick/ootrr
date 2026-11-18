@@ -145,6 +145,7 @@ pub fn source_json(g: &Inner) -> Json {
         .with("reads", Json::Int(s.reads as i64))
         .with("error", opt(&s.error))
         .with("game_dir", p(&g.game_dir))
+        .with("update_dir", p(&g.update_dir))
         .with("game", if g.index.game.is_empty() { Json::Null } else { g.index.game.as_str().into() })
         .with("job", g.job.map(|j| Json::Int(j as i64)).unwrap_or(Json::Null))
         .with("index_error", opt(&g.index_error))

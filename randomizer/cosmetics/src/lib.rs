@@ -1,4 +1,4 @@
-use ootrr_game::{bfres, byml, error, rng, romfs, rsizetable, tex, zs};
+use ootrr_game::{bfres, byml, error, json, murmur, rng, romfs, rsizetable, tex, zs};
 
 #[cfg(test)]
 macro_rules! parts {
@@ -16,3 +16,4 @@ pub mod colors;
 pub mod cosmetic;
 pub mod sfx;
 pub mod slink;
+pub mod title_logo;

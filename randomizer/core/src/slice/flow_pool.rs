@@ -10,6 +10,9 @@ pub fn pool_actor(d: &Data, loc: &str, flow_actor: &str) -> String {
 }
 
 pub fn dest_form(d: &Data, item: &str, loc: &str, actor: String) -> String {
+    if let Some(s) = crate::ocarina_hold::shown_at(d, loc, &actor) {
+        return s;
+    }
     let Some(i) = d.item(item) else {
         return actor;
     };

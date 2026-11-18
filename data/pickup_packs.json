@@ -918,6 +918,34 @@
       "status": "built",
       "identity": "Item_Melody_LightPrelude",
       "notes": "Song pickup. Model, model fields and the shared item animation come from Sheik's harp, identity and get text from the song. Built and audited in a seed mod, untested in the game."
+    },
+    {
+      "group": "D",
+      "item": "Item_Ocarina_Fairy",
+      "pack": "Obj_Ocarina_Fairy",
+      "args": [
+        "--model-from",
+        "Dm_Item_Ocarina_Fairy"
+      ],
+      "status": "built",
+      "tier": "Ocarina 1 of 2",
+      "identity": "Item_Ocarina_Fairy",
+      "notes": "Ocarina pickup. Item_Ocarina_Fairy is an equipment accessory with no AnimationRef, so the model comes from its scene model Dm_Item_Ocarina_Fairy (model Item_Ocarina_Fairy) and the pack takes Obj_Item_Base with the shared Item_Common animation, like the game's own Obj_Ocarina_Time. Built and read back in a scratch mod, untested in the game."
+    },
+    {
+      "group": "D",
+      "item": "Item_Ocarina_Time",
+      "pack": "Obj_Ocarina_TimeLand",
+      "args": [
+        "--model-from",
+        "Dm_Item_Ocarina_Time",
+        "--name",
+        "Obj_Ocarina_TimeLand"
+      ],
+      "status": "built",
+      "tier": "Ocarina 2 of 2",
+      "identity": "Item_Ocarina_Time",
+      "notes": "Ocarina pickup. The game ships Obj_Ocarina_Time (the moat Ocarina), which the builder refuses to overwrite, so this pack takes its own name; model Item_Ocarina_Time from Dm_Item_Ocarina_Time, Obj_Item_Base and the shared Item_Common animation. Built and read back in a scratch mod, untested in the game."
     }
   ]
 }

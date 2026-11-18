@@ -111,6 +111,10 @@ pub struct Inner {
     pub peek: Option<Peek>,
     pub index: Arc<Index>,
     pub game_dir: Option<PB>,
+    /// The separate v1.1.1 update folder used with a v1.0.0 `game_dir`.
+    pub update_dir: Option<PB>,
+    /// The folder the map data and icons are read from (a link view when an update is used).
+    pub romfs: Option<PB>,
     pub job: Option<u64>,
     pub index_error: Option<String>,
     pub track: Track,
@@ -167,6 +171,8 @@ impl Tracker {
                 peek: None,
                 index: Arc::new(ix),
                 game_dir: None,
+                update_dir: None,
+                romfs: None,
                 job: None,
                 index_error: None,
                 track: Track::new(ts),
@@ -221,6 +227,7 @@ impl Tracker {
         let j: Json = Json::obj()
             .with("format", Json::Int(1))
             .with("game_dir", s(&g.game_dir))
+            .with("update_dir", s(&g.update_dir))
             .with("save_dir", s(&g.src.asked))
             .with("slot", g.src.pinned.as_deref().map(Json::from).unwrap_or(Json::Null))
             .with("mode", g.opts.mode.name().into())
@@ -237,10 +244,10 @@ impl Tracker {
         }
     }
 
-    pub fn load_saved(&self) -> (Option<PB>, Option<PB>, Option<String>) {
+    pub fn load_saved(&self) -> (Option<PB>, Option<PB>, Option<PB>, Option<String>) {
         let mut g: MutexGuard<'_, Inner> = self.lock();
         if g.loaded {
-            return (None, None, None);
+            return (None, None, None, None);
         }
         g.loaded = true;
         if let Some(t) = self.marks_file().and_then(|p| fs::read_to_string(p).ok())
@@ -249,10 +256,10 @@ impl Tracker {
             g.track.load(&j);
         }
         let Some(t) = self.settings_file().and_then(|p| fs::read_to_string(p).ok()) else {
-            return (None, None, None);
+            return (None, None, None, None);
         };
         let Ok(j) = json::parse(&t) else {
-            return (None, None, None);
+            return (None, None, None, None);
         };
         if let Some(m) = j.get("mode").and_then(|x| x.as_str()).and_then(Mode::parse) {
             g.opts.mode = m;
@@ -268,13 +275,15 @@ impl Tracker {
         }
         g.now.pin = path_of(&j, "spoiler");
         let slot: Option<String> = j.get("slot").and_then(|x| x.as_str()).map(|s| s.to_string());
-        (path_of(&j, "game_dir"), path_of(&j, "save_dir"), slot)
+        (path_of(&j, "game_dir"), path_of(&j, "update_dir"), path_of(&j, "save_dir"), slot)
     }
 
-    pub fn set_index(&self, game_dir: PB, ix: Index) {
+    pub fn set_index(&self, game_dir: PB, update_dir: Option<PB>, romfs: PB, ix: Index) {
         let mut g: MutexGuard<'_, Inner> = self.lock();
         g.index = Arc::new(ix);
         g.game_dir = Some(game_dir);
+        g.update_dir = update_dir;
+        g.romfs = Some(romfs);
         g.job = None;
         g.index_error = None;
         self.save_settings(&g);

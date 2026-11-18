@@ -100,6 +100,11 @@ pub fn pick(content: &str) -> Option<Pick> {
     picks().get(content).cloned()
 }
 
+/// The pick that builds the pickup pack `pack`.
+pub fn by_pack(pack: &str) -> Option<Pick> {
+    picks().values().find(|p| p.pack == pack).cloned()
+}
+
 fn family(i: &Item) -> Option<&'static str> {
     family_of(&i.tiers)
 }
@@ -261,7 +266,8 @@ mod tests {
         assert!(pick("Item_Bombchu").is_none());
         assert!(pick("Item_BombchuBundle_Small").is_none());
         assert!(pick("Item_Shield_Deku").is_none());
-        assert!(pick("Item_Ocarina_Fairy").is_none());
+        assert_eq!(pick("Item_Ocarina_Fairy").map(|p| p.pack), Some("Obj_Ocarina_Fairy".to_string()));
+        assert_eq!(pick("Item_Ocarina_Time").map(|p| p.pack), Some("Obj_Ocarina_TimeLand".to_string()));
         assert!(pick("Item_Nothing").is_none());
     }
 
@@ -310,7 +316,7 @@ mod tests {
         assert!(placeable(&d, "Rutos Letter", Spot::Free));
         assert!(placeable(&d, "Progressive Hookshot", Spot::Skull));
         assert!(!placeable(&d, "Progressive Strength Upgrade", Spot::Free));
-        assert!(!placeable(&d, "Ocarina", Spot::Free));
+        assert!(placeable(&d, "Ocarina", Spot::Free) && placeable(&d, "Ocarina", Spot::Skull));
         assert!(!placeable(&d, "Milk", Spot::Free));
         assert!(!placeable(&d, "Small Key (Forest Temple)", Spot::Free));
         assert!(!placeable(&d, "Rupees (5)", Spot::Free));

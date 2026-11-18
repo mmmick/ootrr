@@ -40,10 +40,11 @@ pub fn grants(d: &Data, seed: &SeedFile, chest_families: &BS<&str>, placed: &BM<
         let Some(l) = d.flow.by_name(loc) else {
             continue;
         };
+        let forms: Vec<String> = crate::ocarina_hold::forms(d, loc, f);
         for e in &l.edits {
             let files: Vec<&String> = std::iter::once(&e.file).chain(e.also.iter()).collect();
             for file in files {
-                out.push(Grant { file: file.clone(), index: e.index, event: e.event.clone(), param: e.param.clone(), family: f, wrap: Wrap::Chain });
+                out.push(Grant { file: file.clone(), index: e.index, event: e.event.clone(), param: e.param.clone(), family: f, wrap: Wrap::Chain, forms: forms.clone() });
             }
         }
     }
@@ -61,7 +62,7 @@ pub fn guards(d: &Data, seed: &SeedFile) -> Vec<Grant> {
             continue;
         };
         for e in l.edits.iter().filter(|e| e.role == "grant") {
-            out.push(Grant { file: e.file.clone(), index: e.index, event: e.event.clone(), param: e.param.clone(), family, wrap: Wrap::Base { plain: *plain } });
+            out.push(Grant { file: e.file.clone(), index: e.index, event: e.event.clone(), param: e.param.clone(), family, wrap: Wrap::Base { plain: *plain }, forms: Vec::new() });
         }
     }
     out

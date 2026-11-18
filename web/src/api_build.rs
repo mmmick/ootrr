@@ -12,6 +12,7 @@ use ootrr_core::settings::seed::SeedFile;
 use ootrr_core::slice;
 
 use crate::api_validate::{self, Report};
+use crate::game_source::{self, Prepared, Side, Source};
 use crate::body;
 use crate::error::{Fail, Hr};
 use crate::jobs::{Ctl, Jobs};
@@ -30,13 +31,16 @@ fn inside(inner: &PB, outer: &PB) -> bool {
 
 pub struct Plan {
     pub seed: SeedFile,
-    pub romfs: PB,
     pub load: PB,
     pub name: String,
     pub target: PB,
     pub host: Host,
     pub cos: Cosmetics,
     pub spoiler: Option<String>,
+    /// Where the game files come from; `romfs` is only its display path.
+    pub source: Source,
+    /// Add the v1.1.1 update's own files to the mod.
+    pub with_update: bool,
 }
 
 pub const SPOILER_FILE: &str = "Spoiler.txt";
@@ -65,16 +69,26 @@ fn mods_slot(md: &PB, game: &PB, romfs: &PB) -> bool {
 pub fn plan(b: &Json) -> Hr<Plan> {
     let seed: SeedFile = SeedFile::parse(body::text(b, "seed_text")?)?;
     let game: PB = pathsafe::abs(body::short(b, "game_dir")?)?;
-    let rep: Report = api_validate::inspect(&game);
+    let upd: Option<PB> = api_validate::opt_path(body::opt_text(b, "update_dir")?)?;
+    let rep: Report = api_validate::inspect_with(&game, upd.as_deref());
     if !rep.ok {
-        return Err(refuse(&format!("Game folder: {}", rep.problems.join(" "))));
+        let mut why: Vec<String> = rep.problems.clone();
+        if !rep.update_problems.is_empty() {
+            why.push(format!("Update folder: {}", rep.update_problems.join(" ")));
+        }
+        return Err(refuse(&format!("Game folder: {}", why.join(" "))));
+    }
+    let source: Source = rep.source.clone().ok_or_else(|| refuse("Game folder: it could not be checked."))?;
+    let with_update: bool = b.get("include_update").and_then(|x| x.as_bool()) == Some(true);
+    if with_update && !source.has_update() {
+        return Err(refuse("Update folder: there is no separate v1.1.1 update to add to the mod."));
     }
     let host: Host = match body::opt_text(b, "host")? {
         None | Some("") => Host::Eden,
         Some(s) => Host::parse(s).ok_or_else(|| refuse("Host: use eden, hookshot, longshot or nx2navi."))?,
     };
     let md: PB = pathsafe::abs(body::short(b, "mod_dir")?)?;
-    let romfs: PB = rep.romfs.clone().unwrap_or_else(|| game.clone());
+    let real: PB = rep.romfs.clone().unwrap_or_else(|| game.clone());
     if host.flat() && !md.is_dir() && md.file_name().and_then(|n| n.to_str()) == Some("mods") {
         fs::create_dir_all(&md).map_err(|_| refuse("Mod folder: could not create the mods folder."))?;
     }
@@ -85,8 +99,14 @@ pub fn plan(b: &Json) -> Hr<Plan> {
     if !pathsafe::mod_name_ok(name) {
         return Err(refuse("Mod name: use 1 to 64 letters, digits, spaces and _ - ! . characters, with no spaces at the ends."));
     }
-    if inside(&md, &game) || inside(&md, &romfs) {
-        if !host.flat() || !mods_slot(&md, &game, &romfs) {
+    if let Some(Side::Folder(u)) = &source.update
+        && let Some(u) = u.parent()
+        && inside(&md, &u.to_path_buf())
+    {
+        return Err(refuse("Mod folder: it may not be inside the v1.1.1 update folder."));
+    }
+    if inside(&md, &game) || inside(&md, &real) {
+        if !host.flat() || !mods_slot(&md, &game, &real) {
             return Err(refuse("Mod folder: it may not be inside the game folder. Hookshot, Longshot and NX2navi use the game's mods folder."));
         }
     }
@@ -113,7 +133,7 @@ pub fn plan(b: &Json) -> Hr<Plan> {
         Some(t) => Some(t.to_string()),
     };
     let target: PB = if host.flat() { md.join(name) } else { md.join(TITLE_ID).join(name) };
-    Ok(Plan { seed, romfs, load: md, name: name.to_string(), target, host, cos, spoiler })
+    Ok(Plan { seed, load: md, name: name.to_string(), target, host, cos, spoiler, source, with_update })
 }
 
 pub fn run(jobs: &Arc<Jobs>, b: &Json) -> Hr<Json> {
@@ -123,12 +143,38 @@ pub fn run(jobs: &Arc<Jobs>, b: &Json) -> Hr<Json> {
     let id: u64 = jobs.start(move |c: &Ctl| {
         c.begin(&format!("Seed file checked, {n} placements"));
         c.ok(10);
+        if let Some(s) = p.source.step() {
+            c.begin(s);
+        }
+        let game: Prepared = match game_source::prepare(&p.source, p.cos.music != Music::Off || p.cos.sfx != Sfx::Off) {
+            Ok(g) => g,
+            Err(e) => {
+                c.mark("failed");
+                c.finish("failed", &e);
+                return;
+            }
+        };
+        let romfs: PB = game.romfs.clone();
         c.begin("Read the game files and edit the chests");
-        match slice::build_for(&p.seed, &p.romfs, &p.load, &p.name, p.host) {
+        match slice::build_for(&p.seed, &romfs, &p.load, &p.name, p.host) {
             Ok(mut built) => {
+                c.begin("Draw the Randomizer line under the title logo");
+                match ootrr_core::title_logo::apply(&built.root, &romfs) {
+                    Ok(notes) => {
+                        for n in notes {
+                            built.report.push_str(&format!("{n}
+"));
+                        }
+                    }
+                    Err(e) => {
+                        c.mark("failed");
+                        c.finish("failed", &e.to_string());
+                        return;
+                    }
+                }
                 if p.cos.any() {
                     c.begin("Write the cosmetic changes");
-                    match cosmetic::apply(&built.root, &p.romfs, &p.cos, &p.seed.seed) {
+                    match cosmetic::apply(&built.root, &romfs, &p.cos, &p.seed.seed) {
                         Ok(notes) => {
                             for n in notes {
                                 built.report.push_str(&format!("{n}
@@ -151,6 +197,17 @@ pub fn run(jobs: &Arc<Jobs>, b: &Json) -> Hr<Json> {
                 }
                 if p.spoiler.is_some() {
                     built.report.push_str(&format!("Spoiler log: {}\n", pathsafe::text(&built.root.join(SPOILER_FILE))));
+                }
+                if p.with_update {
+                    c.begin("Add the v1.1.1 update files to the mod");
+                    match game_source::add_update(&p.source, &built.root) {
+                        Ok(n) => built.report.push_str(&format!("Added {n} v1.1.1 update files to the mod. Do not share this mod: it now holds game files.\n")),
+                        Err(e) => {
+                            c.mark("failed");
+                            c.finish("failed", &format!("The mod was written, but the v1.1.1 update files could not be added: {e}"));
+                            return;
+                        }
+                    }
                 }
                 c.ok(95);
                 c.begin("Mod files written");

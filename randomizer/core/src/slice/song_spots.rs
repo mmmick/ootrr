@@ -156,7 +156,7 @@ mod tests {
         for n in 0..2 {
             let g: Generated = generate_data(&d, &s, &format!("room for deals {n}"), &GenOpts::default()).unwrap_or_else(|e| panic!("{n}: {e}"));
             let songs: usize = g.seed_file.placements.values().filter(|i| d.item(i).is_some_and(is_song_item)).count();
-            assert_eq!(songs, 11, "{n}");
+            assert_eq!(songs, 12, "{n}");
             assert!(g.seed_file.shops.values().filter(|e| e.deal).count() > 0, "{n}");
         }
     }
@@ -171,10 +171,15 @@ mod tests {
         let m: BM<String, String> = pairs.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect();
         let s: SeedFile = SeedFile::new("s", &Settings::default(), "g", m).unwrap();
         let w: BM<String, Want> = need(&d, &s, &BM::new()).unwrap();
-        let names: Vec<&str> = w.keys().map(|k| k.as_str()).collect();
-        assert_eq!(names, vec!["Obj_Melody_SariaSong_GH", "Obj_Melody_SunSong"]);
+        // Besides the placed songs' packs, every seed builds the song and Ocarina pickups the story
+        // skips hold up (crate::ocarina_hold::wanted).
+        let scene: Vec<String> = crate::ocarina_hold::wanted(&d, &s).into_iter().map(|(_, p)| p.pack).collect();
+        for x in ["Obj_Melody_SariaSong_GH", "Obj_Melody_SunSong"] {
+            assert!(w.contains_key(x), "{x}");
+        }
+        assert!(w.keys().all(|k| ["Obj_Melody_SariaSong_GH", "Obj_Melody_SunSong"].contains(&k.as_str()) || scene.contains(k)), "{:?}", w.keys());
         assert_eq!(w["Obj_Melody_SunSong"].kind, Kind::Free);
-        for x in w.values() {
+        for x in ["Obj_Melody_SariaSong_GH", "Obj_Melody_SunSong"].map(|k| &w[k]) {
             assert_eq!(x.spec().unwrap().1.model.as_deref(), Some(crate::pickup_pack::model::HARP));
         }
     }

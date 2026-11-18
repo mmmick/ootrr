@@ -236,13 +236,13 @@ mod tests {
     #[test]
     fn the_table_loads_with_every_kind() {
         let t: &[Target] = all().unwrap();
-        assert_eq!(t.len(), 1562);
+        assert_eq!(t.len(), 1550);
         let mut n: BTreeMap<&str, usize> = BTreeMap::new();
         for x in t {
             *n.entry(x.kind.as_str()).or_insert(0) += 1;
         }
         assert_eq!(n["pot"], 469);
-        assert_eq!((n["rock"], n["grass"]), (146, 92));
+        assert_eq!((n["rock"], n["grass"]), (134, 92));
         assert_eq!(n["chest"], 204);
         assert_eq!(n["shop"], 64);
         assert_eq!(n.len(), KINDS.len());

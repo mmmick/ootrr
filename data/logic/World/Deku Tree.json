@@ -4,11 +4,11 @@
         "dungeon": "Deku Tree",
         "locations": {
             "Deku Tree Map Chest": "True",
-            "Deku Tree Compass Chest": "True",
-            "Deku Tree Compass Room Side Chest": "True",
+            "Deku Tree Compass Chest": "(can_use(Slingshot) or can_use(Boomerang)) and (is_adult or can_child_attack)",
+            "Deku Tree Compass Room Side Chest": "(can_use(Slingshot) or can_use(Boomerang)) and (is_adult or can_child_attack)",
             "Deku Tree Lower Lobby Recovery Heart": "True",
             "Deku Tree Upper Lobby Recovery Heart": "is_adult or can_child_attack or Nuts",
-            "Deku Tree GS Compass Room": "is_adult or can_child_attack",
+            "Deku Tree GS Compass Room": "(can_use(Slingshot) or can_use(Boomerang)) and (is_adult or can_child_attack)",
             "Deku Baba Sticks": "is_adult or Kokiri_Sword or Boomerang",
             "Deku Baba Nuts": "
                 is_adult or Slingshot or Sticks or
@@ -16,7 +16,7 @@
         },
         "exits": {
             "KF Outside Deku Tree": "True",
-            "Deku Tree Slingshot Room": "here(has_shield)",
+            "Deku Tree Slingshot Room": "here(can_hit_deku_scrub)",
             "Deku Tree Basement": "deku_tree_shortcuts or here(is_adult or can_child_attack or Nuts)",
             "Farores Wind Warp": "can_use(Farores_Wind)"
         }
@@ -41,8 +41,8 @@
         },
         "exits": {
             "Deku Tree Basement Back Room": "
-                here(has_fire_source_with_torch or can_use(Bow)) and
-                here(can_use(Slingshot) or can_use(Bow))",
+                here(has_fire_source_with_torch or can_use(Bow) or has_explosives) and
+                here(can_use(Slingshot) or can_use(Boomerang) or can_use(Bow))",
             "Deku Tree Basement Ledge": "deku_tree_shortcuts or here(is_adult) or logic_deku_b1_skip"
         }
     },
@@ -51,8 +51,8 @@
         "dungeon": "Deku Tree",
         "locations": {
             "Deku Tree GS Basement Back Room": "
-                here(has_fire_source_with_torch or can_use(Bow)) and
-                here(can_use(Slingshot) or can_use(Bow))"
+                here(has_fire_source_with_torch or can_use(Bow) or has_explosives) and
+                here(can_use(Slingshot) or can_use(Boomerang) or can_use(Bow))"
         },
         "exits": {
             "Deku Tree Basement Ledge": "is_child"
@@ -80,7 +80,7 @@
         },
         "exits": {
             "Deku Tree Basement Ledge": "deku_tree_shortcuts or logic_visible_collisions",
-            "Queen Gohma Boss Room": "deku_tree_shortcuts or here(has_shield)"
+            "Queen Gohma Boss Room": "deku_tree_shortcuts or here(can_hit_deku_scrub)"
         }
     }
 ]

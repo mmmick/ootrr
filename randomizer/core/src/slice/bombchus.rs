@@ -196,7 +196,7 @@ mod tests {
         let f: ItemId = w.item("Rupees (5)").unwrap();
         let mut stuck_off: usize = 0;
         let mut stuck_bare: usize = 0;
-        for n in 0..3 {
+        for n in 0..6 {
             let seed: String = format!("probe {n}");
             let on: Generated = generate_data(&d, &wide(true), &seed, &GenOpts::default()).unwrap();
             let off: Generated = generate_data(&d, &wide(false), &seed, &GenOpts::default()).unwrap();

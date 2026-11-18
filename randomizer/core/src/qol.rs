@@ -435,7 +435,7 @@ mod tests {
             let z: Vec<u8> = std::fs::read(at(p, poe::FILE)).unwrap();
             Bf::parse(&rf.zs.decompress(&z).unwrap()).unwrap()
         };
-        let base: Vec<(&str, Value)> = vec![("shuffle_rewards", Value::s("supported")), ("shuffle_dungeon_rewards", Value::Bool(true))];
+        let base: Vec<(&str, Value)> = vec![("shuffle_rewards", Value::s("supported")), ("shuffle_dungeon_rewards", Value::s("anywhere"))];
         let mut on: Vec<(&str, Value)> = base.clone();
         on.push((POE, Value::Bool(true)));
         let a: std::path::PathBuf = built(&root, &with(&base), "qol poe", "OOTRR Qol Poe Off Test");

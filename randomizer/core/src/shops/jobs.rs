@@ -4,12 +4,11 @@ use crate::shops::data::{table, Shop, Slot, Table};
 use crate::progressive::FAMILIES;
 use crate::shops::layout::Layout;
 use crate::shops::rules::{class, Class};
-use std::collections::BTreeMap as BM;
 use crate::slice::data::Data;
 
 pub fn job(t: &Table, s: &Slot, what: What) -> Res<Job> {
     let sh: &Shop = t.shop(&s.shop).ok_or_else(|| E::Msg(format!("{} has no shop", s.name)))?;
-    Ok(Job { label: s.name.clone(), shop: s.shop.clone(), slot: s.slot, keepers: sh.keepers.clone(), bancs: sh.bancs.clone(), counters: s.counters.clone(), what })
+    Ok(Job { label: s.name.clone(), shop: s.shop.clone(), slot: s.slot, keepers: sh.keepers.clone(), bancs: sh.bancs.clone(), counters: s.counters.clone(), what, tiered: None })
 }
 
 pub fn deal(d: &Data, item: &str, tier: Option<&str>, price: i32) -> Res<What> {
@@ -34,17 +33,27 @@ pub fn donor(t: &Table, actor: &str) -> Option<String> {
     t.donors.iter().find(|(a, _)| a == actor).map(|(_, m)| m.clone())
 }
 
-pub fn of(d: &Data, l: &Layout, tiers: &BM<String, String>) -> Res<Vec<Job>> {
+/// The upgrade family a shelf deal of `item` sells tier by tier (shelf::hook), if it is one.
+pub fn tiered_family(d: &Data, item: &str) -> Option<&'static str> {
+    (class(d, item) == Some(Class::Upgrade)).then(|| d.family(item)).flatten()
+}
+
+/// One job per shelf slot of the seed's layout. A deal of an upgrade stands with the family's
+/// first tier and is marked tiered: the shop names and gives the next tier at run time.
+pub fn of(d: &Data, l: &Layout) -> Res<Vec<Job>> {
     let t: &Table = table()?;
     let mut out: Vec<Job> = Vec::new();
     for s in &t.slots {
         let p = l.get(&s.name).ok_or_else(|| E::Msg(format!("the shop layout has no entry for {}", s.name)))?;
-        let what: What = if p.deal {
-            deal(d, &p.item, tiers.get(&s.name).map(|x| x.as_str()), p.price)?
-        } else {
-            What::Goods { actor: p.actor.clone(), price: p.price }
+        let tiered: Option<&'static str> = if p.deal { tiered_family(d, &p.item) } else { None };
+        let what: What = match (p.deal, tiered) {
+            (true, Some(f)) => deal(d, &p.item, crate::progressive::tiers(f)?.first().copied(), p.price)?,
+            (true, None) => deal(d, &p.item, None, p.price)?,
+            (false, _) => What::Goods { actor: p.actor.clone(), price: p.price },
         };
-        out.push(job(t, s, what)?);
+        let mut j: Job = job(t, s, what)?;
+        j.tiered = tiered;
+        out.push(j);
     }
     Ok(out)
 }
@@ -81,7 +90,7 @@ mod tests {
         let mut l: Layout = make(&Opts { level: Level::Deals(1), prices: Prices::Affordable, min: 10, max: 10, kinds: crate::shops::plan::Kinds::default() }, "jobs", crate::shops::layout::Room::any(64)).unwrap();
         let got: BM<String, String> = l.deals().map(|p| (p.loc.clone(), "Hover Boots".to_string())).collect();
         fill_deals(&mut l, &got).unwrap();
-        let js: Vec<Job> = of(&d, &l, &BM::new()).unwrap();
+        let js: Vec<Job> = of(&d, &l).unwrap();
         assert_eq!(js.len(), 64);
         let deals: Vec<&Job> = js.iter().filter(|j| matches!(j.what, What::Deal { .. })).collect();
         assert_eq!(deals.len(), 6);

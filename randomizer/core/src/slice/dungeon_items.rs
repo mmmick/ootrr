@@ -48,7 +48,7 @@ use crate::world::{LocId, World};
 
 pub const BOSS_OK: [&str; 7] = ["remove", "vanilla", "dungeon", "regional", "overworld", "any_dungeon", "keysanity"];
 pub const MAP_OK: [&str; 7] = ["remove", "startwith", "vanilla", "dungeon", "regional", "any_dungeon", "keysanity"];
-pub const GANON_OK: [&str; 7] = BOSS_OK;
+pub const GANON_OK: [&str; 8] = ["remove", "vanilla", "dungeon", "regional", "overworld", "any_dungeon", "keysanity", crate::lacs_key::VALUE];
 
 pub const BOSS_DUNGEONS: [&str; 5] = ["ForestTemple", "FireTemple", "WaterTemple", "ShadowTemple", "SpiritTemple"];
 pub const GANON: &str = "InsideGanonCastle";
@@ -125,6 +125,7 @@ pub fn keep_value(v: &str) -> Keep {
         "keysanity" => Keep::Anywhere,
         "overworld" => Keep::Overworld,
         "regional" => Keep::Regional,
+        crate::lacs_key::VALUE => Keep::Lacs,
         _ => Keep::Start,
     }
 }
@@ -183,14 +184,11 @@ pub fn allowed(d: &Data, w: &World, p: &Plan, i: &Item, l: LocId) -> bool {
         Keep::Overworld => here.is_none(),
         Keep::Regional => here == i.dungeon.as_deref() || near(d, i, name),
         Keep::Anywhere | Keep::Start => true,
-        Keep::Vanilla | Keep::Dungeon => false,
+        Keep::Vanilla | Keep::Dungeon | Keep::Lacs => false,
     };
-    spot
-        && i.dungeon.is_some()
-        && d.flow.by_name(name).is_none()
-        && !d.special(name)
-        && chest_ok(d, name)
-        && d.cat.by_name(name).is_some_and(|c| c.kind == "chest")
+    // A gift scene hands a dungeon item out through crate::gift_keys, a chest through its own credit.
+    let chest: bool = d.flow.by_name(name).is_none() && !d.special(name) && chest_ok(d, name) && d.cat.by_name(name).is_some_and(|c| c.kind == "chest");
+    spot && i.dungeon.is_some() && (chest || crate::gift_keys::spot(d, name))
 }
 
 pub fn chest_ok(d: &Data, name: &str) -> bool {
@@ -231,7 +229,7 @@ pub fn start_flags(p: &Plan) -> Vec<(String, bool)> {
 }
 
 pub fn notes(boss: Keep, ganon: Keep, map: Keep) -> Vec<String> {
-    let roam = |k: Keep| free(k) && k != Keep::Start;
+    let roam = |k: Keep| free(k) && k != Keep::Start && k != Keep::Lacs;
     let mut out: Vec<String> = Vec::new();
     for (on, t) in [
         (roam(boss) || roam(ganon), ROAM_BOSS),
@@ -258,6 +256,10 @@ pub fn grants(d: &Data, seed: &SeedFile, p: &Plan) -> Res<Grants> {
     let sweep: Vec<Kind> = KINDS.iter().copied().filter(|k| keeps(p, *k).into_iter().any(|x| credited(x) && x != Keep::Start)).collect();
     let mut credits: BM<u64, (Kind, &'static str)> = BM::new();
     for (loc, item) in &seed.placements {
+        // Gift scenes give dungeon items through their own scene edit (crate::gift_keys).
+        if crate::gift_keys::spot(d, loc) {
+            continue;
+        }
         let Some(i) = d.item(item) else {
             continue;
         };
@@ -474,7 +476,11 @@ mod tests {
                 let Some(i) = d.item(item).filter(|i| Kind::of(&i.kind).is_some_and(|k| gr.sweep.contains(&k))) else {
                     continue;
                 };
-                for r in &d.cat.by_name(loc).unwrap().refs {
+                // A reward event holding a dungeon item (#24) is credited by crate::gift_keys.
+                let Some(c) = d.cat.by_name(loc) else {
+                    continue;
+                };
+                for r in &c.refs {
                     assert_eq!(gr.credits.get(&r.hash).map(|c| c.1), i.dungeon.as_deref().and_then(struct_of), "{item} at {loc}");
                 }
             }
@@ -563,7 +569,11 @@ mod tests {
             };
             let k: Kind = Kind::of(&i.kind).unwrap();
             let want: &str = i.dungeon.as_deref().and_then(struct_of).unwrap();
-            for r in &d.cat.by_name(loc).unwrap().refs {
+            // A reward event holding a dungeon item (#24) is credited by crate::gift_keys.
+            let Some(c) = d.cat.by_name(loc) else {
+                continue;
+            };
+            for r in &c.refs {
                 for f in &r.files {
                     let old: Byml = Byml::parse(&rf.read_zs(f).unwrap()).unwrap();
                     let new: Byml = Byml::parse(&rf.zs.decompress(&std::fs::read(out.join(f)).unwrap()).unwrap()).unwrap();
@@ -588,6 +598,10 @@ mod tests {
                 let Some(i) = d.item(item).filter(|i| Kind::of(&i.kind).is_some_and(|k| gr.sweep.contains(&k))) else {
                     continue;
                 };
+                // A reward event holding a dungeon item (#24) is credited by crate::gift_keys.
+                if d.cat.by_name(loc).is_none() {
+                    continue;
+                }
                 let k: Kind = Kind::of(&i.kind).unwrap();
                 let want: &str = i.dungeon.as_deref().and_then(struct_of).unwrap();
                 for bf in [&big, &small] {

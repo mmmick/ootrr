@@ -57,7 +57,7 @@ impl Romfs {
             for e in fs::read_dir(&d)? {
                 let e: fs::DirEntry = e?;
                 let p: PB = e.path();
-                if e.file_type()?.is_dir() {
+                if e.file_type()?.is_dir() || p.is_dir() {
                     stack.push(p);
                 } else {
                     let r: &P = p

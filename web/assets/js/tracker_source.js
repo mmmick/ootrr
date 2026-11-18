@@ -167,7 +167,9 @@ export function render_source() {
     go.disabled = true;
     fill(out, h("p", { class: "loading" }, "Starting"));
     try {
-      const body = { save_dir: save.input.value.trim(), game_dir: game.input.value.trim(), slot: slot.value };
+      const g = game.input.value.trim();
+      const update = g === (s.game_dir || "") ? s.update_dir || "" : g === mp.game.trim() ? mp.update.trim() : "";
+      const body = { save_dir: save.input.value.trim(), game_dir: g, update_dir: update, slot: slot.value };
       const r = await t_open(body);
       fill(out, r.save_folder ? notice("ok", `Watching ${r.save_folder}`) : null);
       if (r.job_id) await follow(r.job_id, out);

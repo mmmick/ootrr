@@ -9,6 +9,9 @@ use ootrr_core::settings::seed::SeedFile;
 use crate::tracker::targets::KINDS;
 
 use crate::api_validate::{self, Report};
+use crate::game_source::{self, Prepared, Source};
+use crate::icon_store;
+use crate::tracker::icon_map;
 use crate::body;
 use crate::error::{Fail, Hr};
 use crate::events::{Batch, MAX_WAIT};
@@ -21,22 +24,46 @@ use crate::tracker_view;
 
 const PENDING: u64 = 0;
 
-fn start_index(sh: &Shared, game: PB) -> Hr<u64> {
-    let rep: Report = api_validate::inspect(&game);
+fn start_index(sh: &Shared, game: PB, update: Option<PB>) -> Hr<u64> {
+    let rep: Report = api_validate::inspect_with(&game, update.as_deref());
     if !rep.ok {
-        return Err(Fail::new(422, &format!("Game folder: {}", rep.problems.join(" "))));
+        let mut why: Vec<String> = rep.problems.clone();
+        if !rep.update_problems.is_empty() {
+            why.push(format!("Update folder: {}", rep.update_problems.join(" ")));
+        }
+        return Err(Fail::new(422, &format!("Game folder: {}", why.join(" "))));
     }
-    let romfs: PB = rep.romfs.clone().unwrap_or_else(|| game.clone());
+    let source: Source = rep.source.clone().ok_or_else(|| Fail::new(422, "Game folder: it could not be checked."))?;
     let t: Arc<Tracker> = Arc::clone(&sh.tracker);
     t.lock().job = Some(PENDING);
     let id: u64 = sh.jobs.start(move |c: &Ctl| {
+        if let Some(s) = source.step() {
+            c.begin(s);
+        }
+        let prep: Prepared = match game_source::prepare(&source, false) {
+            Ok(p) => p,
+            Err(e) => {
+                c.mark("failed");
+                t.index_failed(&e);
+                c.finish("failed", &e);
+                return;
+            }
+        };
+        let romfs: PB = prep.romfs.clone();
         c.begin("Read the map data from your game folder and place every location");
         match t.load_or_build(&romfs) {
             Ok(ix) => {
                 let ix: Index = ix;
                 let n: usize = ix.locs.iter().filter(|l| !l.pins.is_empty()).count();
+                if source.packed() {
+                    c.begin("Draw the item icons before the unpacked files are removed");
+                    let cache: Option<PB> = t.data.as_ref().map(|d| icon_store::cache_dir(d, &ix.game));
+                    for s in icon_map::all() {
+                        let _ = t.icons.get(&romfs, cache.as_deref(), s.id);
+                    }
+                }
                 c.ok(100);
-                t.set_index(game, ix);
+                t.set_index(game, update, romfs, ix);
                 c.finish("done", &format!("{n} locations have a place on a map"));
             }
             Err(e) => {
@@ -55,7 +82,7 @@ fn start_index(sh: &Shared, game: PB) -> Hr<u64> {
 
 pub fn ensure(sh: &Shared) {
     let _held: MutexGuard<'_, ()> = sh.tracker.boot();
-    let (game, save, slot): (Option<PB>, Option<PB>, Option<String>) = sh.tracker.load_saved();
+    let (game, update, save, slot): (Option<PB>, Option<PB>, Option<PB>, Option<String>) = sh.tracker.load_saved();
     sh.tracker.start_live();
     if let Some(s) = save
         && let Err(e) = sh.tracker.watch(s, slot)
@@ -63,7 +90,7 @@ pub fn ensure(sh: &Shared) {
         sh.tracker.lock().src.error = Some(e.to_string());
     }
     if let Some(g) = game
-        && let Err(f) = start_index(sh, g)
+        && let Err(f) = start_index(sh, g, update)
     {
         sh.tracker.lock().index_error = Some(f.msg);
     }
@@ -84,7 +111,8 @@ pub fn open(sh: &Shared, b: &Json) -> Hr<Json> {
         out.put("save_folder", pathsafe::text(&root).into());
     }
     if let Some(s) = body::opt_text(b, "game_dir")?.filter(|s| !s.is_empty()) {
-        let id: u64 = start_index(sh, pathsafe::abs(s)?)?;
+        let update: Option<PB> = api_validate::opt_path(body::opt_text(b, "update_dir")?)?;
+        let id: u64 = start_index(sh, pathsafe::abs(s)?, update)?;
         out.put("job_id", Json::Int(id as i64));
     }
     Ok(out.with("ok", true.into()))

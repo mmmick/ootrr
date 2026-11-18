@@ -1,5 +1,6 @@
 pub mod apply;
 pub mod data;
+pub mod kf_ring;
 pub mod persist;
 pub mod pick;
 pub mod pickup;

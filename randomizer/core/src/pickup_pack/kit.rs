@@ -256,6 +256,8 @@ pub fn plan_with(packs: &[Vec<Entry>], s: &Spec, l: &Layers) -> Res<Plan> {
         make_with(&p, s, l)?
     };
     let m: Made = with_kit(&p, first, hangs(&s.name))?;
+    // A shipped pickup keeps its own body; an item model is lifted off the ground.
+    let m: Made = if l.spin && !from_pickup { crate::pickup_pack::lift::ground(&p, m, &s.name, l.lift)? } else { m };
     let mut fresh: Vec<(String, usize)> = Vec::new();
     for (f, d) in [&m.actor, &m.pouch].into_iter().chain(m.extra.iter()) {
         if p.get(f).is_some() {
@@ -646,6 +648,8 @@ pub fn run_with(romfs: &P, load: &P, mod_name: &str, s: &Spec, o: &Opts, drops: 
         }
         packs.push(sarc::parse(&rf.read_zs(&pack_of(m))?)?);
     }
+    let lifted: Layers = crate::pickup_pack::lift::layers(&mut rf, &s.item, l)?;
+    let l: &Layers = &lifted;
     let pl: Plan = plan_with(&packs, s, l)?;
     let (mut rst, modded): (Rst, bool) = size_table(&mut rf, o)?;
     let mut note: String = String::new();

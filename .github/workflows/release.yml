@@ -164,7 +164,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NOTES: |
-            Pre-release for testing. 0.6.2 reorganizes the settings menu into Logic and Goal, World, Dungeons, Shuffle, Gameplay and In Dev, with options that are not ready grayed out. Shopsanity now works like the N64 randomizer, with 0 to 4 items per shop and prices set by the wallet that pays them, and there are new options for Shuffle Merchants and for scrub and merchant prices and hint text. The remake only chests, pots and crates now follow the Chests, Pots and Crates settings, and one Shuffle Cows setting covers all eight cows. Pots, crates, rocks, grass, beehives and flying pots give their item once and stay broken, so a key item can no longer be collected twice, but an item you leave behind is lost, so save before breaking them. They stay experimental. Shop deals sell upgrades in reach order instead of the top tier. More cutscenes are skipped (Saria's gift, burning Kakariko into the Nocturne, the tutorials and the Fire Temple ending), Epona's Song can register Epona, double magic gives the small meter first, more Bows, Bomb Bags and Slingshots are in the pool, bombs from chests no longer act as a Bomb Bag, the map works with open Kakariko, Navi Warp out of a boss room no longer leaves the door shut and Gold Skulltula rewards stay where the token was. The music, sound effect and colour randomizers were rebuilt and should now change the game. New defaults: boss Heart Containers, More NPC rewards and Return with Navi are on, the Deku Tree bridge is off. Almost none of this has been played in game yet, so please report what breaks. Seeds made with older versions will not build, generate them again. If a seed locks you out, post the settings string, the seed and the spot name in the bug reports channel.
+            0.7.0 shuffles more of the game. Dungeon Rewards can stay vanilla, go to the end of dungeons or go anywhere. The Rainbow Bridge and a new Ganon's Boss Key: LACS option can count Stones and Medallions, and with the LACS option the Light Arrows join the pool. Reward events (NPCs, minigames, Skulltula rewards, Great Fairies, cutscenes) now take any item a chest can, dungeon items included, and give it with the standard item get instead of the long scenes, Sheik's songs and the song lessons included. Darunia's Joy, Bolero of Fire and the Ocarina are shuffled, and every progressive Bow, Bomb Bag and Slingshot is in the pool. Shop shelves that hold an upgrade sell the next tier you don't have yet, once per shelf. Great Fairies give their reward once and straight away, Epona becomes yours after the first Epona's Song as adult, and holding the Gerudo Card makes the fortress guards passive and the Gerudo treat you as a member. Ground, pot and Skulltula pickups turn in place and glint like the Heart Piece. A Randomizer line shows under the title logo, and the mod is about 107 MB instead of 190 MB. Song harps show the colour of their song. The installer accepts a v1.0.0 game with a separate v1.1.1 update, and .nup or .nx packages. Fixes: crashes with the Ocarina from Anju, Sheik at Bolero and loading the Gerudo Fortress; Epona's Song no longer makes a new Epona at every Ocarina use; Darunia dances after Dodongo's Cavern; the Kokiri Forest rock ring stays the same for each age; seeds without shuffled chests generate again. The Deku Tree and Dodongo's Cavern logic now matches the remake. Much of this has not been played in game yet, so please report what breaks. Seeds made with older versions will not build, generate them again. If a seed locks you out, post the settings string, the seed and the spot name in the bug reports channel.
 
             OOTRR ${{ needs.version.outputs.version }} shuffles chests, and optionally boss hearts, songs, story and NPC rewards, with gossip hints, faster pickups, a start reward, an open Kokiri Forest, a plandomizer and small keys in any dungeon or anywhere. The new game intro is skipped by default.
 
@@ -176,10 +176,15 @@ jobs:
         run: |
           if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
             gh release upload "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --clobber
+            gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+              --title "OOTRR ${{ needs.version.outputs.version }}" \
+              --notes "$NOTES" \
+              --prerelease=false \
+              --latest
           else
             gh release create "${GITHUB_REF_NAME}" dist/* \
               --repo "${GITHUB_REPOSITORY}" \
               --title "OOTRR ${{ needs.version.outputs.version }}" \
               --notes "$NOTES" \
-              --prerelease
+              --latest
           fi

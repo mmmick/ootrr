@@ -218,6 +218,7 @@ pub fn targets(loc: &str, item: &str) -> Res<Option<Vec<Target>>> {
                 ev: None,
                 family: None,
                 key: None,
+                heart_chest: false,
             })
             .collect(),
     ))

@@ -240,6 +240,23 @@ mod tests {
     }
 
     #[test]
+    fn the_fortress_gatekeeper_opens_the_gate_without_moving_the_spirit_quest() {
+        let Some(r) = root() else { return };
+        let mut rf: Romfs = Romfs::open(&r).unwrap();
+        let mut fl: HM<String, Flow> = edited(&mut rf, "Kak 20 Gold Skulltula Reward", NEW).unwrap();
+        fl.retain(|k, _| k == "Npc_Gerudo_006");
+        assert_eq!(fl.len(), 1);
+        let sc: Scene = scene("Npc_Gerudo_006", "Talk", &[("Step_SageOfSpirit", "Step01")], &[("Item_Token_Gerudo", 1)]);
+        let text = |fins: &[Fin]| -> Vec<String> { fins.iter().filter(|f| f.end == End::Done).map(|f| lines(&f.m.log).into_iter().map(|(_, t)| t).collect::<Vec<_>>().join("\n")).collect() };
+        let a: Vec<String> = text(&run(&mut sim(&r, HM::new()).unwrap(), &sc).unwrap());
+        let b: Vec<String> = text(&run(&mut sim(&r, fl).unwrap(), &sc).unwrap());
+        assert!(a.iter().any(|t| t.contains("request SageOfSpirit")), "{a:#?}");
+        assert!(!b.is_empty());
+        assert!(b.iter().all(|t| !t.contains("request SageOfSpirit")), "{b:#?}");
+        assert!(b.iter().any(|t| t.contains("transition to event Dm_Gerudo_0030")), "{b:#?}");
+    }
+
+    #[test]
     fn rolling_goron_gives_the_item_without_a_bomb_bag() {
         let Some(r) = root() else { return };
         let sc: Scene = scene("Npc_Goron_006_Child", "Talk", &[("GoronCity_StopGoron006", "true"), ("GoronCity_GetBombBag_fromGoron006", "false")], &[]);

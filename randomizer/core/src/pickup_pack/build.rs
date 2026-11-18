@@ -38,6 +38,7 @@ pub fn plan_with(packs: &[Vec<Entry>], s: &Spec, l: &Layers) -> Res<Plan> {
     }
     let peers: Vec<(String, usize)> = p.files.iter().map(|e| (e.0.clone(), e.1.len())).collect();
     let m: Made = make_with(&p, s, l)?;
+    let m: Made = if l.spin { crate::pickup_pack::lift::ground(&p, m, &s.name, l.lift)? } else { m };
     let mut fresh: Vec<(String, usize)> = Vec::new();
     for (f, d) in [&m.actor, &m.pouch].into_iter().chain(m.extra.iter()) {
         if p.get(f).is_some() {

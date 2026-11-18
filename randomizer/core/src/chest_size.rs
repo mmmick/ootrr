@@ -14,7 +14,7 @@ pub const SETTING: &str = "chests_match_contents";
 /// chests, the minigame chests, A_03 and A_04) keep their model.
 pub const PAIRS: [(&str, &str); 2] = [("Obj_TBox_A_01", "Obj_TBox_A_02"), ("Obj_TBox_A_01_NoBake", "Obj_TBox_A_02_NoBake")];
 
-pub const NOTE: &str = "Chest size matches contents: chests holding progression items, songs, stones, medallions, boss keys, keys away from their own dungeon and shields or capacity upgrades you do not start with are big, the rest are small. Boss heart chests and summoned chests (Jabu Boomerang, Iron Boots, Ice Arrows, Silver Gauntlets, Dampe race) follow the same rule. Story-scene chests, invisible chests and other special models keep their size. Experimental, untested in the game.";
+pub const NOTE: &str = "Chest size matches contents: chests holding progression items, songs, stones, medallions, boss keys, keys away from their own dungeon and shields or capacity upgrades you do not start with are big, the rest are small. Boss hearts that fall back to a chest and summoned chests (Jabu Boomerang, Iron Boots, Ice Arrows, Silver Gauntlets, Dampe race) follow the same rule. Story-scene chests, invisible chests and other special models keep their size. Experimental, untested in the game.";
 
 pub const AREAS: [&str; 2] = ["DropKeepAwayArea_TBox_A_01", "DropKeepAwayArea_TBox_A_02"];
 

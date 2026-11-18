@@ -69,7 +69,7 @@ mod tests {
         let Some(mut rf) = real() else {
             return;
         };
-        let mut more: Vec<Out> = sm::stage(&mut rf).unwrap();
+        let mut more: Vec<Out> = sm::stage(&mut rf, false).unwrap();
         let n: usize = more.len();
         stage(&mut rf, &mut more, None).unwrap();
         assert_eq!(more.len(), n + 1);

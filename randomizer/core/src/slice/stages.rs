@@ -75,7 +75,7 @@ fn songs(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
 
 fn song_models(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
     if c.p.songs == Songs::Anywhere {
-        more.extend(crate::song_models::stage(rf)?);
+        more.extend(crate::song_models::stage(rf, c.p.harp_colors)?);
     }
     Ok(())
 }
@@ -88,7 +88,7 @@ fn scarecrow_model(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
 }
 
 fn hints(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
-    if c.p.hints || c.roam || c.p.npc.any() {
+    if c.p.hints || c.roam || c.p.npc.any() || !c.keys.is_empty() {
         more.extend(crate::hints::stage(rf, c.d, c.seed, c.p.hints, c.keys, &c.p.npc)?);
     }
     Ok(())
@@ -146,6 +146,11 @@ fn pedestal(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
 fn medal_gate(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
     if c.p.rewards.dungeon_rewards {
         crate::medal_gate::stage(rf, more, Some(c.work))?;
+    } else if c.p.lacs.is_some() {
+        crate::medal_gate::stage_lacs(rf, more, Some(c.work))?;
+    }
+    if c.p.rainbow.is_some() {
+        crate::rainbow_bridge::stage(rf, more)?;
     }
     Ok(())
 }
@@ -181,11 +186,22 @@ fn dpad(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
 }
 
 fn pot_rows(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
+    if c.p.drops.rocks != crate::slice::support::Mode::Off {
+        more.push(crate::pot_slice::kf_ring::stage(rf)?);
+    }
     crate::pot_slice::rows::stage(rf, more, c.pots)
 }
 
 fn start_defaults(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
-    crate::start_defaults::stage(rf, more, &crate::start_defaults::presets::chosen(&c.p.defaults())?)
+    let mut edits: Vec<crate::start_defaults::Edit> = crate::start_defaults::presets::chosen(&c.p.defaults())?;
+    if let Some(n) = c.p.lacs {
+        crate::medal_gate::override_lacs(&mut edits, n);
+    }
+    edits.extend(crate::gerudo_card::exps());
+    if let Some(n) = c.p.rainbow {
+        edits.push(crate::rainbow_bridge::exp(n));
+    }
+    crate::start_defaults::stage(rf, more, &edits)
 }
 
 fn scrub_rows(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {

@@ -48,11 +48,14 @@ pub fn bound(d: &Data, item: &str) -> bool {
     d.flow.locs.iter().any(|l| l.gated && !crate::flow_extra::trade::is(&l.name) && !crate::flow_extra::cows::is(&l.name) && !crate::flow_extra::frogs::is(&l.name) && !crate::flow_extra::potion::is(&l.name) && !crate::scrubs_a::is_a(l) && !crate::scrubs_b::is_b(l) && !crate::open_world::skips::is_bean_sale(&l.name) && d.vanilla_of(&l.name) == Some(item) && d.flow_ok(&l.name))
 }
 
-pub fn fits(d: &Data, name: &str, i: &Item) -> bool {
-    if POUCH_ONLY.contains(&name) && !pouch(i) {
-        return false;
-    }
-    !bound(d, &i.name) || d.flow.by_name(name).is_some_and(|l| l.gated)
+/// Whether a gated reward spot can hold `i`. The items bound to a gated reward (bound: the
+/// Biggoron Sword, the Giant's Knife, Kak 20's item) may go anywhere: the Biggoron and Medigoron
+/// edits (data/flow_extra.json) drop the checks that made owning them early close those events
+/// (Biggoron's knife checks, Medigoron's offer on the Biggoron Sword and his stock check on the
+/// knife). An unshuffled Medigoron still closes his Giant's Knife sale on an early Biggoron Sword,
+/// which only glitch logic uses.
+pub fn fits(_d: &Data, name: &str, i: &Item) -> bool {
+    !(POUCH_ONLY.contains(&name) && !pouch(i))
 }
 
 #[cfg(test)]
@@ -119,12 +122,7 @@ mod tests {
             assert!(g.report.contains("structural event edits"));
             for x in SHUFFLED {
                 let it: &str = &g.seed_file.placements[x];
-                assert!(d.item(it).is_some_and(|i| d.flow_accepts(i)), "{x} holds {it}");
-            }
-            for (loc, it) in &g.seed_file.placements {
-                if super::bound(&d, it) {
-                    assert!(SHUFFLED.contains(&loc.as_str()), "{loc} holds {it}");
-                }
+                assert!(d.item(it).is_some_and(|i| crate::slice::flow_rules::allows(&d, x, i)), "{x} holds {it}");
             }
             let medi: &str = &g.seed_file.placements["GC Medigoron"];
             assert!(d.item(medi).is_some_and(super::pouch), "GC Medigoron holds {medi}");

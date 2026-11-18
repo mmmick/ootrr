@@ -75,7 +75,17 @@ pub fn slots(d: &Data, placed: &BM<String, String>) -> Vec<Slot> {
         let Some(f) = d.family(item) else {
             continue;
         };
-        let give: Give = if fixed_spot(d, loc) {
+        // A shelf deal of an upgrade names and gives the next tier at run time (shelf::hook), like
+        // a chest chain.
+        let shelf: bool = crate::shops::is_loc(loc) && crate::shops::jobs::tiered_family(d, item).is_some();
+        let give: Give = if shelf {
+            if covered(d, placed, f) {
+                used.insert(f);
+                Give::Flow
+            } else {
+                Give::Open
+            }
+        } else if fixed_spot(d, loc) {
             Give::Open
         } else if is_sale(d, loc) {
             if crate::scrubs_a::home(d, loc, item) {
@@ -345,8 +355,10 @@ mod tests {
         let (w, _): (World, Placement) = world_of(&d, &s);
         let free: Vec<LocId> = crate::slice::pick::pick(&d, &w, &plan(&s).unwrap()).free;
         let f: Vec<&str> = pinned(&d, &w, &free);
-        assert!(f.contains(&"Strength"), "{f:?}");
-        assert!(!f.contains(&"Hookshot"), "{f:?}");
+        // The Ocarina of Time scene keeps its Ocarina, so that family is pinned. Darunia's Joy is
+        // shuffled now, so every Strength holder is in the pool.
+        assert!(f.contains(&"Ocarina"), "{f:?}");
+        assert!(!f.contains(&"Strength") && !f.contains(&"Hookshot"), "{f:?}");
         assert!(pinned(&d, &w, &(0..w.locs.len()).collect::<Vec<LocId>>()).is_empty());
     }
 

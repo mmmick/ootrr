@@ -306,6 +306,41 @@ pub fn first_visit() -> Ops {
     Ops { flags: FIRST_VISIT.iter().map(|n| (format!("HavePlayedEvent.{n}"), true)).collect(), ..Ops::default() }
 }
 
+pub const VISITS: [(&str, &str); 16] = [
+    ("Dm_DeathMtTrail_0000", "DeathMountainTrail"),
+    ("Dm_DeathMtCrater_0000", "DeathMountainCrater"),
+    ("Dm_DodongoCave_0000", "DodongoCavern"),
+    ("Dm_GanonCastle_0000", "GanonCastle"),
+    ("Dm_GerudoValley_0000", "GerudoValley"),
+    ("Dm_Gerudo_0000", "GerudoFortress"),
+    ("Dm_Goron_0000", "GoronCity"),
+    ("Dm_Graveyard_0000", "Graveyard"),
+    ("Dm_HrlCastle_0000", "HyruleCastle"),
+    ("Dm_Kakariko_0000", "KakarikoVillage"),
+    ("Dm_LakeHrl_0000", "LakeHylia"),
+    ("Dm_ZoraFountain_0000", "ZoraFountain"),
+    ("Dm_TimeTemple_0000", "TimeTemple"),
+    ("Dm_Kokiri_0045", "KokiriForest"),
+    ("Dm_HrlField_0000", "HyruleField"),
+    ("Dm_Deku_0000", "InsideTheDekuTree"),
+];
+
+pub const VISIT: &str = "IsVisitLocation.";
+
+pub fn visits(o: &Ops) -> Ops {
+    let mut flags: Vec<(String, bool)> = Vec::new();
+    for (scene, loc) in VISITS {
+        let played: String = format!("HavePlayedEvent.{scene}");
+        let visit: String = format!("{VISIT}{loc}");
+        let skipped: bool = o.flags.iter().any(|(n, v)| *v && *n == played);
+        let known: bool = o.flags.iter().chain(flags.iter()).any(|(n, _)| *n == visit);
+        if skipped && !known {
+            flags.push((visit, true));
+        }
+    }
+    Ops { flags, ..Ops::default() }
+}
+
 pub fn fountain() -> Ops {
     Ops { steps: owned(&FOUNTAIN_STEPS), enums: owned(&FOUNTAIN_ENUMS), ints: Vec::new(), flags: flags_of(&FOUNTAIN_FLAGS), items: Vec::new(), time: None }
 }
@@ -630,6 +665,62 @@ mod tests {
         assert!(ops.flags.iter().all(|(n, v)| n.starts_with("HavePlayedEvent.Dm_") && *v));
         let mut b: Bf = sample();
         assert_eq!(patch(&mut b.flows[0], &ops).unwrap(), FIRST_VISIT.len());
+    }
+
+    #[test]
+    fn a_skipped_title_intro_marks_its_area_as_visited_once() {
+        let all: Ops = {
+            let mut o: Ops = first_visit();
+            o.extend(kakariko(&[]));
+            o.extend(crate::story_skip::deku());
+            o.extend(crate::story_skip::start());
+            o
+        };
+        let seen: Ops = visits(&all);
+        assert_eq!(seen.flags.len(), VISITS.len());
+        assert!(seen.flags.iter().all(|(n, v)| n.starts_with(VISIT) && *v));
+        let mut both: Ops = all.clone();
+        both.extend(seen.clone());
+        assert!(visits(&both).flags.is_empty());
+        let intro: Ops = visits(&first_visit());
+        assert_eq!(intro.flags.len(), 13);
+        assert!(visits(&Ops::default()).flags.is_empty());
+        let rows: &str = include_str!("../../../data/flags.json");
+        for (n, _) in &seen.flags {
+            let row: &str = rows.lines().find(|l| l.contains(&format!("\"name\":\"{n}\""))).unwrap_or_else(|| panic!("{n} is not in flags.json"));
+            assert!(row.contains("\"type\":\"Bool\"") && row.contains("\"save\":0"), "{n}");
+        }
+        let p: std::path::PathBuf = ootrr_game::test_romfs::path();
+        if !p.join("Pack").join("ZsDic.pack.zs").is_file() {
+            eprintln!("skipped the game file half, no romfs at {}", p.display());
+            return;
+        }
+        let mut rf: crate::romfs::Romfs = crate::romfs::Romfs::open(&p).unwrap();
+        let mut titled: Vec<(String, String)> = Vec::new();
+        for (n, v) in &all.flags {
+            let Some(scene) = n.strip_prefix("HavePlayedEvent.").filter(|_| *v) else { continue };
+            let Ok(raw) = rf.read_zs(&format!("Event/EventFlow/{scene}.bfevfl.zs")) else { continue };
+            let b: Bf = Bf::parse(&raw).unwrap();
+            for f in &b.flows {
+                for e in &f.events {
+                    let crate::bfevfl::Kind::Action { actor, act, params, .. } = &e.kind else { continue };
+                    let name: Option<&str> = f.actors.get(*actor as usize).and_then(|a| a.actions.get(*act as usize)).map(|s| s.as_str());
+                    if name != Some("EventTriggerOpenLocationUI") {
+                        continue;
+                    }
+                    let Some(crate::bfevfl::Val::Str(l)) = params.as_ref().and_then(|c| c.get("LocationName")) else { continue };
+                    let loc: &str = l.trim_start_matches("Work/Location/").trim_end_matches(".game__location__Location.gyml");
+                    let pair: (String, String) = (scene.to_string(), loc.to_string());
+                    if !titled.contains(&pair) {
+                        titled.push(pair);
+                    }
+                }
+            }
+        }
+        titled.sort();
+        let mut want: Vec<(String, String)> = VISITS.iter().map(|(s, l)| (s.to_string(), l.to_string())).collect();
+        want.sort();
+        assert_eq!(titled, want);
     }
 
     #[test]

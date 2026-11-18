@@ -9,7 +9,8 @@ export const state = {
   vals: {},
   seed: "",
   plando: [],
-  paths: { game: "", mod: "", name: "My Seed", host: "eden" },
+  paths: { game: "", update: "", mod: "", name: "My Seed", host: "eden" },
+  include_update: false,
   cosmetic: { music: "off", sfx: "off", colors: "off", seed: "" },
   game_check: null,
   mod_check: null,
@@ -42,7 +43,7 @@ function take(store, key) {
 }
 
 export function save() {
-  put(localStorage, KEY, { vals: state.vals, seed: state.seed, plando: state.plando, paths: state.paths, cosmetic: state.cosmetic, hide_spoiler: state.hide_spoiler, spoiler_log: state.spoiler_log });
+  put(localStorage, KEY, { vals: state.vals, seed: state.seed, plando: state.plando, paths: state.paths, cosmetic: state.cosmetic, hide_spoiler: state.hide_spoiler, spoiler_log: state.spoiler_log, include_update: state.include_update });
   put(sessionStorage, RKEY, state.result);
 }
 
@@ -58,6 +59,7 @@ export function restore(schema) {
   if (s && typeof s.seed === "string") state.seed = s.seed.slice(0, 100);
   if (s && typeof s.hide_spoiler === "boolean") state.hide_spoiler = s.hide_spoiler;
   if (s && typeof s.spoiler_log === "boolean") state.spoiler_log = s.spoiler_log;
+  if (s && typeof s.include_update === "boolean") state.include_update = s.include_update;
   if (s && Array.isArray(s.plando)) {
     state.plando = s.plando
       .filter((p) => p && typeof p.location === "string" && typeof p.item === "string")
@@ -65,7 +67,7 @@ export function restore(schema) {
       .map((p) => ({ location: p.location.slice(0, 120), item: p.item.slice(0, 120) }));
   }
   if (s && s.paths && typeof s.paths === "object") {
-    for (const k of ["game", "mod", "name", "host"]) {
+    for (const k of ["game", "update", "mod", "name", "host"]) {
       if (typeof s.paths[k] === "string") state.paths[k] = s.paths[k].slice(0, 1000);
     }
     if (!["eden", "hookshot", "longshot", "nx2navi"].includes(state.paths.host)) state.paths.host = "eden";

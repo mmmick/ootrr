@@ -174,8 +174,9 @@ export function main_paths() {
   try {
     const v = JSON.parse(localStorage.getItem("ootrr.v1") || "null");
     const p = v && v.paths;
-    return { game: p && typeof p.game === "string" ? p.game : "", host: p && typeof p.host === "string" ? p.host : "eden" };
+    const str = (k, d) => (p && typeof p[k] === "string" ? p[k] : d);
+    return { game: str("game", ""), update: str("update", ""), host: str("host", "eden") };
   } catch {
-    return { game: "", host: "eden" };
+    return { game: "", update: "", host: "eden" };
   }
 }

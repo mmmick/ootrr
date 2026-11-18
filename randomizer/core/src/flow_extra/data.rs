@@ -154,7 +154,7 @@ mod tests {
             assert!((l.gated && !l.supported) || (l.supported && (l.cat == "great_fairy" || l.name == "GC Rolling Goron as Child")), "{}", s.name);
             assert!(!s.ops.is_empty() && !s.why.is_empty(), "{}", s.name);
         }
-        assert_eq!(x.always.iter().map(|s| s.name.as_str()).collect::<Vec<&str>>(), vec!["Din fountain gauge", "Fire Arrow pickup gauge", "Doubled magic without the improved spin", "Fairy fountains without Din's Fire", "Summit owl without Din's Fire"]);
+        assert_eq!(x.always.iter().map(|s| s.name.as_str()).collect::<Vec<&str>>(), vec!["Din fountain gauge", "Fire Arrow pickup gauge", "Doubled magic without the improved spin", "Fairy fountains without Din's Fire", "Summit owl without Din's Fire", "Fortress gatekeeper keeps the Spirit quest step"]);
         for s in &x.always {
             assert!(!s.ops.is_empty() && !s.why.is_empty() && d.by_name(&s.name).is_none(), "{}", s.name);
             assert!(x.by_name(&s.name).is_none(), "{}", s.name);

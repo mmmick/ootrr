@@ -187,6 +187,17 @@ fn fitted(raw: &[u8], t: Tint) -> Res<Option<Tint>> {
     Ok(t.fit(&all))
 }
 
+/// Every game file the colour shuffle may read. A missing one is skipped, not reported,
+/// so a partial copy of the game (an unpacked .nup or .nx) must hold all of them.
+pub fn files() -> Vec<String> {
+    let mut out: Vec<String> = vec![NAMES.to_string()];
+    for it in &ITEMS {
+        out.extend(it.tex.iter().map(|t| tex_path(t)));
+        out.extend(it.vals.iter().map(|v| model_path(v.0)));
+    }
+    out
+}
+
 fn tex_path(name: &str) -> String {
     format!("Tex/{name}.bntx.zs")
 }

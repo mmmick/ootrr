@@ -111,6 +111,8 @@ pub fn start_state(d: &Data, seed: &SeedFile, p: &crate::slice::support::Plan) -
     if p.story {
         ops.extend(crate::story_skip::start());
     }
+    let seen: crate::start_state::Ops = crate::start_state::visits(&ops);
+    ops.extend(seen);
     Ok(ops)
 }
 
@@ -140,7 +142,13 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
         )));
     }
     let roam: bool = p.keys_roam();
-    let keys: Vec<&'static str> = if roam { KEY_DUNGEONS.to_vec() } else { Vec::new() };
+    let gift_keys: Vec<crate::gift_keys::Gift> = crate::gift_keys::gifts(&d, seed)?;
+    let mut keys: Vec<&'static str> = if roam { KEY_DUNGEONS.to_vec() } else { Vec::new() };
+    for k in crate::gift_keys::small_dungeons(&gift_keys) {
+        if !keys.contains(&k) {
+            keys.push(k);
+        }
+    }
     let order: crate::slice::tier_order::Verdict = crate::slice::tier_order::fixed_actors(&d, seed)?;
     let (ts, same, flows): (Vec<Target>, usize, Vec<Choice>) = targets_with(&d, seed, roam, &order.assign, extra)?;
     let skull_drops: Vec<crate::slice::skull_edit::Drop> = crate::slice::skull_edit::drops_with(&d, seed, &order.assign)?;
@@ -156,6 +164,12 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
     let small_hearts: BS<u64> = if p.chest_sizes { crate::chest_size::small_hearts(&d, seed, &size_ctx, crate::slice::dungeon_items::credited(p.keys.map)) } else { BS::new() };
     let moves: crate::chest_size::Moves = if sizes.is_empty() { crate::chest_size::Moves::default() } else { crate::chest_size::moves(&crate::chest_size::scan(&mut rf, &sizes)?, &sizes) };
     let mut resized_n: usize = 0;
+    // Freestanding spots swapped to a seed pickup stand higher, so the turning item model clears
+    // the ground (crate::pickup_pack::lift).
+    let lifts: BM<String, f32> = {
+        let info: crate::byml::Byml = rf.read_byml(crate::pickup_pack::rows::ACTOR_INFO)?;
+        ts.iter().filter(|t| extra.has(&t.new_actor)).filter_map(|t| crate::pickup_pack::lift::for_pack(&info, &t.new_actor).map(|dy| (t.new_actor.clone(), dy))).collect()
+    };
     for f in banc_files(&rf)? {
         let vanilla: Vec<u8> = rf.read_zs(&f)?;
         let resized: Option<Vec<u8>> = crate::chest_size::resize(&vanilla, &f, &sizes, &moves)?.map(|(b, n)| {
@@ -163,7 +177,7 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
             b
         });
         let raw: &[u8] = resized.as_deref().unwrap_or(&vanilla);
-        let e: Option<Edited> = edit_file_with(&f, raw, &ts, roam, &small_hearts)?;
+        let e: Option<Edited> = edit_file_with(&f, raw, &ts, roam, &small_hearts, &lifts)?;
         let e: Option<Edited> = match (e, &resized) {
             (Some(mut e), Some(_)) => {
                 e.old_len = vanilla.len();
@@ -274,6 +288,13 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
     if p.fishing {
         crate::easy_fishing::stage(&mut rf, &mut staged.files)?;
     }
+    // Dungeon items in reward events: window-only copies of their give routines and the credit
+    // (crate::gift_keys). The Light Arrows item get wants the copy of its routine too.
+    let arrows_key: bool = gift_keys.iter().any(|g| {
+        (p.story && (crate::story_skip::DROPPED.contains(&g.location.as_str()) || crate::story_skip::FAIRIES.iter().any(|f| f.0 == g.location))) || (p.endings && crate::story_skip::REWARD_SCENES.iter().any(|r| r.0 == g.location))
+    });
+    let windows: Vec<(&str, &str)> = if arrows_key { vec![crate::story_skip::ITEM_GET] } else { Vec::new() };
+    crate::gift_keys::apply(&mut rf, &mut staged.files, &gift_keys, &windows)?;
     for f in &staged.files {
         pk.write_romfs(&f.path, &f.z)?;
         if f.new > f.old {
@@ -292,6 +313,8 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
     let quiet: Vec<&str> = crate::bomb_pickup::wanted(pot_ts.iter().map(|t| t.actor.as_str()).chain(ts.iter().map(|t| t.new_actor.as_str())).chain(skull_drops.iter().map(|x| x.actor.as_str())));
     let work: PB = pk.work.join("romfs");
     let pots: Vec<u64> = crate::pot_slice::apply::hashes(&pot_ts);
+    let mut marked: BS<(crate::dungeon_grant::Kind, &'static str)> = passes.marks.used.clone();
+    marked.extend(crate::gift_keys::marked(&gift_keys));
     let c: crate::slice::stages::Ctx = crate::slice::stages::Ctx {
         d: &d,
         seed,
@@ -299,7 +322,7 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
         roam,
         keys: &keys,
         hearts: &hearts,
-        marked: &passes.marks.used,
+        marked: &marked,
         silver: &passes.silver_used,
         quiet: &quiet,
         work: &work,
@@ -311,6 +334,18 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
     for o in more {
         pk.write_romfs(&o.path, &o.z)?;
         extra += 1;
+        if let Some(peer) = crate::song_models::size_peer(&o.path) {
+            if rst.is_none() {
+                rst = Some(rsizetable::load(&mut rf)?);
+            }
+            if let Some(t) = rst.as_mut()
+                && let Some(n) = t.get(&peer)
+            {
+                t.set_size(&o.path, n)?;
+                grown += 1;
+            }
+            continue;
+        }
         if o.new > o.old {
             if rst.is_none() {
                 rst = Some(rsizetable::load(&mut rf)?);
@@ -322,6 +357,7 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
             }
         }
     }
+    let ocarina_held: bool = crate::ocarina_hold::needed(&d, seed);
     if p.fast {
         extra += crate::fast::apply(&mut rf, &pk)?;
     }
@@ -361,14 +397,52 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
     let mut late: Vec<crate::staging::Out> = if p.qol.any() { crate::qol::worked(&mut rf, &pk, &p.qol)? } else { Vec::new() };
     late.extend(crate::open_world::worked(&mut rf, &pk, &p.open)?);
     crate::merchant_prices::stage_bean(&mut rf, seed, p.rewards.merchant_prices, p.rewards.bean_sale, &mut late)?;
+    // Scenes that are dropped: Link runs the item get with what their check holds.
+    let give_for = |loc: &str| -> crate::story_skip::SceneGive {
+        let vanilla: String = d.flow.by_name(loc).and_then(|l| l.item.clone()).unwrap_or_default();
+        crate::story_skip::SceneGive {
+            actor: flows.iter().find(|c| c.location == loc).map(|c| c.item.clone()).unwrap_or(vanilla),
+            // An unshuffled prize keeps the tier check its guard gave it (flow_wrap::PRIZES).
+            family: placed.get(loc).copied().or_else(|| {
+                if seed.placements.contains_key(loc) {
+                    None
+                } else {
+                    crate::slice::flow_wrap::PRIZES.iter().find(|x| x.0 == loc).map(|x| x.1)
+                }
+            }),
+            key: gift_keys.iter().find(|g| g.location == loc).map(|g| (g.item, g.dungeon)),
+        }
+    };
     if p.story {
         late.extend(crate::story_skip::worked(&mut rf, &pk)?);
+        crate::story_skip::stage_arrows_give(&mut rf, &mut late, &give_for(crate::lacs_key::LOC))?;
+        crate::story_skip::stage_saria_give(&mut rf, &mut late, &give_for(crate::slice::flow_rules::SARIA))?;
+        crate::story_skip::stage_rauru_give(&mut rf, &mut late, &give_for(crate::story_skip::RAURU_LOC))?;
+        for (loc, flow) in crate::story_skip::FAIRIES {
+            crate::story_skip::stage_fairy_give(&mut rf, &mut late, &work, flow, &give_for(loc))?;
+        }
+        // Song lessons: the six played from other flows are dropped for the item get, and the
+        // grant Sheik's six cut scenes jump to becomes the item get.
+        for t in &crate::story_skip::SONG_TRIGGERS {
+            let writes: Vec<crate::story_skip::Write> = crate::story_skip::scene_writes(&mut rf, t.give)?;
+            let mut gives: Vec<crate::story_skip::SceneGive> = t.also.iter().map(|l| give_for(l)).collect();
+            gives.push(give_for(t.loc));
+            crate::story_skip::stage_late(&mut rf, &mut late, &work, t.flow, |b| crate::story_skip::patch_song_trigger(b, t, &writes, &gives))?;
+        }
     }
     if p.endings {
         late.extend(crate::story_skip::worked_endings(&mut rf, &pk)?);
+        let gives: Vec<(&str, &[&str], crate::story_skip::SceneGive)> = crate::story_skip::REWARD_SCENES.iter().map(|(loc, scene, extra)| (*scene, *extra, give_for(loc))).collect();
+        crate::story_skip::stage_reward_gives(&mut rf, &mut late, &gives)?;
     }
     if p.bridge {
         late.extend(crate::deku_bridge::worked(&mut rf, &pk)?);
+    }
+    if p.shops.on() {
+        late.push(crate::shops::door::worked(&mut rf, &pk)?);
+    }
+    if p.rainbow.is_some() {
+        crate::story_skip::stage_late(&mut rf, &mut late, &work, "AllSage", crate::rainbow_bridge::patch_lacs_step)?;
     }
     for o in late {
         pk.write_romfs(&o.path, &o.z)?;
@@ -385,6 +459,9 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
     extra += crate::slice::skull_kit::write(&mut rf, &pk, &mut rst, &skull_drops, kit_pool)?;
     let (cow_files, cow_lines): (usize, Vec<String>) = crate::cow_clone::write(&mut rf, &pk, &mut rst)?;
     extra += cow_files;
+    if p.open.epona {
+        extra += crate::open_world::write_epona_event(&mut rf, &pk, &mut rst)?;
+    }
     let loads: Option<(crate::staging::Out, crate::flow_extra::analyzed::Added)> = crate::flow_extra::analyzed::worked(&mut rf, &pk.work.join("romfs"))?;
     if let Some((o, _)) = &loads {
         pk.write_romfs(&o.path, &o.z)?;
@@ -420,6 +497,9 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
         flows: flows.len() + placed.len(),
     };
     let mut notes: Vec<String> = p.notes.clone();
+    if ocarina_held {
+        notes.push(crate::ocarina_hold::NOTE.to_string());
+    }
     if p.chest_sizes {
         notes.push(crate::chest_size::report(resized_n + small_hearts.len(), moves.tight.len()));
     }
@@ -582,6 +662,7 @@ mod tests {
             ev: None,
             family: None,
             key: None,
+            heart_chest: false,
         }
     }
 
@@ -609,11 +690,31 @@ mod tests {
             ])
         };
         let b: Vec<u8> = raw(vec![heart(1), heart(2)]);
-        let ts: Vec<Target> = vec![target(1, HEART, "TBox_Rupee_Red"), target(2, HEART, "Item_Hookshot")];
-        let e: Edited = edit_file_with("Banc/Area/a.bcett.byml.zs", &b, &ts, false, &BS::from([1])).unwrap().unwrap();
+        let chest = |h: u64, new: &str| Target { heart_chest: true, ..target(h, HEART, new) };
+        let ts: Vec<Target> = vec![chest(1, "TBox_Rupee_Red"), chest(2, "Item_Hookshot")];
+        let e: Edited = edit_file_with("Banc/Area/a.bcett.byml.zs", &b, &ts, false, &BS::from([1]), &BM::new()).unwrap().unwrap();
         let back: Byml = Byml::parse(&e.bytes).unwrap();
         let g: Vec<&str> = back.root.get("Actors").unwrap().as_arr().unwrap().iter().map(|a| a.get("Gyaml").unwrap().as_str().unwrap()).collect();
         assert_eq!(g, vec!["Obj_TBox_A_01", CHEST]);
+        assert_eq!(e.hearts.len(), 2);
+    }
+
+    #[test]
+    fn a_boss_heart_with_a_ground_pickup_becomes_that_pickup_and_needs_no_unlock() {
+        let heart = |h: u64| -> Node {
+            Node::Map(vec![
+                ("Gyaml".to_string(), Node::Str(HEART.to_string())),
+                ("Hash".to_string(), Node::U64(h)),
+                ("Translate".to_string(), Node::Arr(vec![Node::F32(1.0), Node::F32(2.0), Node::F32(3.0)])),
+            ])
+        };
+        let b: Vec<u8> = raw(vec![heart(1)]);
+        let e: Edited = edit_file_with("Banc/Area/a.bcett.byml.zs", &b, &[target(1, HEART, "Obj_Hookshot")], false, &BS::new(), &BM::new()).unwrap().unwrap();
+        let back: Byml = Byml::parse(&e.bytes).unwrap();
+        let a: &Node = &back.root.get("Actors").unwrap().as_arr().unwrap()[0];
+        assert_eq!(a.get("Gyaml").and_then(|v| v.as_str()), Some("Obj_Hookshot"));
+        assert!(a.get("Dynamic").and_then(|d| d.get("Drop__DropActor")).is_none());
+        assert!(e.hearts.is_empty());
     }
 
     #[test]
@@ -731,7 +832,9 @@ mod tests {
         let (_, _, flows): (Vec<Target>, usize, Vec<Choice>) = targets(&d, &g.seed_file).unwrap();
         assert!(!flows.is_empty());
         for c in &flows {
-            assert!(d.flow.usable(&c.item) || c.location == crate::slice::flow_rules::SARIA, "{} -> {}", c.location, c.item);
+            // Reward events hand out any item a chest gives, through its chest content actor (#24).
+            let allowed: bool = g.seed_file.placements.get(&c.location).and_then(|it| d.item(it)).is_some_and(|i| crate::slice::flow_rules::allows(&d, &c.location, i));
+            assert!(d.flow.usable(&c.item) || crate::slice::flow_rules::ANY_POUCH.contains(&c.location.as_str()) || crate::ocarina_hold::is_form(&c.item) || allowed, "{} -> {}", c.location, c.item);
             assert!(d.flow_ok(&c.location), "{}", c.location);
         }
         let mut vanilla: Settings = Settings::default();
@@ -760,7 +863,9 @@ mod tests {
                 assert!(d.flow_ok(loc));
             }
             for c in &flows {
-                assert!(d.flow.usable(&c.item) || c.location == crate::slice::flow_rules::SARIA, "{} -> {}", c.location, c.item);
+                // Reward events hand out any item a chest gives, through its chest content actor (#24).
+            let allowed: bool = g.seed_file.placements.get(&c.location).and_then(|it| d.item(it)).is_some_and(|i| crate::slice::flow_rules::allows(&d, &c.location, i));
+            assert!(d.flow.usable(&c.item) || crate::slice::flow_rules::ANY_POUCH.contains(&c.location.as_str()) || crate::ocarina_hold::is_form(&c.item) || allowed, "{} -> {}", c.location, c.item);
             }
             let given: BM<String, String> = actors_for(&d, &g.seed_file).unwrap();
             for (loc, actor) in &given {

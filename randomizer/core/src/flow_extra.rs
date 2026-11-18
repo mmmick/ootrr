@@ -40,7 +40,10 @@ pub fn merchants(s: &crate::settings::Settings, bad: &mut Vec<String>) -> (bool,
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rewards {
     pub on: bool,
+    /// The Stones and Medallions leave their vanilla spots (End of dungeons or Anywhere).
     pub dungeon_rewards: bool,
+    /// End of dungeons: they only trade places among the nine boss and Rauru reward events.
+    pub dungeon_own: bool,
     pub extra: bool,
     pub trade: bool,
     pub cows: bool,
@@ -72,7 +75,19 @@ impl Rewards {
                 false
             }
         };
-        let dungeon_rewards: bool = on && toggle(s, crate::slice::support::DUNGEON_REWARDS, bad);
+        let (dungeon_rewards, dungeon_own): (bool, bool) = match s.text(crate::slice::support::DUNGEON_REWARDS) {
+            Ok("vanilla") => (false, false),
+            Ok("anywhere") => (on, false),
+            Ok("dungeons") => (on, on),
+            Ok(v) => {
+                bad.push(format!("{} is {v}, which is not a known choice", crate::slice::support::DUNGEON_REWARDS));
+                (false, false)
+            }
+            Err(e) => {
+                bad.push(e.to_string());
+                (false, false)
+            }
+        };
         let extra: bool = on && toggle(s, SETTING, bad);
         let trade: bool = on && toggle(s, trade::SETTING, bad);
         let cows: bool = on && toggle(s, cows::SETTING, bad);
@@ -84,6 +99,7 @@ impl Rewards {
         Rewards {
             on,
             dungeon_rewards,
+            dungeon_own,
             extra,
             trade,
             cows,

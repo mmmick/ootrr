@@ -15,6 +15,8 @@ use ootrr_core::slice::generate::LIMIT;
 use ootrr_core::slice::watch::Live;
 use ootrr_core::slice::{self, plando, scan, BuildCounts, Built, GenOpts, Generated};
 
+use ootrr_web::game_input::{self, Found, Prepared, Source};
+
 use crate::gen_progress;
 
 fn arg<'a>(a: &'a [String], i: usize, what: &'static str) -> Res<&'a str> {
@@ -93,8 +95,20 @@ pub fn build(a: &[String]) -> Res<()> {
     let mut rest: Vec<String> = Vec::new();
     let mut host: Host = Host::Eden;
     let mut cos: Cosmetics = Cosmetics::default();
+    let mut update: Option<String> = None;
+    let mut with_update: bool = false;
     let mut i: usize = 0;
     while i < a.len() {
+        if a[i] == "--update" {
+            update = Some(a.get(i + 1).cloned().ok_or(Error::Format("missing folder or package after --update"))?);
+            i += 2;
+            continue;
+        }
+        if a[i] == "--include-update" {
+            with_update = true;
+            i += 1;
+            continue;
+        }
         if a[i] == "--music" {
             let v: &str = a.get(i + 1).map(|s| s.as_str()).ok_or(Error::Format("missing mode after --music"))?;
             cos.music = Music::parse(v).ok_or(Error::Format("--music is off, grouped or anywhere"))?;
@@ -128,14 +142,44 @@ pub fn build(a: &[String]) -> Res<()> {
         i += 1;
     }
     let seed: SeedFile = SeedFile::read(P::new(arg(&rest, 0, "missing seed file")?))?;
-    let romfs: &str = arg(&rest, 1, "missing romfs_root")?;
+    let game: &str = arg(&rest, 1, "missing romfs_root")?;
     let load: &str = arg(&rest, 2, "missing load_dir")?;
     let name: &str = arg(&rest, 3, "missing mod_name")?;
-    let b: Built = slice::build_for(&seed, P::new(romfs), P::new(load), name, host)?;
+    let source: Option<Source> = match game_input::check(P::new(game), update.as_deref().map(P::new)) {
+        Found::Ok(s) => Some(s),
+        Found::Refused(why) => return Err(Error::Msg(format!("game: {why}"))),
+        Found::Unknown(_) if with_update => return Err(Error::Msg("--include-update needs a v1.0.0 game with a separate v1.1.1 update, or a package holding both".into())),
+        Found::Unknown(_) => None,
+    };
+    if with_update && !source.as_ref().is_some_and(|s| s.has_update()) {
+        return Err(Error::Msg("--include-update needs a separate v1.1.1 update (--update, or a package holding it)".into()));
+    }
+    if update.is_some() && source.as_ref().is_some_and(|s| s.update.is_none()) {
+        println!("--update is not needed: the game is already v1.1.1, so it is ignored");
+    }
+    let sound: bool = cos.music != Music::Off || cos.sfx != Sfx::Off;
+    let prepared: Option<Prepared> = match &source {
+        Some(s) => {
+            if let Some(step) = s.step() {
+                println!("{step}");
+            }
+            Some(game_input::prepare(s, sound).map_err(Error::Msg)?)
+        }
+        None => None,
+    };
+    let romfs: &P = prepared.as_ref().map(|p| p.romfs.as_path()).unwrap_or(P::new(game));
+    let b: Built = slice::build_for(&seed, romfs, P::new(load), name, host)?;
     let c: &BuildCounts = &b.counts;
     print!("{}", b.report);
+    for n in ootrr_core::title_logo::apply(&b.root, P::new(romfs))? {
+        println!("{n}");
+    }
     for n in cosmetic::apply(&b.root, P::new(romfs), &cos, &seed.seed)? {
         println!("{n}");
+    }
+    if let (true, Some(s)) = (with_update, &source) {
+        let n: usize = game_input::add_update(s, &b.root).map_err(Error::Msg)?;
+        println!("added {n} v1.1.1 update files to the mod. Do not share this mod: it now holds game files.");
     }
     println!("changed {} of {} placed chests", c.changed, c.placed);
     Ok(())

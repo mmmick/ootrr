@@ -12,7 +12,7 @@ Questions, bug reports, seeds and playtesting happen on the [OOTRR Discord](http
 
 Generate: settings and a seed it will create a seed file.
 
-Build: a seed file plus your own extracted game folder produce a mod folder. Lichii and Eden take `load/<title id>/<name>/romfs`. Hookshot and NX2navi take the game's `mods` folder, and the mod is `mods/<name>/romfs`. Choose the game on the Configuration page, or pass `--host hookshot` or `--host nx2navi` to `ootrr build`. A Hookshot mod also writes `coop-seed.txt` and keeps the larger resource-size entry from every other mod that is on. Name that mod `randomizer-<seed>` so Hookshot co-op can tell the seeds apart.
+Build: a seed file plus your own extracted game folder (version 1.1.1) produce a mod folder. A version 1.0.0 folder works only together with the 1.1.1 update's folder, which the Configuration page asks for when it finds 1.0.0. The two are combined with links in the app's data folder, never copied, and the game folders are only read. The game can also be a `.nup` or `.nx` package (Package… next to Browse), or a package can be the update: only the files the build reads, about 370 MB (about 2.3 GB with music or sound effect shuffle), are unpacked into the app's data folder for each build and deleted afterwards. Lichii and Eden take `load/<title id>/<name>/romfs`. Hookshot and NX2navi take the game's `mods` folder, and the mod is `mods/<name>/romfs`. Choose the game on the Configuration page, or pass `--host hookshot` or `--host nx2navi` to `ootrr build`. A Hookshot mod also writes `coop-seed.txt` and keeps the larger resource-size entry from every other mod that is on. Name that mod `randomizer-<seed>` so Hookshot co-op can tell the seeds apart.
 
 Longshot, the successor to Hookshot, also loads `mods/<name>/romfs` from the game folder (beside `bin\longshot.exe`). Pick Longshot on the Configuration page, or pass `--host longshot`. Like Hookshot, Longshot uses the size table from just one mod, the enabled mod whose folder name sorts last. So the build copies the larger entry from every other enabled mod, including mods nested as `mods/contents/<title id>/<name>`. If another mod with a size table would still sort after this one, the build report names it, so you can rename this mod (for example `zz-<name>`). Longshot has no co-op seed file, so none is written. The tracker's Longshot button finds the saves in `%USERPROFILE%\Games\Longshot\user\save` or `~/.local/share/longshot/save`.
 
@@ -29,7 +29,7 @@ The mod build needs your own extracted copy of the game with the 1.1.1 update in
 Everything is optional and off unless noted. All of these are experimental and some have not been played in the game yet.
 
 - Chest shuffle, dungeon item placement and progressive upgrades (Hookshot, Strength, bags, wallets, scales and more).
-- Story and NPC rewards (on by default, experimental and untested in the game). The Spiritual Stones and Medallions stay with the bosses and Rauru unless Stones and Medallions is also on.
+- Story and NPC rewards (on by default, experimental and untested in the game). The Spiritual Stones and Medallions stay with the bosses and Rauru unless Dungeon Rewards is set to End of dungeons (shuffled only among the bosses and Rauru) or Anywhere.
 - Boss heart containers as chests, and songs shuffled among the song teachers or anywhere.
 - Gossip stones that tell you where an important item lies, without the Mask of Truth.
 - Start with one random Spiritual Stone or Medallion.
@@ -76,7 +76,7 @@ Running `ootrr` with no arguments (for example by double clicking the exe) start
 ```
 ootrr serve [--port N]
 ootrr generate <preset_or_settings_string> <seed> <out.ootrr> [--spoiler <file>] [--plando Location=Item]...
-ootrr build <seed.ootrr> <romfs_root> <load_dir> <mod_name> [--host eden|hookshot|longshot|nx2navi]
+ootrr build <seed.ootrr> <game> <load_dir> <mod_name> [--update <folder|.nup|.nx>] [--include-update] [--host eden|hookshot|longshot|nx2navi]
 ootrr swap-entrance <romfs_root> <load_dir> <mod_name> <entrance_a> <entrance_b>
 ootrr set-drop <romfs_root> <load_dir> <mod_name> <actor_hash> <item_name> [no-event]
 ootrr check-byml <romfs_root> <subfolder> <suffix>

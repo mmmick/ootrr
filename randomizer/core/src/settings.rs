@@ -205,8 +205,9 @@ mod tests {
     #[test]
     fn dependencies_switch_settings_off() {
         let mut s: Settings = Settings::default();
+        // The bridge defaults to vanilla, which counts nothing.
         assert!(!s.is_enabled("bridge_stones"));
-        assert!(s.is_enabled("bridge_medallions"));
+        assert!(!s.is_enabled("bridge_medallions"));
         s.set("bridge", Value::s("stones")).unwrap();
         s.set("bridge_stones", Value::Int(2)).unwrap();
         s.set("bridge_medallions", Value::Int(4)).unwrap();
@@ -306,11 +307,15 @@ mod tests {
     fn rewards_are_on_by_default_and_stones_and_medallions_are_not() {
         let s: Settings = Settings::default();
         assert_eq!(s.text("shuffle_rewards").unwrap(), "supported");
-        assert!(!s.flag("shuffle_dungeon_rewards").unwrap());
+        assert_eq!(s.text("shuffle_dungeon_rewards").unwrap(), "vanilla");
         assert!(s.is_enabled("shuffle_dungeon_rewards"));
         let d: &Setting = schema().get("shuffle_dungeon_rewards").unwrap();
         assert_eq!(d.num, 74);
-        assert_eq!(d.kind, Kind::Toggle);
+        assert_eq!(d.kind, Kind::Choice);
+        // The old toggle wrote 0 and 1: those indexes still read as vanilla and anywhere.
+        assert_eq!(d.choice_index("vanilla"), Some(0));
+        assert_eq!(d.choice_index("anywhere"), Some(1));
+        assert_eq!(d.choice_index("dungeons"), Some(2));
         assert_eq!(d.group, "shuffle");
         assert_eq!(d.deps, vec![model::Dep { on: "shuffle_rewards".into(), cond: Cond::Is(Value::s("supported")) }]);
         assert!(!schema().get("shuffle_rewards").unwrap().tip.contains("never shuffled yet"));
@@ -319,11 +324,11 @@ mod tests {
     #[test]
     fn stones_and_medallions_only_show_under_supported_rewards() {
         let mut s: Settings = Settings::default();
-        s.set("shuffle_dungeon_rewards", Value::Bool(true)).unwrap();
+        s.set("shuffle_dungeon_rewards", Value::s("anywhere")).unwrap();
         s.set("shuffle_rewards", Value::s("off")).unwrap();
         s.normalize();
         assert!(!s.is_enabled("shuffle_dungeon_rewards"));
-        assert!(!s.flag("shuffle_dungeon_rewards").unwrap());
+        assert_eq!(s.text("shuffle_dungeon_rewards").unwrap(), "vanilla");
         s.set("shuffle_rewards", Value::s("supported")).unwrap();
         assert!(s.is_enabled("shuffle_dungeon_rewards"));
     }
@@ -341,7 +346,7 @@ mod tests {
             assert!(l.warnings.is_empty(), "{t}");
             let s: Settings = l.settings;
             assert_eq!(s.text("shuffle_rewards").unwrap(), rewards, "{t}");
-            assert_eq!(s.flag("shuffle_dungeon_rewards").unwrap(), dungeon, "{t}");
+            assert_eq!(s.text("shuffle_dungeon_rewards").unwrap() == "anywhere", dungeon, "{t}");
             assert_eq!(s.flag("shuffle_rewards_extra").unwrap(), extra, "{t}");
             assert_eq!(s.text("shuffle_chests").unwrap(), chests, "{t}");
             assert_eq!(s.encode().unwrap(), t);
@@ -362,13 +367,15 @@ mod tests {
         assert_eq!(s.encode().unwrap(), "OOTRR1-XZLA");
         let mut s: Settings = Settings::default();
         old(&mut s);
-        s.set("shuffle_dungeon_rewards", Value::Bool(true)).unwrap();
-        let t: String = s.encode().unwrap();
-        assert_ne!(t, "OOTRR1-EYAQD32I");
-        let l: Loaded = Settings::decode(&t).unwrap();
-        assert!(l.warnings.is_empty());
-        assert_eq!(l.settings, s);
-        assert!(l.settings.flag("shuffle_dungeon_rewards").unwrap());
+        for v in ["anywhere", "dungeons"] {
+            s.set("shuffle_dungeon_rewards", Value::s(v)).unwrap();
+            let t: String = s.encode().unwrap();
+            assert_ne!(t, "OOTRR1-EYAQD32I");
+            let l: Loaded = Settings::decode(&t).unwrap();
+            assert!(l.warnings.is_empty());
+            assert_eq!(l.settings, s);
+            assert_eq!(l.settings.text("shuffle_dungeon_rewards").unwrap(), v);
+        }
     }
 
     #[test]

@@ -106,6 +106,25 @@ impl<'a> Reach<'a> {
         }
         Ok(out)
     }
+
+    /// What the event of `row` reaches. A scene a transition starts (no EntryPointName) can start
+    /// at any entry of its flow, so it needs what every entry reaches.
+    pub fn need_row(&mut self, row: &Row) -> Res<Need> {
+        if !row.entry.is_empty() {
+            return self.need(&row.stem, &row.entry);
+        }
+        let entries: Vec<String> = match self.get(&row.stem)? {
+            Some(f) => f.entries.iter().map(|e| e.name.clone()).collect(),
+            None => return Ok(Need::default()),
+        };
+        let mut out: Need = Need::default();
+        for e in entries {
+            let n: Need = self.need(&row.stem, &e)?;
+            out.flows.extend(n.flows);
+            out.kids.extend(n.kids);
+        }
+        Ok(out)
+    }
 }
 
 fn id_of(n: &Node) -> &str {
@@ -141,14 +160,11 @@ pub fn cover(y: &mut Byml, rows: &HM<String, Row>, r: &mut Reach, changed: &BS<S
     for n in all.iter_mut() {
         let id: String = id_of(n).to_string();
         let Some(row) = rows.get(&id) else { continue };
-        if row.entry.is_empty() {
-            continue;
-        }
         let subs: Vec<String> = names(n, SUBS);
         if !changed.contains(&row.stem) && !subs.iter().any(|s| changed.contains(s)) {
             continue;
         }
-        let need: Need = r.need(&row.stem, &row.entry)?;
+        let need: Need = r.need_row(row)?;
         let kids: Vec<String> = names(n, KIDS);
         let new_subs: BS<String> = need.flows.iter().filter(|x| !subs.contains(x)).cloned().collect();
         let new_kids: BS<String> = need.kids.iter().filter(|x| !kids.contains(x)).cloned().collect();

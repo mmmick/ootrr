@@ -17,7 +17,9 @@ pub const HELD: [u64; 0] = [];
 
 pub const SEP: &str = " @ ";
 
-pub const SONG_KEPT: [&str; 1] = ["Sheik in Crater"];
+/// Song locations kept out of the song shuffle. Sheik in Crater joined it once the story skips gave
+/// Bolero from SageOfFire's trigger (story_skip::SONG_TRIGGERS).
+pub const SONG_KEPT: [&str; 0] = [];
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Item {
@@ -332,7 +334,7 @@ impl Data {
                 continue;
             }
             for e in l.edits.iter().filter(|e| e.role == "grant") {
-                out.push(Grant { file: e.file.clone(), index: e.index, event: e.event.clone(), param: e.param.clone(), family, wrap: Wrap::Chain });
+                out.push(Grant { file: e.file.clone(), index: e.index, event: e.event.clone(), param: e.param.clone(), family, wrap: Wrap::Chain, forms: Vec::new() });
             }
         }
         out

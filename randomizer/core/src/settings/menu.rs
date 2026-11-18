@@ -125,10 +125,28 @@ const EPONA: View = View {
     opts: &[yes("Don't Skip", "false"), yes("Skip", "true")],
 };
 
+const RAINBOW_BRIDGE: View = View {
+    id: "bridge",
+    label: "Rainbow Bridge",
+    tip: RAINBOW_BRIDGE_TIP,
+    kind: Kind::Pick,
+    opts: &[
+        yes("Vanilla", "vanilla"),
+        broken("Always open", "open"),
+        broken("Stones", "stones"),
+        broken("Medallions", "medallions"),
+        yes("Dungeon rewards", "dungeons"),
+        missing("Dungeons"),
+        broken("Tokens", "tokens"),
+        missing("Triforce Pieces"),
+        missing("Greg"),
+    ],
+};
+
 const GANON_BK: View = View {
     id: "shuffle_ganon_bosskey",
     label: "Ganon's Boss Key",
-    tip: "Vanilla - Ganon's Boss Key will appear in the vanilla location.\n\nOwn dungeon - Ganon's Boss Key can appear anywhere inside Ganon's Castle.\n\nStart with - Places Ganon's Boss Key in your starting inventory.\n\nAny dungeon - Ganon's Boss Key can only appear inside of any dungeon.\n\nOverworld - Ganon's Boss Key can only appear outside of dungeons.\n\nAnywhere - Ganon's Boss Key can appear anywhere in the world.\n\nTrigger - These settings put the boss key on a trigger, granting the key once the requirements are met:\n- Stones: Obtain the specified amount of Spiritual Stones.\n- Medallions: Obtain the specified amount of medallions.\n- Dungeon rewards: Obtain the specified total sum of Spiritual Stones or medallions.\n- Dungeons: Complete the specified amount of dungeons. Dungeons are considered complete after stepping into the blue warp after the boss.\n- Tokens: Obtain the specified amount of Skulltula tokens.\n- Triforce Pieces: Obtain the specified amount of Triforce Pieces.\n\nSame Region - Ganon's Boss Key can only appear in Ganon's Castle or a nearby area.",
+    tip: "Vanilla - Ganon's Boss Key will appear in the vanilla location.\n\nOwn dungeon - Ganon's Boss Key can appear anywhere inside Ganon's Castle.\n\nStart with - Places Ganon's Boss Key in your starting inventory.\n\nAny dungeon - Ganon's Boss Key can only appear inside of any dungeon.\n\nOverworld - Ganon's Boss Key can only appear outside of dungeons.\n\nAnywhere - Ganon's Boss Key can appear anywhere in the world.\n\nTrigger - These settings put the boss key on a trigger, granting the key once the requirements are met:\n- Stones: Obtain the specified amount of Spiritual Stones.\n- Medallions: Obtain the specified amount of medallions.\n- Dungeon rewards: Obtain the specified total sum of Spiritual Stones or medallions.\n- Dungeons: Complete the specified amount of dungeons. Dungeons are considered complete after stepping into the blue warp after the boss.\n- Tokens: Obtain the specified amount of Skulltula tokens.\n- Triforce Pieces: Obtain the specified amount of Triforce Pieces.\n\nLACS - Dungeon Rewards - Zelda gives Ganon's Boss Key in the Light Arrows Cutscene, which plays once you hold the set number of Stones and Medallions together. The Light Arrows are shuffled into the item pool. Experimental, untested in the game.\n\nSame Region - Ganon's Boss Key can only appear in Ganon's Castle or a nearby area.",
     kind: Kind::Pick,
     opts: &[
         yes("Vanilla", "vanilla"),
@@ -137,6 +155,7 @@ const GANON_BK: View = View {
         yes("Any Dungeon", "any_dungeon"),
         yes("Overworld", "overworld"),
         yes("Anywhere", "keysanity"),
+        yes("LACS - Dungeon Rewards", "lacs_dungeons"),
         broken("Trigger-Stones", "stones"),
         broken("Trigger-Medallions", "medallions"),
         broken("Trigger-Rewards", "dungeons"),
@@ -273,17 +292,10 @@ const BOSS_KEYS: View = View {
 
 const DUNGEON_REWARDS: View = View {
     id: "shuffle_dungeon_rewards",
-    label: "Shuffle Dungeon Rewards",
-    tip: "Shuffles the location of Spiritual Stones and medallions.\nVanilla - Spiritual Stones and medallions will be given by their respective boss.\n\nEnd of dungeons - Spiritual Stones and medallions will be given as rewards for beating major dungeons. Link will always start with one stone or medallion.\n\nAny dungeon - Spiritual Stones and medallions can be found inside any dungeon.\n\nOverworld - Spiritual Stones and medallions can only be found outside of dungeons.\n\nAnywhere - Spiritual Stones and medallions can appear anywhere.",
+    label: "Dungeon Rewards",
+    tip: "Where the Spiritual Stones and Medallions can be found.\n\nVanilla - Rewards are not shuffled. Each boss and Rauru give their usual Stone or Medallion.\n\nEnd of dungeons - The Stones and Medallions are shuffled only among themselves: each boss and Rauru give one random Stone or Medallion.\n\nAnywhere - The Stones and Medallions can appear anywhere, and the bosses and Rauru can give any item.",
     kind: Kind::Pick,
-    opts: &[
-        yes("Vanilla", "false"),
-        missing("End of Dungeons"),
-        missing("Own Dungeon"),
-        missing("Any Dungeon"),
-        missing("Overworld"),
-        yes("Anywhere", "true"),
-    ],
+    opts: &[yes("Vanilla", "vanilla"), yes("End of dungeons", "dungeons"), yes("Anywhere", "anywhere")],
 };
 
 const GERUDO_KEYS: View = View {
@@ -360,6 +372,7 @@ const WIN_CONDITION: PortSection = port(
                         "Any dungeon - Triforce pieces can only appear inside of any dungeon.\n\nOverworld - Triforce pieces can only appear outside of dungeons.\n\nAnywhere - Triforce pieces can appear anywhere in the world.",
                     ),
                     Entry::View(&GANON_BK),
+                    Entry::Plain("lacs_rewards"),
                     Entry::Hidden("ganon_bosskey_stones"),
                     Entry::Hidden("ganon_bosskey_medallions"),
                     Entry::Hidden("ganon_bosskey_rewards"),
@@ -403,16 +416,10 @@ const AREA_ACCESS: PortSection = port(
                     gray_check("Lock Overworld Doors", "Add locks to all wooden overworld doors, requiring specific small keys to open them"),
                     Entry::View(&CARPENTERS),
                     Entry::View(&GV_BRIDGE),
-                    gray_pick(
-                        "Rainbow Bridge",
-                        &["Vanilla", "Always open", "Stones", "Medallions", "Dungeon rewards", "Dungeons", "Tokens", "Triforce Pieces", "Greg"],
-                        0,
-                        RAINBOW_BRIDGE_TIP,
-                    ),
-                    Entry::Hidden("bridge"),
+                    Entry::View(&RAINBOW_BRIDGE),
+                    Entry::Plain("bridge_rewards"),
                     Entry::Hidden("bridge_stones"),
                     Entry::Hidden("bridge_medallions"),
-                    Entry::Hidden("bridge_rewards"),
                     Entry::Hidden("bridge_tokens"),
                     Entry::Hidden("bridge_hearts"),
                     Entry::View(&TRIALS),
@@ -581,7 +588,7 @@ const LOCATIONS_TAB: &[PortSection] = &[
             Entry::Hidden("shuffle_scrubs_b"),
         ],
     ),
-    port("Items", &[Entry::Plain("shuffle_songs"), Entry::View(&SKULLTULAS), Entry::View(&FREESTANDING)]),
+    port("Items", &[Entry::Plain("shuffle_songs"), Entry::Plain("song_harp_colors"), Entry::View(&SKULLTULAS), Entry::View(&FREESTANDING)]),
     port(
         "Shops",
         &[

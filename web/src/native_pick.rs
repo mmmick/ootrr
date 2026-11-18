@@ -53,10 +53,10 @@ public static class OotrrPick {
   }
   [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
   private static extern void SHCreateItemFromParsingName(string path, IntPtr pbc, ref Guid riid, [MarshalAs(UnmanagedType.Interface)] out IShellItem item);
-  public static string Run(string start, string title, bool dry) {
+  public static string Run(string start, string title, bool dry, bool file) {
     var d = (IFileOpenDialog)new FileOpenDialog();
     uint o; d.GetOptions(out o);
-    d.SetOptions(o | 0x20 | 0x40 | 0x800);
+    d.SetOptions(file ? (o | 0x40 | 0x800 | 0x1000) : (o | 0x20 | 0x40 | 0x800));
     if (!string.IsNullOrEmpty(title)) d.SetTitle(title);
     if (!string.IsNullOrEmpty(start) && System.IO.Directory.Exists(start)) {
       try { Guid g = typeof(IShellItem).GUID; IShellItem si; SHCreateItemFromParsingName(start, IntPtr.Zero, ref g, out si); d.SetFolder(si); } catch {}
@@ -76,7 +76,7 @@ public static class OotrrPick {
   }
 }
 '@
-$p = [OotrrPick]::Run($env:OOTRR_PICK_START, $env:OOTRR_PICK_TITLE, $env:OOTRR_PICK_DRY -eq '1')
+$p = [OotrrPick]::Run($env:OOTRR_PICK_START, $env:OOTRR_PICK_TITLE, $env:OOTRR_PICK_DRY -eq '1', $env:OOTRR_PICK_FILE -eq '1')
 if ($p) { [Console]::Out.Write("OK`t" + $p) } else { [Console]::Out.Write("CANCEL") }
 "#;
 
@@ -102,20 +102,24 @@ fn encoded(script: &str) -> String {
     out
 }
 
-fn run_windows(start: &str, title: &str, dry: bool) -> Pick {
+fn run_windows(start: &str, title: &str, dry: bool, file: bool) -> Pick {
     let mut c: Command = Command::new("powershell.exe");
     c.args(["-NoProfile", "-NonInteractive", "-STA", "-ExecutionPolicy", "Bypass", "-EncodedCommand"])
         .arg(encoded(WINDOWS_SCRIPT))
         .env("OOTRR_PICK_START", start)
         .env("OOTRR_PICK_TITLE", title)
-        .env("OOTRR_PICK_DRY", if dry { "1" } else { "0" });
+        .env("OOTRR_PICK_DRY", if dry { "1" } else { "0" })
+        .env("OOTRR_PICK_FILE", if file { "1" } else { "0" });
     match quiet(&mut c).output() {
         Ok(o) => parse(&String::from_utf8_lossy(&o.stdout), &String::from_utf8_lossy(&o.stderr)),
         Err(_) => Pick::Unavailable("PowerShell could not be started.".into()),
     }
 }
 
-fn run_mac(start: &str, title: &str) -> Pick {
+fn run_mac(start: &str, title: &str, file: bool) -> Pick {
+    let what: &str = if file { "file" } else { "folder" };
+    let with_start: String = format!("return \"OK\t\" & POSIX path of (choose {what} with prompt (item 1 of argv) default location (POSIX file (item 2 of argv)))");
+    let plain: String = format!("return \"OK\t\" & POSIX path of (choose {what} with prompt (item 1 of argv))");
     let mut c: Command = Command::new("osascript");
     c.args([
         "-e",
@@ -125,11 +129,11 @@ fn run_mac(start: &str, title: &str) -> Pick {
         "-e",
         "if item 2 of argv is not \"\" then",
         "-e",
-        "return \"OK\t\" & POSIX path of (choose folder with prompt (item 1 of argv) default location (POSIX file (item 2 of argv)))",
+        &with_start,
         "-e",
         "end if",
         "-e",
-        "return \"OK\t\" & POSIX path of (choose folder with prompt (item 1 of argv))",
+        &plain,
         "-e",
         "on error number -128",
         "-e",
@@ -147,12 +151,20 @@ fn run_mac(start: &str, title: &str) -> Pick {
     }
 }
 
-fn run_linux(start: &str, title: &str) -> Pick {
+fn run_linux(start: &str, title: &str, file: bool) -> Pick {
     let begin: String = if start.is_empty() { String::new() } else { format!("{}/", start.trim_end_matches('/')) };
-    let tries: [(&str, Vec<String>); 2] = [
-        ("zenity", vec!["--file-selection".into(), "--directory".into(), format!("--title={title}"), format!("--filename={begin}")]),
-        ("kdialog", vec!["--getexistingdirectory".into(), if start.is_empty() { ".".into() } else { start.to_string() }, "--title".into(), title.to_string()]),
-    ];
+    let at: String = if start.is_empty() { ".".into() } else { start.to_string() };
+    let tries: [(&str, Vec<String>); 2] = if file {
+        [
+            ("zenity", vec!["--file-selection".into(), "--file-filter=Game package | *.nup *.nx".into(), format!("--title={title}"), format!("--filename={begin}")]),
+            ("kdialog", vec!["--getopenfilename".into(), at, "*.nup *.nx".into(), "--title".into(), title.to_string()]),
+        ]
+    } else {
+        [
+            ("zenity", vec!["--file-selection".into(), "--directory".into(), format!("--title={title}"), format!("--filename={begin}")]),
+            ("kdialog", vec!["--getexistingdirectory".into(), at, "--title".into(), title.to_string()]),
+        ]
+    };
     for (prog, args) in tries {
         let mut c: Command = Command::new(prog);
         c.args(&args);
@@ -177,13 +189,14 @@ fn parse(out: &str, err: &str) -> Pick {
     Pick::Unavailable(why.trim().to_string())
 }
 
-pub fn pick(start: &str, title: &str) -> Pick {
+/// Opens the system picker for a folder, or with `file` for one file.
+pub fn pick(start: &str, title: &str, file: bool) -> Pick {
     if cfg!(windows) {
-        run_windows(start, title, false)
+        run_windows(start, title, false, file)
     } else if cfg!(target_os = "macos") {
-        run_mac(start, title)
+        run_mac(start, title, file)
     } else {
-        run_linux(start, title)
+        run_linux(start, title, file)
     }
 }
 
@@ -196,9 +209,10 @@ pub fn api(lan: bool, b: &Json) -> Hr<Json> {
     if start.len() > 4096 || title.len() > 200 || title.chars().any(char::is_control) || start.chars().any(char::is_control) {
         return Err(Fail::bad("start or title is not allowed"));
     }
-    match pick(start, title) {
-        Pick::Chosen(p) if p.is_dir() => Ok(Json::obj().with("path", crate::pathsafe::text(&p).into())),
-        Pick::Chosen(_) => Err(Fail::new(422, "The picked folder could not be found.")),
+    let file: bool = b.get("file").and_then(|x| x.as_bool()) == Some(true);
+    match pick(start, title, file) {
+        Pick::Chosen(p) if (if file { p.is_file() } else { p.is_dir() }) => Ok(Json::obj().with("path", crate::pathsafe::text(&p).into())),
+        Pick::Chosen(_) => Err(Fail::new(422, if file { "The picked file could not be found." } else { "The picked folder could not be found." })),
         Pick::Cancelled => Ok(Json::obj().with("cancelled", true.into())),
         Pick::Unavailable(why) => Err(Fail::new(501, &format!("The system folder picker is not available: {why}"))),
     }
@@ -234,6 +248,7 @@ mod tests {
         if !cfg!(windows) {
             return;
         }
-        assert!(matches!(run_windows("", "Test", true), Pick::Chosen(p) if p == PB::from("DRY")));
+        assert!(matches!(run_windows("", "Test", true, false), Pick::Chosen(p) if p == PB::from("DRY")));
+        assert!(matches!(run_windows("", "Test", true, true), Pick::Chosen(p) if p == PB::from("DRY")));
     }
 }

@@ -122,6 +122,7 @@
         or (gerudo_fortress != 'normal' and gerudo_fortress != 'fast')",
     # Mirror shield does not count because it cannot reflect scrub attack.
     "has_shield": "(is_adult and Hylian_Shield) or (is_child and Deku_Shield)",
+    "can_hit_deku_scrub": "has_shield or can_use(Slingshot) or can_use(Boomerang) or can_use(Bow)",
     # Lets link get into the crouching state
     "can_shield": "(is_adult and (Hylian_Shield or Mirror_Shield)) or (is_child and Deku_Shield)",
     "can_jumpslash": "is_adult or Sticks or Kokiri_Sword or can_use(Megaton_Hammer)",

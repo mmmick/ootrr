@@ -8,16 +8,28 @@ export async function pick_folder(start, title) {
     if (r && typeof r.path === "string") return r.path;
     return null;
   } catch {
-    return page_picker(start, title);
+    return page_picker(start, title, false);
   }
 }
 
-function page_picker(start, title) {
+const PACKAGE = /\.(nup|nx)$/i;
+
+export async function pick_package(start, title) {
+  try {
+    const r = await post("/api/pick-folder", { start, title, file: true });
+    if (r && typeof r.path === "string") return r.path;
+    return null;
+  } catch {
+    return page_picker(start, title, true);
+  }
+}
+
+function page_picker(start, title, file) {
   return new Promise((resolve) => {
     const opener = document.activeElement;
     const body = h("div", { class: "body" });
     const input = h("input", { type: "text", "aria-label": "Folder path", spellcheck: "false", autocomplete: "off" });
-    const use = h("button", { type: "button", class: "btn primary" }, "Use this folder");
+    const use = h("button", { type: "button", class: "btn primary", hidden: file }, "Use this folder");
     const up = h("button", { type: "button", class: "btn" }, "Up");
     let here = "";
     let parent = "";
@@ -52,8 +64,9 @@ function page_picker(start, title) {
         for (const e of r.entries) {
           const dir = e.kind === "dir";
           const full = here + (here.endsWith(state.info.sep) ? "" : state.info.sep) + e.name;
+          const pkg = file && !dir && PACKAGE.test(e.name);
           list.append(
-            h("li", null, h("button", { type: "button", disabled: !dir, onclick: () => load(full) }, h("span", { "aria-hidden": "true" }, dir ? "▸" : "·"), e.name)),
+            h("li", null, h("button", { type: "button", disabled: !dir && !pkg, onclick: () => (pkg ? close(full) : load(full)) }, h("span", { "aria-hidden": "true" }, dir ? "▸" : "·"), e.name)),
           );
         }
         fill(

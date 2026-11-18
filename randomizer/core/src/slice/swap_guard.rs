@@ -4,10 +4,10 @@ use crate::romfs::Romfs;
 use crate::slice::copies::fits;
 use crate::slice::data::Data;
 use crate::slice::edit::Target;
-use crate::slice::pickups::is_world;
+use crate::slice::pickups::on_ground;
 
 pub fn check(rf: &mut Romfs, d: &Data, ts: &[Target], extra: &Extra) -> Res<()> {
-    let world: Vec<&Target> = ts.iter().filter(|t| d.cat.by_name(&t.name).is_some_and(is_world)).collect();
+    let world: Vec<&Target> = ts.iter().filter(|t| !t.heart_chest && d.cat.by_name(&t.name).is_some_and(on_ground)).collect();
     let actors: Vec<&str> = world.iter().map(|t| t.new_actor.as_str()).collect();
     check_swaps_with(rf, &actors, extra)?;
     let added: Vec<&Target> = world.into_iter().filter(|t| extra.has(&t.new_actor)).collect();

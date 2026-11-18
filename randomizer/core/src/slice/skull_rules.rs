@@ -168,8 +168,10 @@ mod tests {
         let spot: LocId = w.loc("Deku Tree GS Basement Back Room").unwrap();
         let no_wall: Placement = lacking(&w, &d, &[("Bomb Bag", 1), ("Boomerang", 1), ("Progressive Hookshot", 2), ("Megaton Hammer", 1)]);
         assert!(explore(&w, &no_wall, &[]).loc_access(spot));
-        let no_shot: Placement = lacking(&w, &d, &[("Slingshot", 1), ("Bow", 1)]);
+        let no_shot: Placement = lacking(&w, &d, &[("Slingshot", 1), ("Bow", 1), ("Boomerang", 1)]);
         assert!(!explore(&w, &no_shot, &[]).loc_access(spot));
+        let boomerang: ItemId = w.item("Boomerang").unwrap();
+        assert!(explore(&w, &no_shot, &[boomerang]).loc_access(spot));
     }
 
     #[test]

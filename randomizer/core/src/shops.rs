@@ -1,5 +1,6 @@
 pub mod check;
 pub mod data;
+pub mod door;
 pub mod jobs;
 pub mod layout;
 pub mod logic;

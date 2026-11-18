@@ -186,9 +186,9 @@ mod tests {
         }
         let rock = |a: &str, g: &str| n.get(&("rock".to_string(), a.to_string(), g.to_string())).copied().unwrap_or(0);
         let grass = |a: &str, g: &str| n.get(&("grass".to_string(), a.to_string(), g.to_string())).copied().unwrap_or(0);
-        assert_eq!(ls.iter().filter(|l| l.kind == "rock").count(), 146);
+        assert_eq!(ls.iter().filter(|l| l.kind == "rock").count(), 134);
         assert_eq!(ls.iter().filter(|l| l.kind == "grass").count(), 92);
-        assert_eq!((rock("Kokiri Forest", "child"), rock("Kokiri Forest", "adult")), (19, 18));
+        assert_eq!((rock("Kokiri Forest", "child"), rock("Kokiri Forest", "adult")), (15, 10));
         assert_eq!((rock("Death Mountain Crater", "child"), rock("Death Mountain Crater", "adult")), (14, 17));
         assert_eq!((rock("Death Mountain Trail", "child"), rock("Death Mountain Trail", "adult")), (6, 5));
         assert_eq!((rock("Desert Colossus", "child"), rock("Desert Colossus", "adult")), (13, 13));

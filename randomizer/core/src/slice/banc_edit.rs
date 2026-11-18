@@ -1,4 +1,4 @@
-use std::collections::BTreeSet as BS;
+use std::collections::{BTreeMap as BM, BTreeSet as BS};
 
 use crate::boss_heart::{heart_ids, swap, CHEST, HEART};
 use crate::byml::Byml;
@@ -25,11 +25,13 @@ pub struct Edited {
 }
 
 pub fn edit_file(file: &str, raw: &[u8], ts: &[Target]) -> Res<Option<Edited>> {
-    edit_file_with(file, raw, ts, false, &BS::new())
+    edit_file_with(file, raw, ts, false, &BS::new(), &BM::new())
 }
 
 /// `small` lists boss heart hashes that become a small chest (chest size matches contents).
-pub fn edit_file_with(file: &str, raw: &[u8], ts: &[Target], keys: bool, small: &BS<u64>) -> Res<Option<Edited>> {
+/// `lifts` raises a freestanding spot swapped to one of those pickup actors by that many metres,
+/// so its item model clears the ground (crate::pickup_pack::lift).
+pub fn edit_file_with(file: &str, raw: &[u8], ts: &[Target], keys: bool, small: &BS<u64>, lifts: &BM<String, f32>) -> Res<Option<Edited>> {
     let mut y: Byml = Byml::parse(raw)?;
     let mut hits: Vec<(usize, Found)> = Vec::new();
     let mut used: Vec<(String, Size)> = Vec::new();
@@ -37,7 +39,7 @@ pub fn edit_file_with(file: &str, raw: &[u8], ts: &[Target], keys: bool, small: 
     let mut wraps: Vec<(u64, String)> = Vec::new();
     let mut touched: Vec<u64> = Vec::new();
     for (i, t) in ts.iter().enumerate() {
-        let n: usize = if t.old_actor == HEART {
+        let n: usize = if t.old_actor == HEART && t.heart_chest {
             let chest: &str = if small.contains(&t.hash) { crate::chest_size::PAIRS[0].0 } else { CHEST };
             let n: usize = swap(&mut y, t.hash, &t.new_actor, chest);
             if n > 0 {
@@ -47,7 +49,12 @@ pub fn edit_file_with(file: &str, raw: &[u8], ts: &[Target], keys: bool, small: 
         } else {
             match pu::swap_gyaml(&mut y, t.hash, &t.old_actor, &t.new_actor) {
                 0 => set_drop_ev(&mut y, t.hash, &t.old_actor, &t.new_actor, t.ev)?,
-                k => k,
+                k => {
+                    if let Some(dy) = lifts.get(&t.new_actor) {
+                        crate::pickup_pack::lift::raise(&mut y, t.hash, *dy);
+                    }
+                    k
+                }
             }
         };
         if n > 0 {

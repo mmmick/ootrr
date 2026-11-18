@@ -223,7 +223,38 @@ pub fn worked(rf: &mut Romfs, pk: &crate::modpack::Pack, o: &Opts) -> Res<Vec<Ou
     let have = |p: &str| -> Option<Vec<u8>> { fs::read(p.split('/').fold(root.clone(), |a, s| a.join(s))).ok() };
     let mut outs: Vec<Out> = if o.edits_files() { stage(rf, o, &have)? } else { Vec::new() };
     outs.extend(darunia::stage(rf, &have)?);
+    outs.extend(crate::gerudo_card::stage(rf, &have)?);
     Ok(outs)
+}
+
+/// Writes the event that makes and registers Epona (skips::OWN_EVENT): its new flow file with its
+/// size, and its rows in the event tables. Runs after the late files, which also edit those tables,
+/// and before the analyzed events pass, which lists it as a child of the Ocarina event.
+pub fn write_epona_event(rf: &mut Romfs, pk: &crate::modpack::Pack, rst: &mut Option<crate::rsizetable::Rst>) -> Res<usize> {
+    let root: PB = pk.work.join("romfs");
+    let have = |p: &str| -> Option<Vec<u8>> { fs::read(p.split('/').fold(root.clone(), |a, s| a.join(s))).ok() };
+    let song: Vec<u8> = rf.read_zs(skips::EPONA_FILE)?;
+    let raw: Vec<u8> = skips::own_bytes(&song)?;
+    let z: Vec<u8> = crate::zs::compress_raw(&raw, crate::flow_locations::dict_id(&rf.read(skips::EPONA_FILE)?))?;
+    pk.write_romfs(skips::OWN_FILE, &z)?;
+    if rst.is_none() {
+        *rst = Some(crate::rsizetable::load(rf)?);
+    }
+    let t: &mut crate::rsizetable::Rst = rst.as_mut().ok_or(Error::Format("open world: no size table"))?;
+    let size: u32 = crate::pickup_pack::sizes::file_size(t, &[(skips::EPONA_FILE.to_string(), song.len())], skips::OWN_FILE, raw.len())?;
+    t.set_size(skips::OWN_FILE, size)?;
+    let mut n: usize = 1;
+    for (table, analyzed) in [(crate::progressive::SETTING_TABLE, false), (crate::progressive::ANALYZED_TABLE, true)] {
+        let o: Out = edit_zs(rf, &have, table, |raw: &[u8]| {
+            let mut y: crate::byml::Byml = crate::byml::Byml::parse(raw)?;
+            skips::own_row(&mut y, analyzed)?;
+            y.write()
+        })?;
+        pk.write_romfs(&o.path, &o.z)?;
+        crate::staging::grow_out(rf, t, &o)?;
+        n += 1;
+    }
+    Ok(n)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -575,7 +606,7 @@ mod tests {
             &[(ZORA, Value::s("open")), (JABU, Value::Bool(true))],
             &[(JABU, Value::Bool(true)), (TIME, Value::Bool(true)), (BEDS, Value::Bool(true))],
             &[(ZORA, Value::s("open")), (JABU, Value::Bool(true)), (DOOR, Value::Bool(true)), (TIME, Value::Bool(true)), ("open_forest", Value::s("open")), ("open_kakariko", Value::s("open"))],
-            &[(DOOR, Value::Bool(true)), (TIME, Value::Bool(true)), ("shuffle_skulltulas", Value::s("matched")), ("shuffle_dungeon_rewards", Value::Bool(true))],
+            &[(DOOR, Value::Bool(true)), (TIME, Value::Bool(true)), ("shuffle_skulltulas", Value::s("matched")), ("shuffle_dungeon_rewards", Value::s("anywhere"))],
         ];
         for (n, c) in combos.iter().enumerate() {
             let mut s: Settings = Settings::default();
@@ -662,6 +693,7 @@ mod tests {
         let mut rf: Romfs = Romfs::open(&root).unwrap();
         let race: Bf = Bf::parse(&rf.zs.decompress(&fs::read(at(skips::EPONA_FILE)).unwrap()).unwrap()).unwrap();
         assert!(skips::epona_bytes(&race.write().unwrap()).is_err());
+        assert!(at(skips::OWN_FILE).is_file(), "the Epona event flow is written");
         let beans: Bf = Bf::parse(&rf.zs.decompress(&fs::read(at(skips::BEAN_FILE)).unwrap()).unwrap()).unwrap();
         assert!(skips::bean_bytes(&beans.write().unwrap()).is_err());
         let bridge: crate::ainb::Ainb = crate::ainb::Ainb::parse(&fs::read(at(skips::BRIDGE_MODULE)).unwrap()).unwrap();

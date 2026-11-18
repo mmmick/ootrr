@@ -26,6 +26,9 @@ pub struct Target {
     pub ev: Option<Ev>,
     pub family: Option<&'static str>,
     pub key: Option<&'static str>,
+    /// A boss heart whose item has no pickup this build can stand on the ground: its heart
+    /// container turns into a chest (crate::boss_heart) instead of the item's pickup.
+    pub heart_chest: bool,
 }
 
 fn tier_rank(d: &Data, item: &str, actor: &str) -> usize {
@@ -171,6 +174,16 @@ pub(crate) fn targets_with(d: &Data, seed: &SeedFile, roam: bool, fixed: &BM<Str
             continue;
         }
         if let Some(l) = d.cat.by_name(loc).filter(|l| l.kind == "bossheart") {
+            // The item stands where the heart container would appear, as the freestanding spots
+            // do. Only an item with no ground pickup and no seed pack falls back to a chest.
+            if let Ok(t) = pu::targets_with(d, l, item, extra, fixed.get(loc).map(|a| a.as_str())) {
+                if t.is_empty() {
+                    same += 1;
+                } else {
+                    out.extend(t);
+                }
+                continue;
+            }
             let new: &crate::slice::data::Item = d.item(item).ok_or_else(|| E::Msg(format!("unknown item {item}")))?;
             if new.actor.is_none() {
                 return Err(E::Msg(format!("{item} has no remake item actor and cannot be placed")));
@@ -193,6 +206,7 @@ pub(crate) fn targets_with(d: &Data, seed: &SeedFile, roam: bool, fixed: &BM<Str
                     ev: None,
                     family: None,
                     key: None,
+                    heart_chest: true,
                 });
             }
             continue;
@@ -243,6 +257,7 @@ pub(crate) fn targets_with(d: &Data, seed: &SeedFile, roam: bool, fixed: &BM<Str
                 ev: d.event_mode(r.hash),
                 family,
                 key,
+                heart_chest: false,
             });
         }
     }
@@ -272,6 +287,7 @@ fn unshuffled_bomb_chests(d: &Data, seed: &SeedFile) -> Vec<Target> {
                 ev: d.event_mode(r.hash),
                 family: None,
                 key: None,
+                heart_chest: false,
             });
         }
     }

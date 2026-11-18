@@ -16,7 +16,7 @@ use crate::rsizetable::{self, Rst, TABLE_PATH};
 use crate::sarc::{self, Entry};
 use crate::shelf::actor::{self, int, Shelf};
 use crate::shelf::goods::{self, Edit};
-use crate::shelf::{banc, counters, inner, text, Job, What, BASE, KEEPER_PACKS};
+use crate::shelf::{banc, counters, hook, inner, text, Job, What, BASE, KEEPER_PACKS};
 use crate::staging::{BANC_DICT, MARGIN};
 use crate::zs;
 use crate::TITLE_ID;
@@ -284,6 +284,10 @@ pub fn run(romfs: &P, base: Option<&P>, load: &P, mod_name: &str, host: Host, jo
     files.extend(keepers);
     files.extend(banc_files(&mut c, jobs)?);
     files.extend(counter_file(&mut c, jobs)?);
+    let sold: Vec<hook::Sold> = hook::plan(jobs);
+    if !sold.is_empty() {
+        files.push(c.file(hook::FLOW, |r: &[u8]| hook::edit(r, &sold))?);
+    }
     files.extend(text_files(&mut c, &made)?);
     let mut note: String = String::new();
     let pk: Pack = Pack::create_for(load, TITLE_ID, mod_name, host)?;

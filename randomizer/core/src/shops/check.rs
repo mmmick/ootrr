@@ -88,13 +88,12 @@ mod tests {
     }
 
     #[test]
-    fn upgrade_deals_generate_win_and_sell_the_tier_of_the_reach_order() {
+    fn upgrade_deals_generate_win_and_stand_with_the_first_tier_for_the_run_time_tiers() {
         use crate::shelf::What;
         let d: Data = Data::load().unwrap();
         let mut s: Settings = with(&[("shuffle_shops", "deals_4"), ("shuffle_chests", "all")]);
         s.set("shopsanity_prices", Value::s("adult")).unwrap();
-        let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-        let mut low: usize = 0;
+        let mut seen: usize = 0;
         for n in 0..6 {
             let g: Generated = generate_data(&d, &s, &format!("upgrades {n}"), &GenOpts::default()).unwrap_or_else(|e| panic!("{n}: {e}"));
             let back: SeedFile = SeedFile::parse(&g.seed_file.to_text()).unwrap();
@@ -103,22 +102,20 @@ mod tests {
             let l: crate::shops::layout::Layout = crate::shops::seed::layout(&back).unwrap().unwrap();
             let v: crate::slice::tier_order::Verdict = crate::slice::tier_order::fixed_actors(&d, &back).unwrap();
             assert!(v.bad.is_empty(), "{n}: {:?}", v.bad);
-            for j in crate::shops::jobs::of(&d, &l, &v.assign).unwrap() {
+            for j in crate::shops::jobs::of(&d, &l).unwrap() {
                 let Some(f) = back.placements.get(&j.label).and_then(|i| d.family(i)) else {
                     continue;
                 };
                 let What::Deal { item, .. } = &j.what else {
                     panic!("{} holds a {f} copy but is no deal", j.label);
                 };
-                assert_eq!(v.assign.get(&j.label), Some(item), "{}", j.label);
-                seen.insert(item.clone());
-                let t: &[&str] = crate::progressive::tiers(f).unwrap();
-                if !crate::slice::key_spots::TOP_ONLY.contains(&f) && item != t[t.len() - 1] {
-                    low += 1;
-                }
+                assert_eq!(j.tiered, Some(f), "{}", j.label);
+                assert_eq!(Some(item.as_str()), crate::progressive::tiers(f).unwrap().first().copied(), "{}", j.label);
+                assert!(!v.assign.contains_key(&j.label), "{} has a fixed tier", j.label);
+                seen += 1;
             }
         }
-        assert!(low > 0, "no shop deal sold a tier below the top, the test proves nothing {seen:?}");
+        assert!(seen > 0, "no shop deal held an upgrade, the test proves nothing");
     }
 
     #[test]

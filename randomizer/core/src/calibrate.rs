@@ -424,6 +424,7 @@ fn targets(p: &Plan) -> Vec<Target> {
                 ev: None,
                 family: None,
                 key: None,
+                heart_chest: false,
             });
         }
     }

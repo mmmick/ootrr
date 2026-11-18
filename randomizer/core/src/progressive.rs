@@ -247,6 +247,23 @@ pub(crate) fn chain(f: &mut Flow, a: u16, q: u16, family: &str, o: &[&str], give
     root.ok_or(Error::Format("progressive: a family needs at least two tiers"))
 }
 
+fn next_of(k: &Kind) -> Option<u16> {
+    match k {
+        Kind::Action { next, .. } | Kind::Sub { next, .. } => Some(*next),
+        _ => None,
+    }
+}
+
+fn set_next(k: &mut Kind, to: u16) -> Res<()> {
+    match k {
+        Kind::Action { next, .. } | Kind::Sub { next, .. } => {
+            *next = to;
+            Ok(())
+        }
+        _ => Err(Error::Format("progressive: the grant event has no single next")),
+    }
+}
+
 fn with_param(k: &Kind, param: &str, value: &str) -> Res<Kind> {
     let mut out: Kind = k.clone();
     let c: &mut Cont = out.params_mut().ok_or(Error::Format("progressive: the grant event has no parameters"))?;
@@ -261,7 +278,17 @@ fn with_param(k: &Kind, param: &str, value: &str) -> Res<Kind> {
 }
 
 pub fn wrap_grant(f: &mut Flow, index: usize, event: &str, param: &str, family: &str) -> Res<()> {
-    let t: &[&str] = tiers(family)?;
+    wrap_grant_as(f, index, event, param, family, &[])
+}
+
+/// wrap_grant, with each tier's branch handing out `forms[i]` instead of the tier actor (the
+/// ownership questions still ask about the tier actors). Empty `forms` means the tiers.
+pub fn wrap_grant_as(f: &mut Flow, index: usize, event: &str, param: &str, family: &str, forms: &[String]) -> Res<()> {
+    let tiers_of: &[&str] = tiers(family)?;
+    if !forms.is_empty() && forms.len() != tiers_of.len() {
+        return Err(Error::Msg(format!("progressive: {family} has {} tiers but {} forms", tiers_of.len(), forms.len())));
+    }
+    let t: Vec<&str> = if forms.is_empty() { tiers_of.to_vec() } else { forms.iter().map(|s| s.as_str()).collect() };
     let o: &[&str] = owners(family)?;
     let base: Kind = {
         let e: &Event = f.events.get(index).ok_or_else(|| Error::Msg(format!("event index {index} is out of range")))?;
@@ -275,8 +302,16 @@ pub fn wrap_grant(f: &mut Flow, index: usize, event: &str, param: &str, family: 
     };
     let (a, q) = ensure_query(f)?;
     let mut gives: Vec<u16> = Vec::new();
-    for x in t {
-        gives.push(push(f, with_param(&base, param, x)?)?);
+    for (x, tier) in t.iter().zip(tiers_of) {
+        let mut give: Kind = with_param(&base, param, x)?;
+        // A pickup actor handed out in place of a tier with no animation (crate::ocarina_hold) is
+        // followed by the tier item added like Saria's gift.
+        if x != tier && crate::ocarina_hold::no_anim(tier) {
+            let then: u16 = next_of(&give).ok_or(Error::Format("progressive: the grant event has no single next"))?;
+            let added: u16 = crate::ocarina_hold::after(f, tier, then)?;
+            set_next(&mut give, added)?;
+        }
+        gives.push(push(f, give)?);
     }
     f.events[index].kind = chain(f, a, q, family, o, &gives)?;
     let at: u16 = idx(index)?;
@@ -352,12 +387,15 @@ pub struct Grant {
     pub param: String,
     pub family: &'static str,
     pub wrap: Wrap,
+    /// The actor each tier's branch hands out, when it is not the tier actor itself
+    /// (crate::ocarina_hold). Empty means the tiers.
+    pub forms: Vec<String>,
 }
 
 impl Grant {
     pub fn apply(&self, f: &mut Flow) -> Res<()> {
         match self.wrap {
-            Wrap::Chain => wrap_grant(f, self.index, &self.event, &self.param, self.family),
+            Wrap::Chain => wrap_grant_as(f, self.index, &self.event, &self.param, self.family, &self.forms),
             Wrap::Base { plain } => guard_grant(f, self.index, &self.event, &self.param, self.family, plain),
         }
     }

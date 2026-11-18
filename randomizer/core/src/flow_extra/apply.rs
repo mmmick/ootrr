@@ -94,6 +94,7 @@ mod tests {
             vec![
                 "Dm_FairyFountain_Din.bfevfl".to_string(),
                 "Dm_SY_Get.bfevfl".to_string(),
+                "Npc_Gerudo_006.bfevfl".to_string(),
                 "Npc_Goron_Medigoron_Adult.bfevfl".to_string(),
                 "Npc_Kaepora_DeathMountainTrail.bfevfl".to_string(),
                 "SimpleShop.bfevfl".to_string(),
@@ -106,9 +107,9 @@ mod tests {
         assert_eq!(always, always_ops().unwrap());
         assert_eq!(
             always.keys().cloned().collect::<Vec<String>>(),
-            vec!["Dm_FairyFountain_Din.bfevfl".to_string(), "Dm_SY_Get.bfevfl".to_string(), "Npc_Kaepora_DeathMountainTrail.bfevfl".to_string(), "TriForcePoint.bfevfl".to_string()]
+            vec!["Dm_FairyFountain_Din.bfevfl".to_string(), "Dm_SY_Get.bfevfl".to_string(), "Npc_Gerudo_006.bfevfl".to_string(), "Npc_Kaepora_DeathMountainTrail.bfevfl".to_string(), "TriForcePoint.bfevfl".to_string()]
         );
-        assert!(always.values().flatten().all(|o| matches!(o.how, crate::flow_extra::op::How::Retarget { .. } | crate::flow_extra::op::How::Backfill(_))));
+        assert!(always.values().flatten().all(|o| matches!(o.how, crate::flow_extra::op::How::Retarget { .. } | crate::flow_extra::op::How::Backfill(_) | crate::flow_extra::op::How::Next { .. })));
         assert!(ops_of("Volvagia", "Item_A").unwrap().is_empty());
         assert_eq!(ops_of("DMT Biggoron", "Item_A").unwrap().len(), 3);
     }

@@ -4,7 +4,7 @@ import { state, touch } from "./store.js";
 import { effective } from "./rules.js";
 import { button as report_button } from "./report.js";
 import { panel as spoiler_panel, full_text } from "./spoiler.js";
-import { gen_missing, mod_target, name_ok } from "./config.js";
+import { gen_missing, mod_target, name_ok, update_used } from "./config.js";
 
 export const run = { phase: "idle", line: "", job: null, error: "", target: "", ticket: "" };
 const subs = new Set();
@@ -44,6 +44,8 @@ async function build(res) {
   const r = await post("/api/build", {
     seed_text: res.seed_text,
     game_dir: p.game.trim(),
+    update_dir: p.update.trim(),
+    include_update: update_used() && state.include_update,
     mod_dir: p.mod.trim(),
     mod_name: p.name,
     host: p.host || "eden",

@@ -22,6 +22,25 @@ pub const LACS_AREA_HASH: u64 = 11085071794120779663;
 pub const ALL_SAGE: &str = "Work/Challenge/AllSage.game__challenge__Challenge.gyml";
 pub const LACS_STEP: &str = "Step02";
 
+/// The logic's Light Arrows cutscene condition (data/logic/LogicHelpers.json can_trigger_lacs).
+/// It has no setting of its own: Ganon's Boss Key "LACS - Dungeon Rewards" sets it.
+pub const LACS_SETTING: &str = "lacs_condition";
+pub const LACS_REWARDS: &str = "lacs_rewards";
+pub const LACS_NOTE: &str = "The Light Arrows scene in the Temple of Time plays once you hold the set number of Stones and Medallions together, in place of its usual trigger. The computed flag AllSage_IsAfter_Step02_Exp is rewritten to count the nine rewards, and the scene's logic module and its area in the Temple of Time map are edited to read it. Experimental and untested in the game.";
+/// The nine dungeon rewards: the three Spiritual Stones, then the six Medallions.
+pub const REWARD_ITEMS: [&str; 9] = [
+    "IsGet.Item_Stone_Forest",
+    "IsGet.Item_Stone_Fire",
+    "IsGet.Item_Stone_Water",
+    "IsGet.Item_Medal_Light",
+    "IsGet.Item_Medal_Forest",
+    "IsGet.Item_Medal_Fire",
+    "IsGet.Item_Medal_Water",
+    "IsGet.Item_Medal_Spirit",
+    "IsGet.Item_Medal_Shadow",
+];
+const COUNTS: [&str; 10] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
 const READ_EXP: &str = "HoldGameDataGetBoolExpSimple";
 const EXP_IN: &str = "GameDataNameBoolExp";
 const AREA: &str = "ActorLogicAreaActor";
@@ -33,6 +52,7 @@ const MULTI: &str = "BoolMulti";
 const STR: usize = 3;
 const BOOL: usize = 1;
 const AND_OP: i32 = 3;
+const OR_OP: i32 = 4;
 const NOT_OP: i32 = 5;
 
 pub fn medal(n: &str) -> String {
@@ -49,6 +69,95 @@ pub fn exps() -> Vec<Edit> {
         Edit::Exp(PRELUDE_EXP.to_string(), vec![(0, medal("Forest"))]),
         Edit::Exp(LACS_EXP.to_string(), vec![(0, medal("Shadow")), (0, medal("Spirit")), op(AND_OP), (0, LACS_PLAYED.to_string()), op(NOT_OP), op(AND_OP)]),
     ]
+}
+
+// Setting number 103 is a placeholder until the maintainer gives this branch a range.
+pub fn settings() -> Vec<crate::settings::Setting> {
+    vec![crate::settings::Setting::number(103, LACS_REWARDS, "keys", "Rewards for the Light Arrows Cutscene", 9, 1, 9)
+        .tip("How many Stones and Medallions together make the Light Arrows Cutscene play, which then gives Ganon's Boss Key. Any mix of the three Spiritual Stones and six Medallions counts.")
+        .when("shuffle_ganon_bosskey", crate::lacs_key::VALUE)]
+}
+
+/// Reads the Light Arrows cutscene count: Some(n) when Ganon's Boss Key is on the cutscene and
+/// the scene waits for n dungeon rewards.
+pub fn read_lacs(s: &crate::settings::Settings, ganon: crate::slice::support::Keep, bad: &mut Vec<String>) -> Option<u8> {
+    if ganon != crate::slice::support::Keep::Lacs {
+        return None;
+    }
+    match s.int(LACS_REWARDS) {
+        Ok(n) if (1..=9).contains(&n) => Some(n as u8),
+        Ok(n) => {
+            bad.push(format!("{LACS_REWARDS} is {n}, which is not between 1 and 9"));
+            None
+        }
+        Err(e) => {
+            bad.push(e.to_string());
+            None
+        }
+    }
+}
+
+/// Logic settings for the Light Arrows cutscene when it waits for n dungeon rewards.
+pub fn lacs_logic(n: u8) -> [(&'static str, &'static str); 2] {
+    [(LACS_SETTING, "dungeons"), (LACS_REWARDS, COUNTS[usize::from(n).min(9)])]
+}
+
+/// Postfix terms for "at least k of these flags". None stands for always true (k is 0).
+/// The flags are split in two halves and the formula ORs, over every way to share k
+/// between the halves, the AND of the two smaller counts. The game's formulas have no
+/// sum, so this keeps the formula small: at most 145 terms for 9 flags.
+pub fn at_least(flags: &[&str], k: usize) -> Option<Vec<(i32, String)>> {
+    if k == 0 {
+        return None;
+    }
+    if flags.len() == 1 {
+        return Some(vec![(0, flags[0].to_string())]);
+    }
+    let (a, b) = flags.split_at(flags.len() / 2);
+    let mut out: Vec<(i32, String)> = Vec::new();
+    for j in 0..=k.min(a.len()) {
+        if k - j > b.len() {
+            continue;
+        }
+        let mut t: Vec<(i32, String)> = Vec::new();
+        let x = at_least(a, j);
+        let y = at_least(b, k - j);
+        let both: bool = x.is_some() && y.is_some();
+        t.extend(x.unwrap_or_default());
+        t.extend(y.unwrap_or_default());
+        if both {
+            t.push(op(AND_OP));
+        }
+        let first: bool = out.is_empty();
+        out.extend(t);
+        if !first {
+            out.push(op(OR_OP));
+        }
+    }
+    Some(out)
+}
+
+/// The Light Arrows scene formula for n of the nine dungeon rewards: at least n rewards held,
+/// and the scene not played yet (as the medallion gate does).
+pub fn lacs_terms(n: u8) -> Vec<(i32, String)> {
+    let mut t: Vec<(i32, String)> = at_least(&REWARD_ITEMS, usize::from(n).min(9)).unwrap_or_default();
+    let counted: bool = !t.is_empty();
+    t.push((0, LACS_PLAYED.to_string()));
+    t.push(op(NOT_OP));
+    if counted {
+        t.push(op(AND_OP));
+    }
+    t
+}
+
+pub fn lacs_exp(n: u8) -> Edit {
+    Edit::Exp(LACS_EXP.to_string(), lacs_terms(n))
+}
+
+/// Swaps whatever formula the presets give the Light Arrows scene for the reward count.
+pub fn override_lacs(edits: &mut Vec<Edit>, n: u8) {
+    edits.retain(|e| !matches!(e, Edit::Exp(name, _) if name == LACS_EXP));
+    edits.push(lacs_exp(n));
 }
 
 fn one(hits: Vec<usize>, what: &str) -> Res<usize> {
@@ -159,7 +268,7 @@ pub fn banc_bytes(raw: &[u8]) -> Res<Vec<u8>> {
     Ok(out)
 }
 
-fn module(rf: &mut Romfs, path: &str, f: impl FnOnce(&mut Ainb) -> Res<()>) -> Res<Out> {
+pub fn module(rf: &mut Romfs, path: &str, f: impl FnOnce(&mut Ainb) -> Res<()>) -> Res<Out> {
     let raw: Vec<u8> = rf.read(path)?;
     let mut a: Ainb = Ainb::parse(&raw)?;
     f(&mut a)?;
@@ -173,6 +282,12 @@ fn module(rf: &mut Romfs, path: &str, f: impl FnOnce(&mut Ainb) -> Res<()>) -> R
 
 pub fn stage(rf: &mut Romfs, more: &mut Vec<Out>, from: Option<&PB>) -> Res<()> {
     more.push(module(rf, PRELUDE_MODULE, patch_prelude)?);
+    stage_lacs(rf, more, from)
+}
+
+/// Only the Light Arrows scene part: its logic module reads LACS_EXP instead of the
+/// AllSage step, and its area in the Temple of Time map appears while LACS_EXP holds.
+pub fn stage_lacs(rf: &mut Romfs, more: &mut Vec<Out>, from: Option<&PB>) -> Res<()> {
     more.push(module(rf, LACS_MODULE, |a| patch_lacs(a).map(|_| ()))?);
     match more.iter().position(|o| o.path == SHEIK_FILE) {
         Some(i) => {
@@ -455,10 +570,89 @@ mod tests {
         let p = crate::slice::support::plan(&s).unwrap();
         assert!(!p.logic().contains(&(LOGIC_KEY, "true")));
         assert!(!p.defaults().contains(&(SETTING, "true")));
-        s.set(SETTING, Value::Bool(true)).unwrap();
+        for v in ["anywhere", "dungeons"] {
+            s.set(SETTING, Value::s(v)).unwrap();
+            let p = crate::slice::support::plan(&s).unwrap();
+            assert!(p.logic().contains(&(LOGIC_KEY, "true")), "{v}");
+            assert!(p.defaults().contains(&(SETTING, "true")), "{v}");
+            assert_eq!(crate::start_defaults::presets::chosen(&p.defaults()).unwrap().iter().filter(|e| exps().contains(e)).count(), 3, "{v}");
+        }
+    }
+
+    fn run(terms: &[(i32, String)], held: &[&str]) -> bool {
+        let mut s: Vec<bool> = Vec::new();
+        for (o, f) in terms {
+            match *o {
+                0 => s.push(held.contains(&f.as_str())),
+                AND_OP | OR_OP => {
+                    let b: bool = s.pop().unwrap();
+                    let a: bool = s.pop().unwrap();
+                    s.push(if *o == AND_OP { a && b } else { a || b });
+                }
+                NOT_OP => {
+                    let a: bool = s.pop().unwrap();
+                    s.push(!a);
+                }
+                x => panic!("unexpected op {x}"),
+            }
+        }
+        assert_eq!(s.len(), 1);
+        s[0]
+    }
+
+    #[test]
+    fn the_reward_count_formula_holds_exactly_for_n_rewards_before_the_scene() {
+        for n in 1..=9u8 {
+            let t: Vec<(i32, String)> = lacs_terms(n);
+            assert!(t.len() <= 148, "{n} rewards: {} terms", t.len());
+            for mask in 0u32..512 {
+                let mut held: Vec<&str> = (0..9).filter(|i| mask & (1 << i) != 0).map(|i| REWARD_ITEMS[i]).collect();
+                let want: bool = mask.count_ones() >= u32::from(n);
+                assert_eq!(run(&t, &held), want, "{n} rewards, held {held:?}");
+                held.push(LACS_PLAYED);
+                assert!(!run(&t, &held), "{n} rewards, scene already played");
+            }
+        }
+    }
+
+    #[test]
+    fn the_reward_count_replaces_the_medallion_formula() {
+        let mut e: Vec<Edit> = exps();
+        override_lacs(&mut e, 4);
+        assert_eq!(e.len(), 3);
+        assert_eq!(e.iter().filter(|x| matches!(x, Edit::Exp(n, _) if n == LACS_EXP)).count(), 1);
+        assert!(e.contains(&lacs_exp(4)));
+        let mut none: Vec<Edit> = Vec::new();
+        override_lacs(&mut none, 9);
+        assert_eq!(none, vec![lacs_exp(9)]);
+    }
+
+    #[test]
+    fn the_setting_turns_on_the_count_in_the_plan_and_the_logic() {
+        let mut s: Settings = Settings::default();
         let p = crate::slice::support::plan(&s).unwrap();
-        assert!(p.logic().contains(&(LOGIC_KEY, "true")));
-        assert!(p.defaults().contains(&(SETTING, "true")));
-        assert_eq!(crate::start_defaults::presets::chosen(&p.defaults()).unwrap().iter().filter(|e| exps().contains(e)).count(), 3);
+        assert_eq!(p.lacs, None);
+        assert!(!p.logic().iter().any(|(k, _)| *k == LACS_SETTING));
+        s.set("shuffle_ganon_bosskey", Value::s(crate::lacs_key::VALUE)).unwrap();
+        s.set(LACS_REWARDS, Value::Int(5)).unwrap();
+        let p = crate::slice::support::plan(&s).unwrap();
+        assert_eq!(p.lacs, Some(5));
+        assert!(p.logic().contains(&(LACS_SETTING, "dungeons")));
+        assert!(p.logic().contains(&(LACS_REWARDS, "5")));
+        assert!(p.notes.iter().any(|n| n == LACS_NOTE));
+        assert!(p.notes.iter().any(|n| n == crate::lacs_key::NOTE));
+        assert_eq!(p.keys.ganon, crate::slice::support::Keep::Lacs);
+        s.set("shuffle_rewards", Value::s("off")).unwrap();
+        assert!(crate::slice::support::plan(&s).is_err(), "the cutscene must be shuffled to hold the key");
+    }
+
+    #[test]
+    fn with_the_count_the_logic_needs_that_many_rewards_and_not_shadow_and_spirit() {
+        let d: Data = Data::load().unwrap();
+        let three: World = world_with(&d, &lacs_logic(3)).unwrap();
+        let nine: World = world_with(&d, &lacs_logic(9)).unwrap();
+        assert!(reach(&three, &without(&three, &["Shadow Medallion", "Spirit Medallion"]), &[], LACS));
+        assert!(!reach(&nine, &without(&nine, &["Shadow Medallion"]), &[], LACS));
+        assert!(reach(&nine, &without(&nine, &[]), &[], LACS));
     }
 }

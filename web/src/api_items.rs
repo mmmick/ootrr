@@ -43,11 +43,11 @@ pub fn icon(sh: &Shared, r: &Req) -> Hr<Resp> {
     if icon_map::find(id).is_none() {
         return Err(Fail::new(404, "no such icon"));
     }
-    let (game, fp): (PB, String) = {
+    let (game, romfs, fp): (PB, Option<PB>, String) = {
         let g = sh.tracker.lock();
-        (g.game_dir.clone().ok_or_else(|| Fail::new(404, "no game folder is set"))?, g.index.game.clone())
+        (g.game_dir.clone().ok_or_else(|| Fail::new(404, "no game folder is set"))?, g.romfs.clone(), g.index.game.clone())
     };
-    let root: PB = api_validate::inspect(&game).romfs.unwrap_or(game);
+    let root: PB = romfs.unwrap_or_else(|| api_validate::inspect(&game).romfs.unwrap_or(game));
     let cache: Option<PB> = sh.tracker.data.as_ref().filter(|_| !fp.is_empty()).map(|d| icon_store::cache_dir(d, &fp));
     match sh.tracker.icons.get(&root, cache.as_deref(), id) {
         Ok(b) => Ok(Resp::new(200, PNG, b.to_vec())),
@@ -110,7 +110,7 @@ mod tests {
     fn icons_come_from_the_game_folder_and_bad_ids_are_refused() {
         let d: PB = fake_game("api", &["Item_Bomb"]);
         let s: Shared = sh();
-        s.tracker.set_index(d.clone(), Index { game: "oot-remake:test".into(), table: 0, maps: Vec::new(), locs: Vec::new(), shapes: Vec::new() });
+        s.tracker.set_index(d.clone(), None, d.clone(), Index { game: "oot-remake:test".into(), table: 0, maps: Vec::new(), locs: Vec::new(), shapes: Vec::new() });
         let r: Resp = icon(&s, &rq("Item_Bomb")).unwrap();
         assert_eq!((r.status, r.ctype), (200, PNG));
         assert!(png::looks_ok(&r.body));

@@ -65,7 +65,7 @@
         "hint": "MARKET",
         "exits": {
             "Market": "True",
-            "Market Bombchu Shop": "at_night and 'Defeat King Dodongo'",
+            "Market Bombchu Shop": "at_night and ('Defeat King Dodongo' or bombchu_shop_open)",
             "Market Dog Lady House": "True",
             "Market Man in Green House": "at_night"
         }

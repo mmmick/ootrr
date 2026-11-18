@@ -54,7 +54,7 @@ fn reward_goal(s: Setting) -> Setting {
 
 fn bridge() -> Vec<Setting> {
     let b: Setting = reward_goal(
-        Setting::choice(24, "bridge", "goal", "Rainbow Bridge", "medallions")
+        Setting::choice(24, "bridge", "goal", "Rainbow Bridge", "vanilla")
             .tag(Tag::Core)
             .tip("What it takes to make the Rainbow Bridge to Ganon's Castle appear.")
             .opt("open", "Always open", "The bridge is there from the start.")
@@ -85,7 +85,8 @@ fn ganon_key() -> Vec<Setting> {
     let k: Setting = reward_goal(key_places(
         Setting::choice(18, "shuffle_ganon_bosskey", "keys", "Ganon's Boss Key", "dungeon")
             .tag(Tag::Core)
-            .tip("Where Ganon's Castle Boss Key is, or what earns it."),
+            .tip("Where Ganon's Castle Boss Key is, or what earns it.")
+            .opt(crate::lacs_key::VALUE, "LACS - Dungeon Rewards", "Zelda gives the key in the Light Arrows Cutscene, which plays once you hold a set number of Stones and Medallions together. The Light Arrows are shuffled into the item pool. Experimental, untested in the game."),
     ));
     vec![
         k,
@@ -344,6 +345,7 @@ pub fn build() -> Schema {
     );
     s.extend(ganon_key());
     s.extend(bridge());
+    s.extend(crate::medal_gate::settings());
     s.push(
         Setting::toggle(30, "trials_random", "goal", "Random Ganon's Trials", false)
             .tip("Pick the number of trials to clear at random."),
@@ -376,7 +378,7 @@ pub fn build() -> Schema {
     s.push(
         Setting::choice(38, "shuffle_rewards", "shuffle", "Story and NPC rewards", "supported")
             .wire_as(Value::s("off"))
-            .tip("Whether the items that NPCs, minigames, Great Fairies and story scenes hand out are shuffled. This is on by default. The Spiritual Stones and Medallions from the bosses and Rauru stay in place unless Stones and Medallions is also on. Songs have their own setting.")
+            .tip("Whether the items that NPCs, minigames, Great Fairies and story scenes hand out are shuffled. This is on by default. The Spiritual Stones and Medallions from the bosses and Rauru stay in place unless Dungeon Rewards is also set. Songs have their own setting.")
             .opt("off", "Vanilla", "These rewards keep their original items.")
             .opt("supported", "Supported rewards", "The rewards whose event the tool can edit."),
     );
@@ -388,8 +390,13 @@ pub fn build() -> Schema {
             .when("shuffle_rewards", "supported"),
     );
     s.push(
-        Setting::toggle(74, "shuffle_dungeon_rewards", "shuffle", "Stones and Medallions", false)
-            .tip("Also shuffle the three Spiritual Stones and six Medallions that the bosses and Rauru hand out. When this is off, every boss and Rauru give their usual Stone or Medallion, and no Stone or Medallion turns up anywhere else.")
+        // Was a toggle: the choice order keeps old strings reading off as vanilla and on as anywhere.
+        Setting::choice(74, "shuffle_dungeon_rewards", "shuffle", "Dungeon Rewards", "vanilla")
+            .disabled_as(Value::s("vanilla"))
+            .tip("Where the three Spiritual Stones and six Medallions that the bosses and Rauru hand out can be found.")
+            .opt("vanilla", "Vanilla", "Every boss and Rauru give their usual Stone or Medallion.")
+            .opt("anywhere", "Anywhere", "The Stones and Medallions can be anywhere, and the bosses and Rauru can give any item.")
+            .opt("dungeons", "End of dungeons", "The Stones and Medallions are shuffled among the bosses and Rauru only: each of them gives one random Stone or Medallion.")
             .when("shuffle_rewards", "supported"),
     );
     s.push(
@@ -480,7 +487,7 @@ pub fn build() -> Schema {
     s.push(
         Setting::toggle(39, "shuffle_boss_hearts", "shuffle", "Boss Heart Containers", true)
             .wire_as(Value::Bool(false))
-            .tip("Whether the Heart Containers that bosses leave behind join the item pool. Each one becomes a chest that holds a random item."),
+            .tip("Whether the Heart Containers that bosses leave behind join the item pool. The random item appears where the heart would, after the boss falls."),
     );
     s.push(
         Setting::choice(40, "shuffle_songs", "shuffle", "Songs", "off")
@@ -488,6 +495,11 @@ pub fn build() -> Schema {
             .opt("off", "Vanilla", "Every song comes from its usual teacher.")
             .opt("own", "Song locations", "The songs are shuffled among the places that teach songs.")
             .opt("anywhere", "Anywhere", "Songs can appear anywhere, also in pots, crates, freestanding spots and at Gold Skulltulas when those are shuffled, and song locations can hold any item."),
+    );
+    s.push(
+        Setting::toggle(104, crate::song_models::SETTING, "shuffle", "Harp colour by song", true)
+            .tip("A song found as an item shows Sheik's harp in the colour of that song on the ocarina menu, so you can tell the songs apart before you pick one up. Experimental, untested in the game.")
+            .when("shuffle_songs", "anywhere"),
     );
     s.push(
         Setting::toggle(41, "gossip_hints", "world", "Gossip stone hints", false)

@@ -388,6 +388,13 @@
 "ops": [
 {"kind": "retarget", "file": "Npc_Kaepora_DeathMountainTrail.bfevfl", "index": 3, "event": "Event4", "case": 1, "old": 16, "new": 12}
 ]
+},
+{
+"name": "Fortress gatekeeper keeps the Spirit quest step",
+"why": "the gatekeeper's first talk as a member (event 31 marks the talk, event 4 asks the SageOfSpirit quest for Step02) would skip the carpenter rescue for a player who is a member through the Gerudo Card alone, the rescue already moves the quest to Step02, so event 31 goes straight to event 87 and the gate still opens",
+"ops": [
+{"kind": "next", "file": "Npc_Gerudo_006.bfevfl", "index": 31, "event": "Event6", "old": 4, "new": 87}
+]
 }
 ]
 }

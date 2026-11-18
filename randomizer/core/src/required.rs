@@ -48,6 +48,50 @@ pub fn list(d: &Data) -> Vec<String> {
     out.into_iter().collect()
 }
 
+/// Folders a build reads whole: it lists them, or picks files in them by names that come
+/// from the seed or the data files (actor packs, event flows, map and language files).
+pub const TREES: [&str; 12] = [
+    "Banc",
+    "Event/EventFlow",
+    "GameData",
+    "Logic",
+    "Mals",
+    "Pack",
+    "RSDB",
+    "Sequence",
+    "SLink2",
+    "Sound/Bgm",
+    "System/CombinationDataTableData",
+    "System/Resource",
+];
+
+/// Music and sound effect shuffle list and size every sound bank and stream.
+pub const SOUND: &str = "Sound/Resource";
+
+/// The part of the game a build reads: the files in `files` and everything under the
+/// folders in `trees`. Used to unpack only that part of a .nup or .nx (about 300 MB, or
+/// about 2.3 GB with music or sound effect shuffle) instead of the whole 25 GB game.
+pub struct Unpack {
+    pub files: BS<String>,
+    pub trees: BS<String>,
+}
+
+impl Unpack {
+    pub fn wants(&self, r: &str) -> bool {
+        self.files.contains(r) || self.trees.iter().any(|t| r.len() > t.len() && r.starts_with(t.as_str()) && r.as_bytes()[t.len()] == b'/')
+    }
+}
+
+pub fn unpack(d: &Data, sound: bool) -> Unpack {
+    let mut files: BS<String> = list(d).into_iter().collect();
+    files.extend(crate::colors::files());
+    let mut trees: BS<String> = TREES.iter().map(|s| s.to_string()).collect();
+    if sound {
+        trees.insert(SOUND.to_string());
+    }
+    Unpack { files, trees }
+}
+
 pub fn missing(root: &P, d: &Data) -> Vec<String> {
     list(d)
         .into_iter()
@@ -67,6 +111,17 @@ mod tests {
         assert!(l.iter().any(|x| x.starts_with("Banc/")));
         assert!(l.iter().any(|x| x.contains("Enemy_Scrub_Business_Common")));
         assert!(l.windows(2).all(|w| w[0] < w[1]));
+    }
+
+    #[test]
+    fn the_unpack_set_holds_the_build_list_the_colour_files_and_its_trees() {
+        let d: Data = Data::load().unwrap();
+        let u: Unpack = unpack(&d, false);
+        assert!(list(&d).iter().all(|f| u.wants(f)));
+        assert!(crate::colors::files().iter().all(|f| u.wants(f)));
+        assert!(u.wants("Pack/Actor/Anything.pack.zs") && u.wants("Banc/X/y.zs"));
+        assert!(!u.wants("Packed/x") && !u.wants("Pack") && !u.wants("Sound/Resource/Stream/SE_A.bwav"));
+        assert!(unpack(&d, true).wants("Sound/Resource/Stream/SE_A.bwav"));
     }
 
     #[test]

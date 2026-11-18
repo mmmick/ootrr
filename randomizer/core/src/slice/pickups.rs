@@ -53,6 +53,12 @@ pub fn is_world(l: &Loc) -> bool {
     l.via == Via::Actor && matches!(l.kind.as_str(), "heart" | "freestanding")
 }
 
+/// A spot whose actor is swapped for the placed item's ground pickup: the freestanding spots,
+/// and the boss hearts, whose item appears where the heart container would once the boss falls.
+pub fn on_ground(l: &Loc) -> bool {
+    is_world(l) || l.kind == "bossheart"
+}
+
 pub fn held(name: &str) -> Option<bool> {
     HELD.iter().find(|h| h.0 == name).map(|h| h.1)
 }
@@ -188,6 +194,7 @@ pub fn targets_with(d: &Data, l: &Loc, item: &str, extra: &Extra, tier: Option<&
             ev: None,
             family: None,
             key: None,
+            heart_chest: false,
         });
     }
     Ok(out)
@@ -466,6 +473,7 @@ mod tests {
             ev: None,
             family: None,
             key: None,
+            heart_chest: false,
         };
         let ts: Vec<Target> = vec![mk(1, "Obj_Heart_Piece", "Obj_Rupee_Green"), mk(2, "Obj_Heart_Piece", "TBox_Rupee_Green")];
         let e: crate::slice::edit::Edited = edit_file("Banc/Area/a.bcett.byml.zs", &raw, &ts).unwrap().unwrap();

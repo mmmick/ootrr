@@ -153,7 +153,7 @@ pub fn action_slot(f: &mut Flow, who: &str, name: &str) -> Res<(u16, u16)> {
     Ok((idx(i)?, idx(j)?))
 }
 
-fn add_int(name: String) -> Cont {
+pub fn add_int(name: String) -> Cont {
     Cont {
         items: vec![
             ("Index".to_string(), Val::Int(-1)),

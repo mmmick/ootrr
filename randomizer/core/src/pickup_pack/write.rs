@@ -439,6 +439,8 @@ pub fn run_with(romfs: &P, load: &P, mod_name: &str, s: &Spec, o: &Opts, l: &Lay
     if !rf.root.join(pack_of(&s.item)).is_file() {
         return Err(E::Msg(format!("the game has no actor pack for {}", s.item)));
     }
+    let lifted: Layers = crate::pickup_pack::lift::layers(&mut rf, &s.item, l)?;
+    let l: &Layers = &lifted;
     let mut packs: Vec<Vec<Entry>> = Vec::new();
     for n in [BASE, DONOR, s.item.as_str()].into_iter().chain(l.model.as_deref()) {
         packs.push(sarc::parse(&start(&mut rf, o.base.as_ref(), &pack_of(n))?)?);

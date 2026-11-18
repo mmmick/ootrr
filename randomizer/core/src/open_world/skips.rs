@@ -4,7 +4,8 @@
 
 use crate::ainb::Ainb;
 use crate::bfevfl::flow::NONE;
-use crate::bfevfl::{Actor, Bf, Case, Cont, Event, Flow, Kind, Val};
+use crate::bfevfl::{Actor, Bf, Case, Cont, Entry, Event, Flow, Kind, Val};
+use crate::byml::{Byml, Node};
 use crate::error::{Error, Res};
 
 pub const EPONA_FILE: &str = "Event/EventFlow/Dm_SY_Ocarina_EponaSong.bfevfl.zs";
@@ -23,7 +24,14 @@ pub const OFFSTAGE: &str = "EventGoOffstageForUser";
 pub const SET_ENUM: &str = "EventTriggerSetGameDataEnum";
 pub const EPONA_STEP: &str = "Step_Get_Epona";
 pub const EPONA_PREFIX: &str = "OOTRREpona";
-pub const EPONA_NOTE: &str = "Epona's Song is enough to own Epona: the first time an adult Link plays it where a horse can be ridden, the song's event makes an Epona, registers her as Link's horse the way the ranch escape does, and calls her. The Epona quest is set complete at the same time, so Ingo's race and the ranch visit are skipped. Experimental and untested in the game.";
+/// The event that makes and registers Epona: its event name, flow, entry and flow file.
+pub const OWN_EVENT: &str = "OOTRREponaOwn";
+pub const OWN_FILE: &str = "Event/EventFlow/OOTRREponaOwn.bfevfl.zs";
+/// The Ocarina event's child event (Pierre's) whose table rows the new event copies.
+pub const OWN_TEMPLATE: &str = "AppearPierre_ByScarecrowSong";
+const MOVER: &str = "EventSystemActor";
+const MOVE: &str = "EventTransition";
+pub const EPONA_NOTE: &str = "Epona's Song is enough to own Epona: the first time an adult Link plays it where a horse can be ridden, the song starts an event that makes an Epona and registers her as Link's horse the way the ranch escape does, then calls her. Only that first song makes an Epona. The Epona quest is set complete at the same time, so Ingo's race and the ranch visit are skipped. Experimental and untested in the game.";
 pub const BRIDGE_MODULE: &str = "Logic/GerudoValley_Adult_Prefab_9e43.logic.module.ainb";
 pub const BEAN_FILE: &str = "Event/EventFlow/Npc_Hylia_047_Child.bfevfl.zs";
 pub const BEAN_FLOW: &str = "Npc_Hylia_047_Child";
@@ -74,6 +82,30 @@ pub fn force_bool(a: &mut Ainb, i: usize, name: &str, v: bool) -> Res<()> {
     rec[6..8].copy_from_slice(&0i16.to_le_bytes());
     rec[8..12].copy_from_slice(&CONST.to_le_bytes());
     rec[12..16].copy_from_slice(&u32::from(v).to_le_bytes());
+    Ok(())
+}
+
+/// Points a linked bool input at output `out` of node `src`, moving the plug that fed it.
+pub fn relink_bool(a: &mut Ainb, i: usize, name: &str, src: usize, out: u16) -> Res<()> {
+    let g: usize = a.find_in(i, BOOL, name).ok_or_else(|| Error::Msg(format!("skips: node {i} has no {name} input")))?;
+    let x = a.input(BOOL, g).ok_or(Error::Format("skips: input out of range"))?;
+    let old: u32 = u32::try_from(x.src).map_err(|_| Error::Format("skips: the input is not a single link"))?;
+    let to: i16 = i16::try_from(src).map_err(|_| Error::Format("skips: node index out of range"))?;
+    let out: i16 = i16::try_from(out).map_err(|_| Error::Format("skips: output index out of range"))?;
+    let mut hit: Option<(usize, usize)> = None;
+    for k in 0..10 {
+        if let Some(pos) = a.params[i].group(k).iter().position(|p| p.a == old && a.s(p.b) == name) {
+            hit = Some((k, pos));
+            break;
+        }
+    }
+    let (k, pos): (usize, usize) = hit.ok_or(Error::Format("skips: the link into the input has no plug"))?;
+    let at: usize = a.params[i].pl[k][1] as usize + pos;
+    a.params[i].plugs[at].a = src as u32;
+    let o: usize = g * 16;
+    let rec: &mut [u8] = a.ins[BOOL].get_mut(o..o + 16).ok_or(Error::Format("skips: input out of range"))?;
+    rec[4..6].copy_from_slice(&to.to_le_bytes());
+    rec[6..8].copy_from_slice(&out.to_le_bytes());
     Ok(())
 }
 
@@ -212,9 +244,14 @@ fn epona_member(base: &Actor) -> Actor {
 }
 
 /// When an adult plays Epona's Song without owning a horse, in a place where riding is allowed:
-/// create an Epona next to Link, register her as Link's horse, take the created one off stage,
-/// mark the Epona quest complete, and go on to the game's own "owned horse" path, which calls
-/// her. Elsewhere, and once she is owned, the song is unchanged. Returns the added events.
+/// start the event that makes and registers Epona ([`OWN_EVENT`]), then go on to the game's own
+/// "owned horse" path, which calls her. Elsewhere, and once she is owned, the song is unchanged.
+///
+/// The Ocarina event loads this flow as soon as the Ocarina comes out (its
+/// StartToPrepareCallOwnedHorse entry), and an event creates every member of the flows it loads
+/// that it is told to create. An Epona member here made a new Epona at every Ocarina use, so she
+/// lives in her own event, which only this path starts (as the Ocarina event starts Pierre's).
+/// Returns the added events.
 pub fn patch_epona(b: &mut Bf) -> Res<usize> {
     let f: &mut Flow = flow_mut(b, EPONA_FLOW)?;
     if f.events.iter().any(|e| e.name.starts_with(EPONA_PREFIX)) {
@@ -234,26 +271,70 @@ pub fn patch_epona(b: &mut Bf) -> Res<usize> {
         Kind::Switch { actor, query, .. } if f.actors.get(*actor as usize).and_then(|a| a.queries.get(*query as usize)).is_some_and(|q| q == CAN_RIDE) => (*actor, *query),
         _ => return Err(Error::Msg(format!("skips: the owned horse path of {EPONA_FLOW} does not start with the riding check"))),
     };
-    let ga: usize = f.actors.iter().position(|a| a.name == "GameDataActor" && a.sub.is_empty()).ok_or(Error::Format("skips: the song flow has no GameDataActor"))?;
-    let base: Actor = f.actors.first().cloned().ok_or(Error::Format("skips: the song flow has no actors"))?;
     if f.actors.iter().any(|a| a.name == EPONA_ACTOR) {
-        return Err(Error::Msg(format!("skips: {EPONA_FLOW} already has an Epona member")));
+        return Err(Error::Msg(format!("skips: {EPONA_FLOW} has an Epona member, the game files differ")));
     }
-    f.actors.push(epona_member(&base));
-    let ea: usize = f.actors.len() - 1;
-    let (warp, reg, off): (u16, u16, u16) = (action_slot(f, ea, WARP), action_slot(f, ea, REGISTER), action_slot(f, ea, OFFSTAGE));
-    let set: u16 = action_slot(f, ga, SET_ENUM);
+    let base: Actor = f.actors.first().cloned().ok_or(Error::Format("skips: the song flow has no actors"))?;
+    let mv: usize = match f.actors.iter().position(|a| a.name == MOVER && a.sub.is_empty()) {
+        Some(i) => i,
+        None => {
+            f.actors.push(Actor { name: MOVER.to_string(), sub: String::new(), arg: String::new(), actions: Vec::new(), queries: Vec::new(), params: base.params.clone(), ep: base.ep, cut: base.cut });
+            f.actors.len() - 1
+        }
+    };
+    let go: u16 = action_slot(f, mv, MOVE);
     let n: usize = f.events.len();
-    if n + 5 >= NONE as usize {
+    if n + 2 >= NONE as usize {
         return Err(Error::Format("skips: too many events in the song flow"));
     }
     let at = |k: usize| (n + k) as u16;
-    let ea: u16 = ea as u16;
     let chain: Vec<Kind> = vec![
         Kind::Switch { actor: ra, query: rq, cases: vec![Case { val: 0, ev: at(1) }, Case { val: 1, ev: unowned }], params: None },
         Kind::Action {
-            next: at(2),
-            actor: ea,
+            next: owned,
+            actor: mv as u16,
+            act: go,
+            params: Some(Cont {
+                items: vec![kv("IsWaitEnd", Val::Bool(TRUE)), kv("SpecialEventActionType", Val::Int(1)), kv("FadeInTypeEventEnd", Val::Int(0)), kv("EventName", Val::Str(OWN_EVENT.to_string()))],
+            }),
+        },
+    ];
+    let added: usize = chain.len();
+    for (k, kind) in chain.into_iter().enumerate() {
+        f.events.push(Event { name: format!("{EPONA_PREFIX}{k}"), kind });
+    }
+    if let Kind::Switch { cases, .. } = &mut f.events[ask].kind {
+        for c in cases.iter_mut().filter(|c| c.val == 1) {
+            c.ev = at(0);
+        }
+    }
+    Ok(added)
+}
+
+/// The event's one flow: create an Epona next to Link, register her as Link's horse the way the
+/// ranch escape does, take the created one off stage and mark the Epona quest complete. Built from
+/// the game's Epona's Song flow `song` (its file layout and member settings).
+pub fn own_flow(song: &Bf) -> Res<Bf> {
+    let s: &Flow = song.flows.iter().find(|x| x.name == EPONA_FLOW).ok_or_else(|| Error::Msg(format!("skips: no flow named {EPONA_FLOW}")))?;
+    let base: Actor = s.actors.first().cloned().ok_or(Error::Format("skips: the song flow has no actors"))?;
+    let like = |name: &str| -> Res<Actor> {
+        let mut a: Actor = s.actors.iter().find(|a| a.name == name && a.sub.is_empty()).cloned().ok_or_else(|| Error::Msg(format!("skips: the song flow has no {name}")))?;
+        a.actions.clear();
+        a.queries.clear();
+        Ok(a)
+    };
+    let mut f: Flow = Flow {
+        name: OWN_EVENT.to_string(),
+        actors: vec![epona_member(&base), like("GameDataActor")?, like("Player_Event")?],
+        events: Vec::new(),
+        entries: vec![Entry { name: OWN_EVENT.to_string(), subs: Vec::new(), vars: Vec::new(), main: 0, pad: 0 }],
+    };
+    let (warp, reg, off): (u16, u16, u16) = (action_slot(&mut f, 0, WARP), action_slot(&mut f, 0, REGISTER), action_slot(&mut f, 0, OFFSTAGE));
+    let set: u16 = action_slot(&mut f, 1, SET_ENUM);
+    let chain: Vec<Kind> = vec![
+        Kind::Action {
+            next: 1,
+            actor: 0,
             act: warp,
             params: Some(Cont {
                 items: vec![
@@ -268,10 +349,10 @@ pub fn patch_epona(b: &mut Bf) -> Res<usize> {
                 ],
             }),
         },
-        Kind::Action { next: at(3), actor: ea, act: reg, params: Some(Cont { items: vec![kv("IsWaitEnd", Val::Bool(TRUE))] }) },
+        Kind::Action { next: 2, actor: 0, act: reg, params: Some(Cont { items: vec![kv("IsWaitEnd", Val::Bool(TRUE))] }) },
         Kind::Action {
-            next: at(4),
-            actor: ea,
+            next: 3,
+            actor: 0,
             act: off,
             params: Some(Cont {
                 items: vec![
@@ -283,22 +364,52 @@ pub fn patch_epona(b: &mut Bf) -> Res<usize> {
             }),
         },
         Kind::Action {
-            next: owned,
-            actor: ga as u16,
+            next: NONE,
+            actor: 1,
             act: set,
             params: Some(Cont { items: vec![kv("GameDataName", Val::Str(EPONA_STEP.to_string())), kv("Value", Val::Str("Complete".to_string())), kv("Index", Val::Int(-1))] }),
         },
     ];
-    let added: usize = chain.len();
     for (k, kind) in chain.into_iter().enumerate() {
-        f.events.push(Event { name: format!("{EPONA_PREFIX}{k}"), kind });
+        f.events.push(Event { name: format!("{EPONA_PREFIX}Own{k}"), kind });
     }
-    if let Kind::Switch { cases, .. } = &mut f.events[ask].kind {
-        for c in cases.iter_mut().filter(|c| c.val == 1) {
-            c.ev = at(0);
+    Ok(Bf { name: OWN_EVENT.to_string(), flows: vec![f], tls: Vec::new(), ..song.clone() })
+}
+
+/// [`own_flow`] as file bytes, from the game's song flow file.
+pub fn own_bytes(song_raw: &[u8]) -> Res<Vec<u8>> {
+    let b: Bf = own_flow(&Bf::parse(song_raw)?)?;
+    let out: Vec<u8> = b.write()?;
+    if Bf::parse(&out)? != b {
+        return Err(Error::Format("skips: the Epona event flow does not parse back"));
+    }
+    Ok(out)
+}
+
+fn row_id(n: &Node) -> &str {
+    n.get("__RowId").and_then(|v| v.as_str()).unwrap_or("")
+}
+
+/// Adds [`OWN_EVENT`]'s row to the event settings table, or (`analyzed`) to the analyzed events
+/// table, copied from Pierre's row: a plain flow chart event the Ocarina event starts.
+pub fn own_row(y: &mut Byml, analyzed: bool) -> Res<()> {
+    let list: &mut Vec<Node> = y.root.as_arr_mut().ok_or(Error::Format("skips: an event table root is not a list"))?;
+    if list.iter().any(|r| row_id(r) == OWN_EVENT) {
+        return Err(Error::Msg(format!("skips: the event table already holds {OWN_EVENT}")));
+    }
+    let mut r: Node = list.iter().find(|r| row_id(r) == OWN_TEMPLATE).cloned().ok_or_else(|| Error::Msg(format!("skips: the event table has no {OWN_TEMPLATE} row, the game files differ")))?;
+    r.set("__RowId", Node::Str(OWN_EVENT.to_string()));
+    if analyzed {
+        if let Node::Map(m) = &mut r {
+            m.retain(|(k, _)| k != "SubFlowList" && k != "ChildEventList");
         }
+    } else {
+        r.set("FlowchartFileName", Node::Str(format!("Work/Event/EventFlow/{OWN_EVENT}.evfc")));
+        r.set("EntryPointName", Node::Str(OWN_EVENT.to_string()));
     }
-    Ok(added)
+    let at: usize = list.partition_point(|x| row_id(x) < OWN_EVENT);
+    list.insert(at, r);
+    Ok(())
 }
 
 pub fn epona_bytes(raw: &[u8]) -> Res<Vec<u8>> {
@@ -360,7 +471,7 @@ mod tests {
         let out: Vec<u8> = epona_bytes(&raw).unwrap();
         let b: Bf = Bf::parse(&out).unwrap();
         let f: &Flow = b.flows.iter().find(|x| x.name == EPONA_FLOW).unwrap();
-        assert_eq!(f.events.len(), of.events.len() + 5);
+        assert_eq!(f.events.len(), of.events.len() + 2);
         let ask: usize = event_at(f, ASK_OWNED).unwrap();
         for i in 0..of.events.len() {
             if i != ask {
@@ -379,20 +490,44 @@ mod tests {
                 _ => (String::new(), String::new()),
             }
         };
-        let got: Vec<(String, String)> = (0..5).map(|k| names(&f.events[of.events.len() + k])).collect();
+        let got: Vec<(String, String)> = (0..2).map(|k| names(&f.events[of.events.len() + k])).collect();
+        assert_eq!(got, vec![("GameSystemActor".to_string(), CAN_RIDE.to_string()), (MOVER.to_string(), MOVE.to_string())]);
+        let Kind::Action { next, .. } = &f.events[of.events.len() + 1].kind else { panic!() };
+        assert_eq!(*next, was[0].ev, "after the event, the owned horse path calls her");
+        assert_eq!(text(&f.events[of.events.len() + 1], "EventName"), Some(OWN_EVENT));
+        assert!(!f.actors.iter().any(|a| a.name == EPONA_ACTOR), "no Epona is made whenever the song flow loads");
+        let own: Bf = Bf::parse(&own_bytes(&raw).unwrap()).unwrap();
+        let g: &Flow = &own.flows[0];
+        assert_eq!((own.name.as_str(), g.name.as_str(), g.entries[0].name.as_str(), g.entries[0].main), (OWN_EVENT, OWN_EVENT, OWN_EVENT, 0));
+        let acts: Vec<(String, String)> = g
+            .events
+            .iter()
+            .map(|e| match &e.kind {
+                Kind::Action { actor, act, .. } => (g.actors[*actor as usize].name.clone(), g.actors[*actor as usize].actions[*act as usize].clone()),
+                _ => panic!(),
+            })
+            .collect();
         let want: Vec<(String, String)> = vec![
-            ("GameSystemActor".to_string(), CAN_RIDE.to_string()),
             (EPONA_ACTOR.to_string(), WARP.to_string()),
             (EPONA_ACTOR.to_string(), REGISTER.to_string()),
             (EPONA_ACTOR.to_string(), OFFSTAGE.to_string()),
             ("GameDataActor".to_string(), SET_ENUM.to_string()),
         ];
-        assert_eq!(got, want);
-        let Kind::Action { next, .. } = &f.events[of.events.len() + 4].kind else { panic!() };
-        assert_eq!(*next, was[0].ev, "after registering, the owned horse path calls her");
-        assert_eq!(text(&f.events[of.events.len() + 4], "Value"), Some("Complete"));
-        let ep = f.actors.iter().find(|a| a.name == EPONA_ACTOR).unwrap();
+        assert_eq!(acts, want);
+        assert_eq!(text(&g.events[3], "Value"), Some("Complete"));
+        let ep = g.actors.iter().find(|a| a.name == EPONA_ACTOR).unwrap();
         assert_eq!(ep.params.as_ref().unwrap().get("EventMemberCreateMethod"), Some(&Val::Int(1)));
+        for (t, analyzed) in [(crate::progressive::SETTING_TABLE, false), (crate::progressive::ANALYZED_TABLE, true)] {
+            let mut y: Byml = rf.read_byml(t).unwrap();
+            own_row(&mut y, analyzed).unwrap();
+            let r: &Node = y.root.as_arr().unwrap().iter().find(|r| row_id(r) == OWN_EVENT).unwrap();
+            if analyzed {
+                assert!(r.get("SubFlowList").is_none() && r.get("ChildEventList").is_none());
+            } else {
+                assert_eq!(r.get("EntryPointName").and_then(|v| v.as_str()), Some(OWN_EVENT));
+            }
+            assert!(own_row(&mut y, analyzed).is_err());
+        }
         assert!(epona_bytes(&out).is_err());
     }
 

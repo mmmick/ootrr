@@ -176,6 +176,7 @@ mod tests {
             ev: Some(Ev::Keep),
             family: None,
             key: None,
+            heart_chest: false,
         }
     }
 

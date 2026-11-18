@@ -44,7 +44,7 @@ fn api(sh: &Shared, r: &Req) -> Hr<Resp> {
         }
         "/api/validate" => {
             need(r, "GET")?;
-            api_validate::run(r.param("path"))?
+            api_validate::run(r.param("path"), r.param("update"))?
         }
         "/api/fs" => {
             need(r, "GET")?;

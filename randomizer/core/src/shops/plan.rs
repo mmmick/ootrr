@@ -69,6 +69,7 @@ impl Opts {
         let mut out: Vec<String> = Vec::new();
         if self.on() {
             out.push(NOTE.to_string());
+            out.push(crate::shops::door::NOTE.to_string());
         }
         if self.deals() {
             out.push(DEALS.to_string());

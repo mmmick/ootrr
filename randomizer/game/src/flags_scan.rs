@@ -80,7 +80,7 @@ pub fn walk(rf: &mut Romfs, f: &mut dyn FnMut(&str, &[u8])) -> Res<Walked> {
     for e in fs::read_dir(&rf.root)? {
         let e: fs::DirEntry = e?;
         let n: String = e.file_name().to_string_lossy().to_string();
-        if e.file_type()?.is_dir() && !SKIP_DIRS.contains(&n.as_str()) {
+        if (e.file_type()?.is_dir() || e.path().is_dir()) && !SKIP_DIRS.contains(&n.as_str()) {
             all.extend(rf.list(&n)?);
         }
     }

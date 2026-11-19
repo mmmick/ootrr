@@ -169,9 +169,12 @@ const GANON_BK: View = View {
 const FOREST: View = View {
     id: "open_forest",
     label: "Kokiri Forest",
-    tip: "Whether the way out of the forest and into the Deku Tree is blocked.\n\nOpen - Nothing blocks the forest or the Deku Tree.\n\nClosed Deku - The forest exit is open but the Deku Tree is closed.\n\nClosed - The forest and the Deku Tree stay closed until the story opens them.",
+    tip: "Whether the way out of the forest and into the Deku Tree is blocked.\n\nOpen - Nothing blocks the forest or the Deku Tree.\n\nClosed Deku - The forest exit is open but the Deku Tree is closed.\n\nClosed - The forest and the Deku Tree stay closed until the story opens them.
+
+Open Kakariko needs Open: with the Kakariko gate open, Closed Deku and Closed are locked out.",
     kind: Kind::Pick,
-    opts: &[yes("Open", "open"), yes("Closed Deku", "closed_deku"), yes("Closed", "closed")],
+    // An open Kakariko gate needs the forest open (settings/list.rs), so the closed choices lock out.
+    opts: &[yes("Open", "open"), needs("Closed Deku", "closed_deku", "open_kakariko!=open"), needs("Closed", "closed", "open_kakariko!=open")],
 };
 
 const GV_BRIDGE: View = View {

@@ -885,7 +885,7 @@ mod tests {
     #[test]
     fn an_open_kakariko_only_places_giveable_items_at_the_skipped_checks() {
         let d: Data = Data::load().unwrap();
-        let s: Settings = with(&[("shuffle_rewards", "supported"), ("shuffle_songs", "anywhere"), ("open_forest", "closed_deku"), ("open_kakariko", "open")]);
+        let s: Settings = with(&[("shuffle_rewards", "supported"), ("shuffle_songs", "anywhere"), ("open_forest", "open"), ("open_kakariko", "open")]);
         for n in 0..3 {
             let g: Generated = generate_data(&d, &s, &format!("kak {n}"), &GenOpts::default()).unwrap();
             assert!(g.report.contains("Kakariko gate starts open"));
@@ -899,7 +899,8 @@ mod tests {
             }
             let state = crate::slice::edit::start_state(&d, &g.seed_file, &p).unwrap();
             assert_eq!(state.items.len(), 1 + 2);
-            assert_eq!(state.steps.len(), 6);
+            // The castle visit skip, plus the Deku Tree quest an open forest moves on.
+            assert_eq!(state.steps.len(), 9);
             if let Some(item) = g.seed_file.placements.get("HC Malon Egg") {
                 assert!(!d.item(item).is_some_and(|i| i.adv), "seed kak {n}: the egg check holds {item}");
             }

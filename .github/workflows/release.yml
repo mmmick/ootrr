@@ -164,7 +164,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NOTES: |
-            0.7.1 makes the Randomizer line under the title logo an option, on by default, in the new Title screen section of the Cosmetics page (--no-title-logo on the command line). The line changes the title screen files, so a title screen, menu or UI mod that changes them too could not be used with the randomizer. Turn the option off to use such a mod. When the option is on and another mod in the same mods folder changes those files, the build now stops before writing anything and names the mod, the file and where to turn the option off. Earlier OOTRR builds in the same folder are not counted as a clash. A game folder whose title logo is not the game's own gets the same kind of clear message. Seeds from 0.7.0 build as before.
+            0.7.3 is a hotfix. A dungeon item (small key, boss key, map or compass) handed out by an NPC who holds the item up, such as the adult Rolling Goron, no longer freezes the game with Link's hands raised: the copy of the give scene now knows which NPC is handing the item over. A small key there is shown as the game's own key and still counts for its dungeon. It also carries the 0.7.2 fixes: Open Kakariko needs Kokiri Forest set to Open (the menu locks out Closed and Closed Deku, and a seed that asks for both is refused), and songs on shop shelves show the harp in their song colour. Seeds from 0.7.2 build as before.
 
             OOTRR ${{ needs.version.outputs.version }} shuffles chests, and optionally boss hearts, songs, story and NPC rewards, with gossip hints, faster pickups, a start reward, an open Kokiri Forest, a plandomizer and small keys in any dungeon or anywhere. The new game intro is skipped by default.
 

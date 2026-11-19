@@ -898,13 +898,17 @@ fn item_get(f: &mut Flow, name: &str, g: &SceneGive, then: u16, entries: &[&str]
         return Err(Error::Msg(format!("story skip: the item get {name} is already in {}", f.name)));
     }
     let at: u16 = idx(f.events.len())?;
-    let window: String = crate::item_window::name(ITEM_GET.1);
+    // A small key is held up as the minigame key through the key copy, whose window names the
+    // dungeon key (crate::gift_keys::SMALL_KEY_SHOWN).
+    let small: bool = matches!(g.key, Some((crate::gift_keys::Item::Small, _))) && g.actor == crate::gift_keys::SMALL_KEY_ITEM;
+    let window: String = if small { crate::item_window::key_name(ITEM_GET.1) } else { crate::item_window::name(ITEM_GET.1) };
     let entry: &str = if g.key.is_some() { &window } else { ITEM_GET.1 };
+    let actor: String = if small { crate::gift_keys::SMALL_KEY_SHOWN.to_string() } else { g.actor.clone() };
     f.events.push(Event {
         name: name.to_string(),
         kind: Kind::Sub {
             next: then,
-            params: Some(Cont { items: vec![("ActorName".to_string(), Val::Str(g.actor.clone()))] }),
+            params: Some(Cont { items: vec![("ActorName".to_string(), Val::Str(actor))] }),
             flow: ITEM_GET.0.to_string(),
             entry: entry.to_string(),
         },
@@ -1404,13 +1408,23 @@ pub fn patch_song_grant(b: &mut Bf, scene: &str, grant: &str) -> Res<()> {
     };
     let mut done: usize = 0;
     for i in subs {
-        if let Kind::Sub { flow, entry, .. } = &mut f.events[i].kind
+        if let Kind::Sub { flow, entry, params, .. } = &mut f.events[i].kind
             && flow == "GetPouchContent"
             && (entry == "GetPouchContentByActorName" || entry == "DisplayGetByActorName")
         {
             let window: bool = entry == "DisplayGetByActorName";
+            // A small key is held up as the minigame key through the key copy (crate::gift_keys).
+            let key: Option<&mut Val> = params.as_mut().and_then(|c| c.items.iter_mut().find(|(k, v)| k == "ActorName" && matches!(v, Val::Str(s) if s == crate::gift_keys::SMALL_KEY_ITEM))).map(|(_, v)| v);
+            let small: bool = window && key.is_some();
+            if let Some(v) = key.filter(|_| window) {
+                *v = Val::Str(crate::gift_keys::SMALL_KEY_SHOWN.to_string());
+            }
             *flow = ITEM_GET.0.to_string();
-            *entry = if window { crate::item_window::name(ITEM_GET.1) } else { ITEM_GET.1.to_string() };
+            *entry = match (window, small) {
+                (true, true) => crate::item_window::key_name(ITEM_GET.1),
+                (true, false) => crate::item_window::name(ITEM_GET.1),
+                _ => ITEM_GET.1.to_string(),
+            };
             done += 1;
             if !window {
                 held(f, i, "ActorName")?;

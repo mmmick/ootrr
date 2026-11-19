@@ -207,7 +207,7 @@ mod tests {
         let d: Data = Data::load().unwrap();
         let mut s: crate::settings::Settings = crate::settings::Settings::default();
         let shut: World = world_with(&d, &crate::slice::support::plan(&s).unwrap().logic()).unwrap();
-        s.set("open_forest", crate::settings::Value::s("closed_deku")).unwrap();
+        s.set("open_forest", crate::settings::Value::s("open")).unwrap();
         s.set("open_kakariko", crate::settings::Value::s("open")).unwrap();
         let open: World = world_with(&d, &crate::slice::support::plan(&s).unwrap().logic()).unwrap();
         let gate: &str = "Kakariko Village -> Kak Behind Gate";
@@ -225,7 +225,7 @@ mod tests {
         let d: Data = Data::load().unwrap();
         let mut s: crate::settings::Settings = crate::settings::Settings::default();
         let shut: World = world_with(&d, &crate::slice::support::plan(&s).unwrap().logic()).unwrap();
-        s.set("open_forest", crate::settings::Value::s("closed_deku")).unwrap();
+        s.set("open_forest", crate::settings::Value::s("open")).unwrap();
         s.set("open_kakariko", crate::settings::Value::s("open")).unwrap();
         let open: World = world_with(&d, &crate::slice::support::plan(&s).unwrap().logic()).unwrap();
         let door: &str = "Market Mask Shop -> Market Mask Shop Storefront";

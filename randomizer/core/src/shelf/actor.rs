@@ -22,6 +22,8 @@ pub struct Shelf {
     pub fresh: Vec<(String, usize)>,
     pub peers: Vec<(String, usize)>,
     pub who: String,
+    /// A song shelf with harp colours on: the coloured harp's model project for its actor row.
+    pub project: Option<String>,
 }
 
 pub const IDENTITY: [(&str, &str); 1] = [("Item_Gauntlet_Goron", "Armor_Child_Gauntlet_Goron")];
@@ -55,6 +57,20 @@ pub fn int(n: &Node, k: &str) -> Option<i64> {
     }
 }
 
+/// A song shelf shows the shared harp (crate::shops song_models donor). When the seed mod's song
+/// pack already points its model info at the song's coloured harp (crate::song_models::stage), the
+/// shelf takes that model info and project too, as the song pickups do (song_models::color_packs).
+fn tinted_harp(p: &Pool, item: &str, look: &str) -> Option<(String, String)> {
+    let song: &str = crate::song_models::SONGS.iter().copied().find(|s| item == format!("Item_Melody_{s}"))?;
+    if look != crate::song_models::DONOR {
+        return None;
+    }
+    let info: String = crate::song_models::info_of(song);
+    let project: String = crate::song_models::project_of(song);
+    let y: Byml = p.byml(&info).ok()?;
+    (y.root.get("ModelProjectName").and_then(|v| v.as_str()) == Some(project.as_str())).then_some((format!("?{info}"), project))
+}
+
 fn load(rf: &mut Romfs, base: Option<&PB>, name: &str) -> Res<Vec<Entry>> {
     sarc::parse(&start(rf, base, &pack_of(name))?)
 }
@@ -76,6 +92,7 @@ pub fn make(rf: &mut Romfs, base: Option<&PB>, item: &str, model: Option<&str>, 
     let tpl: Chain = chain(&p, TEMPLATE)?;
     let look_name: &str = model.unwrap_or(item);
     let look: Chain = chain(&p, look_name)?;
+    let tinted: Option<(String, String)> = tinted_harp(&p, item, look_name);
     let item_pouch: String = norm(need(&it, item, "PouchContentRef")?).ok_or(E::Format("the item pouch reference is not a file"))?;
     let version: u16 = p.byml(&actor_file(TEMPLATE))?.version;
     let base_table: String = norm(need(&chain(&p, BASE)?, BASE, "GameParameterTableRef")?).ok_or(E::Format("the shelf base table reference is not a file"))?;
@@ -84,7 +101,10 @@ pub fn make(rf: &mut Romfs, base: Option<&PB>, item: &str, model: Option<&str>, 
     comps.set("ASRef", s(need(&tpl, TEMPLATE, "ASRef")?));
     comps.set("ActorNameRef", s(need(&it, item, "ActorNameRef")?));
     comps.set("AnimationRef", s(need(&look, look_name, "AnimationRef")?));
-    comps.set("ModelInfoRef", s(need(&look, look_name, "ModelInfoRef")?));
+    match &tinted {
+        Some((info, _)) => comps.set("ModelInfoRef", s(info)),
+        None => comps.set("ModelInfoRef", s(need(&look, look_name, "ModelInfoRef")?)),
+    };
     comps.set("PouchContentRef", s(&local(&pouch_file(name))));
     comps.set("GameParameterTableRef", s(&local(&table_file(name))));
     let mut tc: Node = Node::Map(Vec::new());
@@ -132,7 +152,7 @@ pub fn make(rf: &mut Romfs, base: Option<&PB>, item: &str, model: Option<&str>, 
         }
     }
     let es: Vec<Entry> = files.iter().map(|f| Entry { name: f.clone(), data: p.get(f).unwrap_or(&[]).to_vec() }).collect();
-    Ok(Shelf { name: name.to_string(), item: item.to_string(), look: look_name.to_string(), price, pack: sarc::write(&es)?, fresh, peers, who })
+    Ok(Shelf { name: name.to_string(), item: item.to_string(), look: look_name.to_string(), price, pack: sarc::write(&es)?, fresh, peers, who, project: tinted.map(|t| t.1) })
 }
 
 pub fn heap(t: &Byml, item: &str) -> Res<i32> {
@@ -149,6 +169,9 @@ pub fn heap(t: &Byml, item: &str) -> Res<i32> {
 pub fn add_rows(tables: &mut [Byml; 3], sh: &Shelf) -> Res<()> {
     let h: i32 = heap(&tables[0], &sh.look)?.max(heap(&tables[0], &sh.item).unwrap_or(0));
     let mut a: Node = rows::actor_row(rows::need(&tables[0], &sh.look, ACTOR_INFO)?, &sh.name, h);
+    if let Some(project) = &sh.project {
+        a.set("ModelProjectName", Node::Str(project.clone()));
+    }
     if sh.look != sh.item {
         if let Some(n) = rows::find(&tables[0], &sh.item).and_then(|r| r.get("ActorName")).cloned() {
             a.set("ActorName", n);
@@ -169,6 +192,25 @@ pub fn add_rows(tables: &mut [Byml; 3], sh: &Shelf) -> Res<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn info(project: &str) -> Vec<u8> {
+        let root: Node = Node::Map(vec![("FmdbName".to_string(), s("Item_Harp_Sheik")), ("ModelProjectName".to_string(), s(project))]);
+        Byml { root, version: 2, big: false }.write().unwrap()
+    }
+
+    #[test]
+    fn a_song_shelf_shows_the_coloured_harp_once_the_song_pack_carries_it() {
+        use crate::song_models::{info_of, project_of, DONOR};
+        let mut p: Pool = Pool::default();
+        p.add(&info_of("SunSong"), &info(&project_of("SunSong"))).unwrap();
+        assert_eq!(tinted_harp(&p, "Item_Melody_SunSong", DONOR), Some((format!("?{}", info_of("SunSong")), "Item_Harp_SunSong".to_string())));
+        // Another model donor, another item, or a song pack still showing Sheik's harp: no change.
+        assert_eq!(tinted_harp(&p, "Item_Melody_SunSong", "Obj_Ocarina_Time"), None);
+        assert_eq!(tinted_harp(&p, "Item_Hookshot", DONOR), None);
+        let mut plain: Pool = Pool::default();
+        plain.add(&info_of("SunSong"), &info("Item_Harp_Sheik")).unwrap();
+        assert_eq!(tinted_harp(&plain, "Item_Melody_SunSong", DONOR), None);
+    }
 
     #[test]
     fn the_price_and_table_files_follow_the_shipped_shelf_names() {

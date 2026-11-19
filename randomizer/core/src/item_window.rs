@@ -21,6 +21,10 @@ use crate::flow_locations::StagedFile;
 use crate::romfs::Romfs;
 
 pub const PREFIX: &str = "OOTRR_W_";
+/// The small key's copy: it holds up the actor it is given (the minigame key, the one key the game
+/// holds up itself) while its get window names the dungeon key (crate::gift_keys).
+pub const KEY_PREFIX: &str = "OOTRR_K_";
+pub const KEY_WINDOW: &str = "Item_Dungeon_SmallKey";
 const POUCH: &str = "GetPouchContent";
 const WINDOW: &str = "DisplayGetByActorName";
 const ADD: (&str, &str) = ("PouchSystemActor", "EventTriggerAddOrRemovePouchContent");
@@ -29,6 +33,10 @@ const NONE: u16 = 0xFFFF;
 
 pub fn name(entry: &str) -> String {
     format!("{PREFIX}{entry}")
+}
+
+pub fn key_name(entry: &str) -> String {
+    format!("{KEY_PREFIX}{entry}")
 }
 
 pub fn path(flow: &str) -> String {
@@ -119,6 +127,65 @@ impl Cache {
     }
 }
 
+/// An NPC routine takes the NPC it hands over from through an argument actor: sub
+/// "<entry>(<arg>)", arg the parameter's name, ep the entry's index (GetInEvent_NotTurn declares
+/// Npc_EventStarter with actor 19, ep 17; its events act on actor 26, Fado's, of the same argument).
+/// A copy is a new entry that declares no argument, so the caller's NPC is bound to nothing: the
+/// copy's NPC actions (the hand over AS, the go offstage) never end, the fork waiting for them never
+/// joins, and Link stays in the get pose with no item and no window (GC Rolling Goron as Adult, in
+/// game, with every item form). Each argument `entry` declares gets a twin declared by the copy `w`
+/// (the next entry index), and every argument actor the copy acts on becomes the twin of its
+/// argument, with the action or query found by name. Returns argument name -> twin.
+fn twins(f: &mut Flow, entry: &str, w: &str) -> Res<BM<String, u16>> {
+    let src: u16 = f.entries.iter().position(|e| e.name == entry).ok_or_else(|| E::Msg(format!("item window: {} has no entry {entry}", f.name)))? as u16;
+    let at: u16 = u16::try_from(f.entries.len()).map_err(|_| E::Format("item window: the flow has too many entries"))?;
+    let mut out: BM<String, u16> = BM::new();
+    let own: Vec<usize> = (0..f.actors.len()).filter(|&i| f.actors[i].ep == src && !f.actors[i].arg.is_empty()).collect();
+    for i in own {
+        let mut a: crate::bfevfl::Actor = f.actors[i].clone();
+        if a.sub != format!("{entry}({})", a.arg) {
+            return Err(E::Msg(format!("item window: the argument actor {} of {entry} is named {}, the game files differ", a.name, a.sub)));
+        }
+        if out.contains_key(&a.arg) {
+            return Err(E::Msg(format!("item window: {entry} declares {} twice", a.arg)));
+        }
+        a.sub = format!("{w}({})", a.arg);
+        a.ep = at;
+        let to: u16 = u16::try_from(f.actors.len()).map_err(|_| E::Format("item window: the flow has too many actors"))?;
+        out.insert(a.arg.clone(), to);
+        f.actors.push(a);
+    }
+    Ok(out)
+}
+
+/// Points an action or query of an argument actor at the copy's twin of that argument.
+fn rebind(f: &mut Flow, k: &mut Kind, twins: &BM<String, u16>, entry: &str) -> Res<()> {
+    let (actor, slot, query): (&mut u16, &mut u16, bool) = match k {
+        Kind::Action { actor, act, .. } => (actor, act, false),
+        Kind::Switch { actor, query, .. } => (actor, query, true),
+        _ => return Ok(()),
+    };
+    let a = f.actors.get(*actor as usize).ok_or(E::Format("item window: an event names a missing actor"))?;
+    if a.arg.is_empty() {
+        return Ok(());
+    }
+    let to: u16 = *twins.get(&a.arg).ok_or_else(|| E::Msg(format!("item window: {entry} acts on argument {} without declaring it", a.arg)))?;
+    let list: &Vec<String> = if query { &a.queries } else { &a.actions };
+    let name: String = list.get(*slot as usize).cloned().ok_or(E::Format("item window: an event names a missing action"))?;
+    let t = &mut f.actors[to as usize];
+    let list: &mut Vec<String> = if query { &mut t.queries } else { &mut t.actions };
+    let j: usize = match list.iter().position(|x| *x == name) {
+        Some(j) => j,
+        None => {
+            list.push(name);
+            list.len() - 1
+        }
+    };
+    *actor = to;
+    *slot = u16::try_from(j).map_err(|_| E::Format("item window: the actor has too many actions"))?;
+    Ok(())
+}
+
 fn targets(k: &Kind) -> Vec<u16> {
     match k {
         Kind::Action { next, .. } | Kind::Sub { next, .. } | Kind::Join { next } => vec![*next],
@@ -203,7 +270,17 @@ pub fn gives(c: &mut Cache, rf: &mut Romfs, files: &[StagedFile], flow: &str, en
 
 /// Makes (once) the window-only copy of `flow`:`entry` and returns its entry name.
 pub fn window(c: &mut Cache, rf: &mut Romfs, files: &[StagedFile], flow: &str, entry: &str) -> Res<String> {
-    let w: String = name(entry);
+    copy(c, rf, files, flow, entry, false)
+}
+
+/// Makes (once) the small key's window-only copy of `flow`:`entry` (KEY_PREFIX): its get window
+/// names KEY_WINDOW whatever actor the routine holds up.
+pub fn key_window(c: &mut Cache, rf: &mut Romfs, files: &[StagedFile], flow: &str, entry: &str) -> Res<String> {
+    copy(c, rf, files, flow, entry, true)
+}
+
+fn copy(c: &mut Cache, rf: &mut Romfs, files: &[StagedFile], flow: &str, entry: &str, key: bool) -> Res<String> {
+    let w: String = if key { key_name(entry) } else { name(entry) };
     if !c.load(rf, files, flow)? {
         return Err(E::Msg(format!("item window: there is no flow file for {flow}")));
     }
@@ -225,7 +302,7 @@ pub fn window(c: &mut Cache, rf: &mut Romfs, files: &[StagedFile], flow: &str, e
     let mut redirect: BM<usize, String> = BM::new();
     for (i, f2, e2) in calls {
         if f2 != POUCH && gives(c, rf, files, &f2, &e2, &mut BS::new())? {
-            redirect.insert(i, window(c, rf, files, &f2, &e2)?);
+            redirect.insert(i, copy(c, rf, files, &f2, &e2, key)?);
         }
     }
     let f: &mut Flow = c.flow_mut(rf, files, flow)?;
@@ -234,6 +311,7 @@ pub fn window(c: &mut Cache, rf: &mut Romfs, files: &[StagedFile], flow: &str, e
     }
     let base: usize = f.events.len();
     let at: BM<usize, u16> = evs.iter().enumerate().map(|(k, &i)| (i, (base + k) as u16)).collect();
+    let tw: BM<String, u16> = twins(f, &src.name, &w)?;
     if base + evs.len() >= NONE as usize {
         return Err(E::Msg(format!("item window: {flow} would hold too many events")));
     }
@@ -242,12 +320,14 @@ pub fn window(c: &mut Cache, rf: &mut Romfs, files: &[StagedFile], flow: &str, e
     for &i in &evs {
         let mut k: Kind = f.events[i].kind.clone();
         remap(&mut k, &m);
+        rebind(f, &mut k, &tw, entry)?;
         if is_pouch_get(&f.events[i].kind) {
             let Kind::Sub { next, params, .. } = &k else { unreachable!() };
             let actor: Val = params
                 .as_ref()
                 .and_then(|p| p.items.iter().find(|(n, _)| n == "ActorName").map(|(_, v)| v.clone()))
                 .ok_or_else(|| E::Msg(format!("item window: the pouch get {} in {flow} names no actor", f.events[i].name)))?;
+            let actor: Val = if key { Val::Str(KEY_WINDOW.to_string()) } else { actor };
             k = Kind::Sub { next: *next, params: Some(Cont { items: vec![("ActorName".to_string(), actor)] }), flow: POUCH.to_string(), entry: WINDOW.to_string() };
         } else if is_add(f, &f.events[i].kind) {
             let Kind::Action { next, .. } = &k else { unreachable!() };
@@ -264,3 +344,5 @@ pub fn window(c: &mut Cache, rf: &mut Romfs, files: &[StagedFile], flow: &str, e
     f.entries.push(Entry { name: w.clone(), subs, vars: src.vars.clone(), main: m(src.main), pad: src.pad });
     Ok(w)
 }
+
+

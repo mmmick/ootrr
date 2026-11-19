@@ -208,16 +208,16 @@ pub fn build() -> Schema {
     );
     s.push(
         Setting::choice(3, "open_forest", "world", "Kokiri Forest", "closed")
-            .tip("Whether the way out of the forest and into the Deku Tree is blocked. An open Kakariko gate needs the forest exit open, since its story state takes Mido away while the exit wall would stay.")
+            .tip("Whether the way out of the forest and into the Deku Tree is blocked. An open Kakariko gate needs the forest fully open, since its story state skips the Deku Tree quest past Mido; with an open Kakariko gate, Closed and Closed Deku are locked out.")
             .opt("open", "Open", "Nothing blocks the forest or the Deku Tree.")
             .opt("closed_deku", "Closed Deku", "The forest exit is open but the Deku Tree is closed.")
             .opt("closed", "Closed", "The forest and the Deku Tree stay closed until the story opens them."),
     );
     s.push(
         Setting::choice(4, "open_kakariko", "world", "Kakariko Gate", "zelda")
-            .dep("open_forest", super::model::Cond::IsNot(super::model::Value::s("closed")))
+            .dep("open_forest", super::model::Cond::Is(super::model::Value::s("open")))
             .disabled_as(super::model::Value::s("zelda"))
-            .tip("Whether the gate to Kakariko Village needs Zelda's Letter. Open also skips the castle visit: a new game starts after Zelda and Impa, with their two items already given. Needs the forest exit open; with a closed forest the gate falls back to Zelda's Letter.")
+            .tip("Whether the gate to Kakariko Village needs Zelda's Letter. Open also skips the castle visit: a new game starts after Zelda and Impa, with their two items already given. Needs Kokiri Forest set to Open; with Closed or Closed Deku the gate is locked to Zelda's Letter, and a seed that asks for both is refused.")
             .opt("open", "Open", "The gate is open from the start and the castle visit is skipped. Zelda's Letter and the Song from Impa, or whatever is placed there, are given when a new game starts.")
             .opt("zelda", "Zelda's Letter", "The gate opens when you show the letter.")
             .opt("closed", "Closed", "The gate stays closed until the story opens it."),

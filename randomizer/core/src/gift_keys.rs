@@ -167,8 +167,33 @@ pub fn edit_flow(f: &mut Flow, index: usize, event: &str, item: Item, d: &'stati
         *entry = WINDOW.to_string();
     } else {
         *entry = window.ok_or_else(|| E::Msg(format!("gift keys: {event} calls {flow}:{entry}, which has no window-only copy")))?.to_string();
+        if item == Item::Small {
+            hold_up_key(params);
+        }
     }
     Ok(())
+}
+
+/// A give routine that holds the item up waits on the shown item's Rotate_GetDemo spin. Neither
+/// Item_Dungeon_SmallKey (the generic item spin, on the ground key's model) nor Obj_Dungeon_SmallKey
+/// (the ground pickup's animation info, which plays nothing) can play it, so Link raised his hands,
+/// nothing appeared and the scene waited forever (GC Rolling Goron as Adult, in game, with both).
+/// The one key the game holds up itself is Obj_MiniGame_SmallKey, whose own ASInfo spins the key
+/// model (the Treasure Chest Game key shop, through GetInEvent_NotTurn_DisplayGet, a window-only
+/// hold-up like these). So a small key is held up as that actor, through the routine's key copy
+/// (crate::item_window::key_window), whose get window names the dungeon key. Nothing is added to
+/// the pouch, and the credit after it names the dungeon.
+pub const SMALL_KEY_ITEM: &str = "Item_Dungeon_SmallKey";
+pub const SMALL_KEY_SHOWN: &str = "Obj_MiniGame_SmallKey";
+
+fn hold_up_key(params: &mut Option<Cont>) {
+    if let Some(c) = params.as_mut() {
+        for (k, v) in c.items.iter_mut() {
+            if k == PARAM && matches!(v, Val::Str(s) if s == SMALL_KEY_ITEM) {
+                *v = Val::Str(SMALL_KEY_SHOWN.to_string());
+            }
+        }
+    }
 }
 
 fn stem(file: &str) -> &str {
@@ -190,6 +215,7 @@ pub fn apply(rf: &mut Romfs, files: &mut Vec<StagedFile>, gs: &[Gift], extra: &[
             }
         };
         let w: Option<String> = match &call {
+            Some((fl, en)) if g.item == Item::Small => Some(crate::item_window::key_window(&mut c, rf, files, fl, en)?),
             Some((fl, en)) => Some(crate::item_window::window(&mut c, rf, files, fl, en)?),
             None => None,
         };
@@ -198,6 +224,122 @@ pub fn apply(rf: &mut Romfs, files: &mut Vec<StagedFile>, gs: &[Gift], extra: &[
     }
     for (fl, en) in extra {
         crate::item_window::window(&mut c, rf, files, fl, en)?;
+        if gs.iter().any(|g| g.item == Item::Small) {
+            crate::item_window::key_window(&mut c, rf, files, fl, en)?;
+        }
     }
     c.store(rf, files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bfevfl::Bf;
+
+    fn sage_of_fire() -> Option<(Romfs, Bf)> {
+        let p: std::path::PathBuf = ootrr_game::test_romfs::path();
+        if !p.is_dir() {
+            eprintln!("skipped: no romfs at {}, set OOTRR_ROMFS", p.display());
+            return None;
+        }
+        let mut rf: Romfs = Romfs::open(&p).unwrap();
+        let z: Vec<u8> = rf.read("Event/EventFlow/SageOfFire.bfevfl.zs").unwrap();
+        let b: Bf = Bf::parse(&rf.zs.decompress(&z).unwrap()).unwrap();
+        Some((rf, b))
+    }
+
+    fn actor(f: &Flow, i: usize) -> String {
+        f.events[i].kind.params().and_then(|c| c.get(PARAM)).and_then(|v| match v {
+            Val::Str(s) => Some(s.clone()),
+            _ => None,
+        }).unwrap()
+    }
+
+    /// GC Rolling Goron as Adult (SageOfFire Event18) holds its item up through
+    /// Dm_SY_GetInEvent:GetInEvent_NotTurn. A small key there froze the game with Link's hands up.
+    #[test]
+    fn a_small_key_held_up_by_an_npc_is_shown_as_the_minigame_key() {
+        let Some((_, mut b)) = sage_of_fire() else { return };
+        let f: &mut Flow = b.flows.first_mut().unwrap();
+        let (i, ev): (usize, String) = (177, "Event18".to_string());
+        assert_eq!(actor(f, i), "Obj_Armor_Goron");
+        let mut small: Flow = f.clone();
+        if let Some((_, v)) = small.events[i].kind.params_mut().and_then(|c| c.items.iter_mut().find(|(k, _)| k == PARAM)) {
+            *v = Val::Str(SMALL_KEY_ITEM.to_string());
+        }
+        let mut boss: Flow = small.clone();
+        edit_flow(&mut small, i, &ev, Item::Small, "GerudoTrainingGround", Some("OOTRR_K_GetInEvent_NotTurn")).unwrap();
+        assert_eq!(actor(&small, i), SMALL_KEY_SHOWN);
+        assert!(matches!(&small.events[i].kind, Kind::Sub { entry, .. } if entry == "OOTRR_K_GetInEvent_NotTurn"));
+        // Other dungeon items keep their own actor, which has a model of its own.
+        if let Some((_, v)) = boss.events[i].kind.params_mut().and_then(|c| c.items.iter_mut().find(|(k, _)| k == PARAM)) {
+            *v = Val::Str("Item_Dungeon_BossKey".to_string());
+        }
+        edit_flow(&mut boss, i, &ev, Item::Other(Grant::Boss), "FireTemple", Some("OOTRR_W_GetInEvent_NotTurn")).unwrap();
+        assert_eq!(actor(&boss, i), "Item_Dungeon_BossKey");
+    }
+
+    /// The key copy holds up the actor it is given (the minigame key) and its window names the
+    /// dungeon key. The game holds up Obj_MiniGame_SmallKey itself, through a window-only hold-up.
+    #[test]
+    fn the_key_copy_holds_up_the_minigame_key_and_names_the_dungeon_key() {
+        let Some((mut rf, _)) = sage_of_fire() else { return };
+        assert!(rf.root.join(format!("Pack/Actor/{SMALL_KEY_SHOWN}.pack.zs")).is_file());
+        let mut c: crate::item_window::Cache = crate::item_window::Cache::new();
+        let files: Vec<StagedFile> = Vec::new();
+        let k: String = crate::item_window::key_window(&mut c, &mut rf, &files, "Dm_SY_GetInEvent", "GetInEvent_NotTurn").unwrap();
+        assert_eq!(k, "OOTRR_K_GetInEvent_NotTurn");
+        let w: String = crate::item_window::window(&mut c, &mut rf, &files, "Dm_SY_GetInEvent", "GetInEvent_NotTurn").unwrap();
+        assert_ne!(k, w);
+        let f: &mut Flow = c.flow_mut(&mut rf, &files, "Dm_SY_GetInEvent").unwrap();
+        let main: u16 = f.entries.iter().find(|e| e.name == k).unwrap().main;
+        let mut seen: BS<u16> = BS::new();
+        let mut todo: Vec<u16> = vec![main];
+        let (mut windows, mut shown): (Vec<Val>, bool) = (Vec::new(), false);
+        while let Some(i) = todo.pop() {
+            if i == 0xFFFF || !seen.insert(i) {
+                continue;
+            }
+            let ev = &f.events[i as usize].kind;
+            match ev {
+                Kind::Sub { flow, entry, params, .. } => {
+                    assert!(!(flow == POUCH && entry.starts_with("GetPouchContent")), "the key copy still adds to the pouch");
+                    if flow == POUCH && entry == WINDOW {
+                        windows.push(params.as_ref().and_then(|p| p.get(PARAM)).cloned().unwrap());
+                    }
+                    if entry == "GetInEvent_NotTurn_Sub" {
+                        shown = params.as_ref().and_then(|p| p.get(PARAM)).is_some_and(|v| !matches!(v, Val::Str(_)));
+                    }
+                }
+                _ => {}
+            }
+            match ev {
+                Kind::Action { next, .. } | Kind::Sub { next, .. } | Kind::Join { next } => todo.push(*next),
+                Kind::Switch { cases, .. } | Kind::SubSwitch { cases, .. } => todo.extend(cases.iter().map(|c| c.ev)),
+                Kind::Fork { join, forks } => todo.extend(std::iter::once(*join).chain(forks.iter().copied())),
+                Kind::Label { .. } => {}
+            }
+        }
+        assert_eq!(windows, vec![Val::Str(SMALL_KEY_ITEM.to_string())]);
+        // The NPC the caller passes binds to the copy's own argument actor (sub and entry index),
+        // or its hand over never ends and the scene waits forever with Link's hands up.
+        let at: u16 = f.entries.iter().position(|e| e.name == k).unwrap() as u16;
+        let npc: Vec<&crate::bfevfl::Actor> = seen
+            .iter()
+            .filter_map(|&i| match &f.events[i as usize].kind {
+                Kind::Action { actor, .. } | Kind::Switch { actor, .. } => Some(&f.actors[*actor as usize]),
+                _ => None,
+            })
+            .filter(|a| !a.arg.is_empty())
+            .collect();
+        assert!(!npc.is_empty());
+        for a in npc {
+            assert_eq!(a.sub, format!("{k}({})", a.arg));
+            assert_eq!(a.ep, at, "{}", a.sub);
+        }
+        let orig: u16 = f.entries.iter().position(|e| e.name == "GetInEvent_NotTurn").unwrap() as u16;
+        assert!(f.actors.iter().any(|a| a.sub == "GetInEvent_NotTurn(Npc_EventStarter)" && a.ep == orig), "the original entry keeps its own NPC");
+        // The shown item still comes from the caller's ActorName (an argument, not a literal).
+        assert!(shown);
+    }
 }

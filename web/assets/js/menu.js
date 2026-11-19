@@ -70,6 +70,15 @@ function settings_page(p) {
   return [head(p.label), h("div", { class: "mgrid" }, secs)];
 }
 
+// An option's needs: "id" (a toggle that must be on), "id=value" or "id!=value".
+function needs_met(n, eff) {
+  const ne = n.indexOf("!=");
+  if (ne >= 0) return eff[n.slice(0, ne)] !== n.slice(ne + 2);
+  const eq = n.indexOf("=");
+  if (eq >= 0) return eff[n.slice(0, eq)] === n.slice(eq + 1);
+  return eff[n] === true;
+}
+
 function view_row(s, v) {
   const val = (x) => (s.kind === "toggle" ? x === "true" : x);
   if (v.kind === "check") return check_row(s, v, val);
@@ -86,7 +95,7 @@ function view_row(s, v) {
     sync(eff, ok);
     opts.forEach((o, i) => {
       const n = v.opts[i].needs;
-      o.disabled = !v.opts[i].live || (n !== "" && eff[n] !== true);
+      o.disabled = !v.opts[i].live || (n !== "" && !needs_met(n, eff));
     });
   };
   return r;

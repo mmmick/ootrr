@@ -601,7 +601,7 @@ mod tests {
     fn every_combination_generates_beatable_seeds_and_the_plan_says_what_it_does() {
         let d: crate::slice::data::Data = crate::slice::data::Data::load().unwrap();
         let combos: [&[(&str, Value)]; 6] = [
-            &[(EPONA, Value::Bool(true)), (MASKS, Value::Bool(true)), (BEANS, Value::Bool(true)), (BRIDGE, Value::Bool(true)), ("open_kakariko", Value::s("open"))],
+            &[(EPONA, Value::Bool(true)), (MASKS, Value::Bool(true)), (BEANS, Value::Bool(true)), (BRIDGE, Value::Bool(true)), ("open_forest", Value::s("open")), ("open_kakariko", Value::s("open"))],
             &[(DOOR, Value::Bool(true))],
             &[(ZORA, Value::s("open")), (JABU, Value::Bool(true))],
             &[(JABU, Value::Bool(true)), (TIME, Value::Bool(true)), (BEDS, Value::Bool(true))],

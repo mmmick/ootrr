@@ -45,6 +45,10 @@ pub fn apply(files: &mut [Lj]) -> Res<()> {
     Err(E::Msg(format!("scarecrow song: no region {REGION}")))
 }
 
+pub fn held(d: &crate::slice::data::Data, loc: &str) -> bool {
+    d.flow.by_name(loc).is_some_and(crate::slice::flow_rules::holds_up)
+}
+
 pub fn pooled(p: &crate::slice::support::Plan) -> bool {
     p.scarecrow && !p.kit.logic().iter().any(|(n, _)| *n == ITEM)
 }
@@ -106,6 +110,13 @@ mod tests {
         let g = generate(&on(), "crow").unwrap();
         let n: usize = g.seed_file.placements.values().filter(|i| *i == ITEM).count();
         assert_eq!(n, 1, "{:?}", g.seed_file.placements.iter().filter(|(_, i)| *i == ITEM).collect::<Vec<_>>());
+        let d: Data = Data::load().unwrap();
+        for seed in ["crow", "pierre", "bonooru", "lake"] {
+            let g = generate(&on(), seed).unwrap();
+            let spot: &String = g.seed_file.placements.iter().find(|(_, i)| *i == ITEM).map(|(l, _)| l).unwrap();
+            assert!(!held(&d, spot), "{seed}: {spot}");
+        }
+        assert!(held(&d, "LLR Talons Chickens") && !held(&d, "KF Midos Top Right Chest"));
         let off = generate(&Settings::default(), "crow").unwrap();
         assert_eq!(off.seed_file.placements.values().filter(|i| *i == ITEM).count(), 0);
     }

@@ -63,6 +63,9 @@ pub fn is_song(actor: &str) -> bool {
 }
 
 pub fn allowed(d: &Data, w: &World, p: &Plan, it: ItemId, l: LocId) -> bool {
+    if w.items.names[it] == crate::slice::scarecrow::ITEM && crate::slice::scarecrow::held(d, &w.locs[l].name) {
+        return false;
+    }
     if let Some(ok) = crate::slice::place_rules::verdict(&crate::slice::place_rules::Spot { d, w, p, it, l, name: &w.locs[l].name, item: &w.items.names[it] }) {
         return ok;
     }

@@ -5,7 +5,7 @@ use crate::ainb::Ainb;
 use crate::byml::{Byml, Node};
 use crate::error::{Error, Res};
 use crate::start_defaults::Edit;
-use crate::qol::{edit_plain, Have};
+use crate::qol::{edit_plain, edit_zs, Have};
 use crate::romfs::Romfs;
 use crate::staging::Out;
 
@@ -136,7 +136,11 @@ pub fn multi_node(a: &mut Ainb, name: &str, seed: &str, srcs: &[(usize, u16)]) -
 }
 
 pub fn card_node(a: &mut Ainb, seed: &str) -> Res<usize> {
-    let name: Vec<u8> = a.pool.add(CARD).to_le_bytes().to_vec();
+    bool_node(a, CARD, seed)
+}
+
+pub fn bool_node(a: &mut Ainb, flag: &str, seed: &str) -> Res<usize> {
+    let name: Vec<u8> = a.pool.add(flag).to_le_bytes().to_vec();
     let mut s: Spec = Spec::node(GET_BOOL, seed).constant(0, "GameDataArrayIndex", (-1i32).to_le_bytes().to_vec()).constant(3, "GameDataNameBool", name).out(BOOL, "Bool");
     s.role = QUERY;
     a.add_node(&s)
@@ -173,16 +177,16 @@ pub fn patch(a: &mut Ainb, tag: &str) -> Res<usize> {
                 x
             }
         };
-        rewire(a, *i, *g, *src, enable, gate)?;
+        rewire(a, *i, *g, *src, enable, gate, TRUE_OUT)?;
     }
     Ok(linked.len())
 }
 
-fn rewire(a: &mut Ainb, i: usize, g: usize, src: i16, name: u32, gate: usize) -> Res<()> {
+pub fn rewire(a: &mut Ainb, i: usize, g: usize, src: i16, name: u32, gate: usize, out: i16) -> Res<()> {
     let at: usize = g * BOOL_IN;
     let to: i16 = i16::try_from(gate).map_err(|_| Error::Format("gerudo card: element index too large"))?;
     i16_at(&mut a.ins[BOOL], at + 4, to);
-    i16_at(&mut a.ins[BOOL], at + 6, TRUE_OUT);
+    i16_at(&mut a.ins[BOOL], at + 6, out);
     let p = &mut a.params[i];
     let (n0, s0): (usize, usize) = (p.pl[0][0] as usize, p.pl[0][1] as usize);
     let hit: usize = (s0..s0 + n0)
@@ -216,7 +220,7 @@ pub fn open_area(a: &mut Ainb, instance: &str, tag: &str) -> Res<usize> {
     };
     let gate: usize = multi_node(a, OR, &format!("ootrr gerudo card {tag} member"), &[(src as usize, 0), (card, 0)])?;
     let create: u32 = a.pool.add(CREATE);
-    rewire(a, i, g, src, create, gate)?;
+    rewire(a, i, g, src, create, gate, TRUE_OUT)?;
     Ok(gate)
 }
 
@@ -262,11 +266,26 @@ pub fn member_schedule(raw: &[u8]) -> Res<Vec<u8>> {
     y.write()
 }
 
-pub fn stage(rf: &Romfs, have: Have) -> Res<Vec<Out>> {
+pub const SCHEDULE_PACK: &str = "Pack/AIScheduleParam.pack.zs";
+pub const PACKED: [&str; 1] = ["Minigame_HorsebackArchery_Ready_Npc_Gerudo_008"];
+
+pub fn member_pack(raw: &[u8]) -> Res<Vec<u8>> {
+    let mut es: Vec<crate::sarc::Entry> = crate::sarc::parse(raw)?;
+    for name in PACKED {
+        let f: String = schedule_path(name);
+        let e: &crate::sarc::Entry = crate::sarc::get(&es, &f).ok_or_else(|| Error::Msg(format!("gerudo card: the schedule pack has no {name}, the game files differ")))?;
+        let out: Vec<u8> = member_schedule(&e.data)?;
+        crate::sarc::set(&mut es, &f, out);
+    }
+    crate::sarc::write(&es)
+}
+
+pub fn stage(rf: &mut Romfs, have: Have) -> Res<Vec<Out>> {
     let mut outs: Vec<Out> = MODULES.iter().map(|m| edit_plain(rf, have, m, |raw| patch_bytes(raw, m))).collect::<Res<_>>()?;
     for npc in MEMBERS {
         outs.push(edit_plain(rf, have, &schedule_path(npc), member_schedule)?);
     }
+    outs.push(edit_zs(rf, have, SCHEDULE_PACK, member_pack)?);
     Ok(outs)
 }
 
@@ -318,9 +337,9 @@ mod tests {
         let Some(root) = real() else {
             return;
         };
-        let rf: Romfs = Romfs::open(&root).unwrap();
-        let outs: Vec<Out> = stage(&rf, &|_: &str| None).unwrap();
-        assert_eq!(outs.len(), MODULES.len() + MEMBERS.len());
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        let outs: Vec<Out> = stage(&mut rf, &|_: &str| None).unwrap();
+        assert_eq!(outs.len(), MODULES.len() + MEMBERS.len() + 1);
         let mut total: usize = 0;
         for (m, o) in MODULES.iter().zip(&outs) {
             let skip: Option<usize> = if *m == ARCHERY.0 { area_of(&Ainb::parse(&rf.read(m).unwrap()).unwrap(), ARCHERY.1).map(|x| x.0) } else { None };
@@ -458,5 +477,29 @@ mod tests {
         assert_eq!(terms(&row), vec![vec![READ_EXP_OP as u32, key(QUEST_EXP)], vec![READ_OP as u32, key(CARD)], vec![OR_OP as u32]]);
         let Ok(a) = Byml::parse(&y.write().unwrap()) else { panic!() };
         assert_eq!(a.root, y.root);
+    }
+
+    #[test]
+    fn the_archery_ready_schedule_in_the_pack_takes_the_member_check_and_nothing_else_changes() {
+        let Some(root) = real() else {
+            return;
+        };
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        let raw: Vec<u8> = rf.read_zs(SCHEDULE_PACK).unwrap();
+        let old: Vec<crate::sarc::Entry> = crate::sarc::parse(&raw).unwrap();
+        let named: Vec<&str> = old.iter().filter(|e| e.data.windows(QUEST_EXP.len()).any(|w| w == QUEST_EXP.as_bytes())).map(|e| e.name.as_str()).collect();
+        assert_eq!(named, PACKED.iter().map(|n| schedule_path(n)).collect::<Vec<String>>().iter().map(|s| s.as_str()).collect::<Vec<&str>>());
+        let new: Vec<crate::sarc::Entry> = crate::sarc::parse(&member_pack(&raw).unwrap()).unwrap();
+        assert_eq!(old.len(), new.len());
+        for (a, b) in old.iter().zip(&new) {
+            assert_eq!(a.name, b.name);
+            if PACKED.iter().any(|n| schedule_path(n) == a.name) {
+                let y: Byml = Byml::parse(&b.data).unwrap();
+                let flags: Vec<&str> = y.root.get("ConditionalSchedule").and_then(|c| c.as_arr()).unwrap().iter().filter_map(|c| c.get("ConditionFlag").and_then(|v| v.as_str())).collect();
+                assert!(flags.contains(&MEMBER_EXP) && !flags.contains(&QUEST_EXP), "{flags:?}");
+            } else {
+                assert_eq!(a.data, b.data, "{}", a.name);
+            }
+        }
     }
 }

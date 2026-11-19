@@ -1,10 +1,9 @@
 use crate::settings::Settings;
 use crate::slice::support::show;
 
-pub(crate) const UNCHANGED: [&str; 21] = [
+pub(crate) const UNCHANGED: [&str; 20] = [
     "logic_rules",
     "starting_age",
-    "gerudo_fortress",
     "bridge",
     "bridge_stones",
     "bridge_medallions",

@@ -49,6 +49,12 @@ fn setting_json(s: &Setting) -> Json {
         if let Some(b) = &s.max_by {
             o.put("max_by", b.as_str().into());
         }
+        if s.step != 1 {
+            o.put("step", s.step.into());
+        }
+        if s.times > 0 {
+            o.put("times", s.times.into());
+        }
     }
     if s.kind == Kind::List {
         o.put("max_items", Json::Int(s.max_items as i64));
@@ -137,10 +143,18 @@ mod tests {
             assert!(marked.contains(&id), "{id}");
         }
         // The bridge applies Vanilla and Dungeon rewards (crate::rainbow_bridge).
-        for id in ["starting_hearts", "starting_songs", "shuffle_chests", "shuffle_potion_shop", "bridge", "bridge_rewards"] {
+        for id in [
+            "starting_hearts",
+            "starting_songs",
+            "shuffle_chests",
+            "shuffle_potion_shop",
+            "bridge",
+            "bridge_rewards",
+            "gerudo_fortress",
+        ] {
             assert!(!marked.contains(&id), "{id}");
         }
-        assert_eq!(marked.len(), 17);
+        assert_eq!(marked.len(), 16);
         for s in all {
             if let Some(u) = s.get("unsupported") {
                 assert_eq!(u.as_bool(), Some(true));

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap as BM;
 
 use crate::settings::Settings;
-use crate::start_items::table::{group, opt, refused, song, Bag, Group, Recipe, Strip};
+use crate::start_items::table::{group, opt, refused, song, Bag, Group, Opt, Recipe, Strip};
 
 pub const HEARTS: &str = "starting_hearts";
 pub const ITEMS: &str = "starting_items";
@@ -57,6 +57,24 @@ impl Kit {
     pub fn logic(&self) -> Vec<(&'static str, u32)> {
         self.take.iter().filter(|t| t.count > 0).map(|t| (t.logic, t.count)).collect()
     }
+}
+
+pub fn add(k: &mut Kit, id: &str) {
+    let Some(o): Option<&'static Opt> = opt(id) else {
+        return;
+    };
+    let Some(g): Option<&'static Group> = group(o.group) else {
+        return;
+    };
+    if k.take.iter().any(|t| t.logic == g.logic) {
+        return;
+    }
+    k.take.push(Take {
+        logic: g.logic,
+        count: 1,
+        strip: g.strip,
+    });
+    recipe(k, g, 1);
 }
 
 pub const NOTE: &str = "The chosen starting items are written into the new game defaults (GameDataList) and the game start module, and one copy of each is taken out of the item pool and replaced by Rupee (1).";

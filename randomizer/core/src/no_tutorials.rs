@@ -44,9 +44,16 @@ pub const GUIDES: [&str; 53] = [
 /// setting, so the map works from the start and its tutorial counts as seen.
 pub const MAP_SEEN: [&str; 4] = ["IsGet.Item_Dungeon_Map", "HavePlayedGetEvent.Item_Dungeon_Map", "IsGet.Item_Dungeon_Compass", "HavePlayedGetEvent.Item_Dungeon_Compass"];
 
-/// New game flags that mark every guide as already done and the map as unlocked.
+pub const SHIELD_HINT: [&str; 2] = ["HavePlayedEvent.NaviHint_Shield_Hylian", "HavePlayedEvent.NaviHint_Shield_Hylian_BuyShop"];
+
+/// New game flags that mark every guide as already done, the map as unlocked and the shield hint
+/// as played.
 pub fn start_flags() -> Vec<(String, bool)> {
-    GUIDES.iter().map(|g| (format!("ActionGuide_IsEnd.{g}"), true)).chain(MAP_SEEN.iter().map(|n| (n.to_string(), true))).collect()
+    GUIDES
+        .iter()
+        .map(|g| (format!("ActionGuide_IsEnd.{g}"), true))
+        .chain(MAP_SEEN.iter().chain(SHIELD_HINT.iter()).map(|n| (n.to_string(), true)))
+        .collect()
 }
 
 /// Points every entry at one new wait event that ends the flow. Returns the entries changed.
@@ -99,12 +106,12 @@ mod tests {
     #[test]
     fn a_new_game_marks_the_map_as_picked_up_once_and_every_guide_as_done() {
         let f: Vec<(String, bool)> = start_flags();
-        assert_eq!(f.len(), GUIDES.len() + MAP_SEEN.len());
+        assert_eq!(f.len(), GUIDES.len() + MAP_SEEN.len() + SHIELD_HINT.len());
         for n in MAP_SEEN.iter().copied().chain(["ActionGuide_IsEnd.SystemMinus"]) {
             assert!(f.contains(&(n.to_string(), true)), "{n}");
         }
         let rows: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../data/flags.json")).unwrap();
-        for n in MAP_SEEN {
+        for n in MAP_SEEN.iter().chain(SHIELD_HINT.iter()) {
             let row: &str = rows.split('\n').find(|l| l.contains(&format!("\"name\":\"{n}\""))).unwrap_or_else(|| panic!("{n} is not a game flag"));
             assert!(row.contains("\"type\":\"Bool\"") && row.contains("\"save\":0"), "{n}: {row}");
         }

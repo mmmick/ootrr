@@ -117,6 +117,14 @@ pub fn pick(d: &Data, w: &World, p: &Plan) -> Pick {
                 *left.entry("the castle visit is skipped, so the check cannot be reached".to_string()).or_insert(0) += 1;
                 continue;
             }
+            if p.open.fortress == crate::open_world::Fortress::Fast
+                && l.name == "Hideout Gerudo Membership Card"
+            {
+                *left
+                    .entry("fast Gerudo Fortress keeps the Membership Card vanilla".to_string())
+                    .or_insert(0) += 1;
+                continue;
+            }
             match w.loc(&l.name) {
                 Some(x) => free.push(x),
                 None => *left.entry("location is not in the logic world".to_string()).or_insert(0) += 1,

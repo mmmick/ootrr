@@ -1,5 +1,7 @@
 {
 "format": 1,
 "note": "Hand kept logic fixes for single locations, read on every world build after the spot catalogs are added. Each row names one location and moves it to another region, gives it a new rule, or both, with the reason (usually a tester report). A row whose location is not in the world of a seed is skipped. Keep it empty until a report comes in.",
-"overrides": []
+"overrides": [
+{"name": "LH Lab Remake Rupee 1", "rule": "(Progressive_Scale, 2) or can_use(Iron_Boots)", "reason": "azk 2026-11-18: the rupee lies at the bottom of the lab pool, out of reach without diving with the Golden Scale or sinking with the Iron Boots, the same rule as LH Lab Remake Rupee 2 in that pool"}
+]
 }

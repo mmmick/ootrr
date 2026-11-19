@@ -19,7 +19,7 @@ use tab::{INSZ, OUTSZ, PSZ};
 
 pub use param::{Param, Plug};
 pub use audit::audit;
-pub use graft::{graft, root};
+pub use graft::{graft, root, set_root};
 pub use pool::Pool;
 pub use view::Input;
 

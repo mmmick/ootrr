@@ -148,7 +148,7 @@ fn forms_in(d: &Data, item: &str) -> Vec<String> {
 /// The reward scenes the story skips turn into the standard item get (story_skip), which holds the
 /// item up whatever the check holds.
 pub fn scene_locs() -> Vec<String> {
-    let mut out: Vec<String> = vec![crate::lacs_key::LOC.to_string(), crate::slice::flow_rules::SARIA.to_string(), crate::story_skip::RAURU_LOC.to_string()];
+    let mut out: Vec<String> = vec![crate::lacs_key::LOC.to_string(), crate::slice::flow_rules::SARIA.to_string(), crate::story_skip::RAURU_LOC.to_string(), crate::story_skip::REQUIEM_LOC.to_string()];
     out.extend(crate::story_skip::REWARD_SCENES.iter().map(|x| x.0.to_string()));
     for t in &crate::story_skip::SONG_TRIGGERS {
         out.push(t.loc.to_string());

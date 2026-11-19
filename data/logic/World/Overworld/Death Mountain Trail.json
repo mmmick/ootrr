@@ -6,8 +6,7 @@
         "locations": {
             "DMT Chest": "can_blast_or_smash",
             "DMT Freestanding PoH": "
-                can_take_damage or can_use(Hover_Boots) or
-                (is_adult and here(can_plant_bean and (plant_beans or has_explosives or Progressive_Strength_Upgrade)))",
+                is_adult and here(can_plant_bean and (plant_beans or has_explosives or Progressive_Strength_Upgrade))",
             "DMT Rock Red Rupee": "
                 is_child and (here(can_blast_or_smash) or (logic_boomerang_boulders and Boomerang))",
             "DMT Rock Blue Rupee": "

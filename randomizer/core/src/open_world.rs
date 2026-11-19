@@ -1,5 +1,6 @@
 pub mod ainb_edit;
 pub mod darunia;
+pub mod gerudo;
 pub mod guard;
 pub mod skips;
 
@@ -23,6 +24,7 @@ pub const EPONA: &str = "skip_epona_race";
 pub const MASKS: &str = "skip_mask_quest";
 pub const BEANS: &str = "plant_beans";
 pub const BRIDGE: &str = "gerudo_bridge_open";
+pub const FORTRESS: &str = "gerudo_fortress";
 pub const FOREST: &str = "open_forest";
 
 pub const FOUNTAIN: &str = "Logic/ZoraFountain_Child_Prefab_41c4.logic.module.ainb";
@@ -54,7 +56,26 @@ pub const JABU_NOTE: &str = "Jabu Jabu opens his mouth without a fish once King 
 pub const BEDS_NOTE: &str = "Beds offer Sleep until morning and Sleep until night before the Zelda meeting.";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Fortress {
+    #[default]
+    Normal,
+    Fast,
+    Open,
+}
+
+impl Fortress {
+    pub fn value(self) -> Option<&'static str> {
+        match self {
+            Self::Normal => None,
+            Self::Fast => Some("fast"),
+            Self::Open => Some("open"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Opts {
+    pub fortress: Fortress,
     pub zora: bool,
     pub jabu: bool,
     pub time: bool,
@@ -68,11 +89,26 @@ pub struct Opts {
 
 impl Opts {
     pub fn any(&self) -> bool {
-        self.zora || self.jabu || self.time || self.beds || self.epona || self.masks || self.beans || self.bridge || self.navi.is_some()
+        self.fortress != Fortress::Normal
+            || self.zora
+            || self.jabu
+            || self.time
+            || self.beds
+            || self.epona
+            || self.masks
+            || self.beans
+            || self.bridge
+            || self.navi.is_some()
     }
 
     pub fn edits_files(&self) -> bool {
-        self.zora || self.jabu || self.beds || self.epona || self.beans || self.bridge
+        self.fortress != Fortress::Normal
+            || self.zora
+            || self.jabu
+            || self.beds
+            || self.epona
+            || self.beans
+            || self.bridge
     }
 
     pub fn logic(&self) -> Vec<(&'static str, &'static str)> {
@@ -95,11 +131,17 @@ impl Opts {
         if self.bridge {
             out.push((BRIDGE, "1"));
         }
+        if let Some(v) = self.fortress.value() {
+            out.push((FORTRESS, v));
+        }
         out
     }
 
     pub fn defaults(&self) -> Vec<(&'static str, &'static str)> {
         let mut out: Vec<(&'static str, &'static str)> = Vec::new();
+        if let Some(v) = self.fortress.value() {
+            out.push((FORTRESS, v));
+        }
         if self.zora {
             out.push((ZORA, "open"));
         }
@@ -171,12 +213,38 @@ pub fn read(s: &Settings, bad: &mut Vec<String>) -> Opts {
     let masks: bool = flag(MASKS);
     let beans: bool = flag(BEANS);
     let bridge: bool = flag(BRIDGE);
+    let fortress: Fortress = match s.text(FORTRESS) {
+        Ok("normal") => Fortress::Normal,
+        Ok("fast") => Fortress::Fast,
+        Ok("open") => Fortress::Open,
+        Ok(v) => {
+            bad.push(format!(
+                "{FORTRESS} is {v}, which this build cannot apply yet (only normal, fast and open work)"
+            ));
+            Fortress::Normal
+        }
+        Err(e) => {
+            bad.push(e.to_string());
+            Fortress::Normal
+        }
+    };
     let navi: Option<&'static str> = match s.text(FOREST) {
         Ok("open") => Some("open"),
         Ok("closed_deku") => Some("closed_deku"),
         _ => None,
     };
-    Opts { zora, jabu, time, beds, epona, masks, beans, bridge, navi }
+    Opts {
+        fortress,
+        zora,
+        jabu,
+        time,
+        beds,
+        epona,
+        masks,
+        beans,
+        bridge,
+        navi,
+    }
 }
 
 fn flow_edit(raw: &[u8], f: impl FnOnce(&mut Bf) -> Res<()>) -> Res<Vec<u8>> {
@@ -215,6 +283,11 @@ pub fn stage(rf: &mut Romfs, o: &Opts, have: Have) -> Res<Vec<Out>> {
     if o.bridge {
         outs.push(edit_plain(rf, have, skips::BRIDGE_MODULE, skips::bridge_bytes)?);
     }
+    if o.fortress == Fortress::Open {
+        outs.push(edit_zs(rf, have, gerudo::GUARD_FILE, |raw| {
+            flow_edit(raw, |b| gerudo::patch_open_guard(b).map(|_| ()))
+        })?);
+    }
     Ok(outs)
 }
 
@@ -224,6 +297,7 @@ pub fn worked(rf: &mut Romfs, pk: &crate::modpack::Pack, o: &Opts) -> Res<Vec<Ou
     let mut outs: Vec<Out> = if o.edits_files() { stage(rf, o, &have)? } else { Vec::new() };
     outs.extend(darunia::stage(rf, &have)?);
     outs.extend(crate::gerudo_card::stage(rf, &have)?);
+    outs.push(crate::malon_song::stage(rf, &have)?);
     Ok(outs)
 }
 
@@ -572,6 +646,8 @@ mod tests {
         let no_bean = |n: &str| n == "Magic Bean" || n == "Buy Magic Bean";
         assert!(!reach(&[], &no_bean, At::Loc("Colossus Freestanding PoH")));
         assert!(reach(&[(BEANS, Value::Bool(true))], &no_bean, At::Loc("Colossus Freestanding PoH")));
+        assert!(!reach(&[], &no_bean, At::Loc("DMT Freestanding PoH")));
+        assert!(reach(&[(BEANS, Value::Bool(true))], &no_bean, At::Loc("DMT Freestanding PoH")));
         let no_mask = |n: &str| n == "Keaton Mask";
         assert!(!reach(&[], &no_mask, At::Loc("Market Mask Shop Item 1")));
         assert!(reach(&[(MASKS, Value::Bool(true))], &no_mask, At::Loc("Market Mask Shop Item 1")));

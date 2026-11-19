@@ -115,11 +115,25 @@ pub fn graft(dst: &mut Ainb, src: &Ainb, ids: &[usize], seed: &str) -> Res<Vec<u
 pub const SEQUENTIAL: u16 = 2;
 pub const SIMULTANEOUS: u16 = 3;
 const ROOT_AT: usize = 0x14;
+const CMD: usize = 0x18;
+const ENTRY_AT: usize = 6;
+const ENTRY: u8 = 4;
 
 pub fn root(a: &Ainb) -> Option<usize> {
     let c: &[u8] = a.cmds.get(ROOT_AT..ROOT_AT + 4)?;
     let i: usize = u32::from_le_bytes([c[0], c[1], c[2], c[3]]) as usize;
     (i < a.els.len()).then_some(i)
+}
+
+pub fn set_root(a: &mut Ainb, i: usize) -> Res<()> {
+    let old: usize = root(a).ok_or(Error::Format("ainb: the graph has no root"))?;
+    if i >= a.els.len() || a.cmds.len() != CMD {
+        return Err(Error::Format("ainb: cannot move the root"));
+    }
+    a.cmds[ROOT_AT..ROOT_AT + 4].copy_from_slice(&(i as u32).to_le_bytes());
+    a.els[old][ENTRY_AT] &= !ENTRY;
+    a.els[i][ENTRY_AT] |= ENTRY;
+    Ok(())
 }
 
 #[cfg(test)]

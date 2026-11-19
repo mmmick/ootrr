@@ -29,6 +29,52 @@
       "note": "Jabu Jabu starts as if he had been fed a fish once, so his mouth opens when you walk up and the mouth entrance works. The new game values are set in the flag list."
     },
     {
+      "setting": "gerudo_fortress",
+      "value": "fast",
+      "edits": [
+        {"kind": "enum", "name": "Step_SageOfSpirit", "value": "Step01"},
+        {"kind": "int", "name": "GerudoFortress_Meet_FourCarpenter_NumOfCarpenterHelped", "value": 3},
+        {"kind": "int", "name": "GerudoFortress_Meet_FourCarpenter_NumOfCarpenterHelped_02", "value": 1},
+        {"kind": "bool", "name": "GerudoFortress_Saved_Npc_Hylia_013_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_Saved_Npc_Hylia_014_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_Saved_Npc_Hylia_015_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_DestroyGerudoThief_Npc_Hylia_013_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_DestroyGerudoThief_Npc_Hylia_014_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_DestroyGerudoThief_Npc_Hylia_015_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_IsAfterHelpCarpenter_Npc_Hylia_013_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_IsAfterHelpCarpenter_Npc_Hylia_014_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_IsAfterHelpCarpenter_Npc_Hylia_015_Adult", "value": true}
+      ],
+      "note": "Tested in game. Three carpenters start free and the last one still needs rescuing. The Membership Card is vanilla and is granted by the game when the last carpenter is freed."
+    },
+    {
+      "setting": "gerudo_fortress",
+      "value": "open",
+      "edits": [
+        {"kind": "enum", "name": "Step_SageOfSpirit", "value": "Step02"},
+        {"kind": "int", "name": "GerudoFortress_Meet_FourCarpenter_NumOfCarpenterHelped", "value": 4},
+        {"kind": "int", "name": "GerudoFortress_Meet_FourCarpenter_NumOfCarpenterHelped_02", "value": 0},
+        {"kind": "bool", "name": "GerudoFortress_Saved_Npc_Hylia_013_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_Saved_Npc_Hylia_014_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_Saved_Npc_Hylia_015_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_Saved_Npc_Hylia_016_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_DestroyGerudoThief_Npc_Hylia_013_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_DestroyGerudoThief_Npc_Hylia_014_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_DestroyGerudoThief_Npc_Hylia_015_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_DestroyGerudoThief_Npc_Hylia_016_Adult", "value": true},
+        {"kind": "bool", "name": "HavePlayedEvent.Meet_FourCarpenter_ClearEvent", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_IsAfterCompleteTalk_Npc_Gerudo_001", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_GoToPrison_AfterClear", "value": true},
+        {"kind": "bool", "name": "IsGet.Item_Token_Gerudo", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_IsAfterClearEvent_Npc_Hylia_012_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_IsAfterHelpCarpenter_Npc_Hylia_013_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_IsAfterHelpCarpenter_Npc_Hylia_014_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_IsAfterHelpCarpenter_Npc_Hylia_015_Adult", "value": true},
+        {"kind": "bool", "name": "GerudoFortress_IsAfterHelpCarpenter_Npc_Hylia_016_Adult", "value": true}
+      ],
+      "note": "The fortress starts cleared and friendly. All carpenters are saved, no thieves remain, the Spirit quest is past the rescue step, and the Membership Card is owned from a new game. Holding the card keeps the guards passive and the Gerudo friendly. The card's native pool copy is replaced by Rupee (1). The shuffled Membership Card check is still offered by the cleared guard until its card event has been played."
+    },
+    {
       "setting": "time_always_passes",
       "value": "true",
       "edits": [

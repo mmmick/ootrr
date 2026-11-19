@@ -114,7 +114,7 @@ mod tests {
     #[test]
     fn the_shipped_book_parses_and_names_known_settings() {
         let b: Book = book().unwrap();
-        assert_eq!(b.presets.len(), 9);
+        assert_eq!(b.presets.len(), 11);
         assert_eq!(find(&b, "shuffle_dungeon_rewards", "true").unwrap().edits, crate::medal_gate::exps());
         assert_eq!(find(&b, "open_forest", "open").unwrap().edits, find(&b, "open_forest", "closed_deku").unwrap().edits);
         assert!(find(&b, "skip_epona_race", "true").is_err());

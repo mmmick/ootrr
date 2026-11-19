@@ -432,6 +432,19 @@ mod tests {
                 }
             }
         }
+        for p in b.presets.iter().filter(|p| p.setting == "gerudo_fortress") {
+            for e in &p.edits {
+                let row: (String, u32) = match e {
+                    Edit::Bool(n, _) => ("Bool".to_string(), key(n)),
+                    Edit::Enum(n, _) => ("Enum".to_string(), key(n)),
+                    Edit::Int(n, _) => ("Int".to_string(), key(n)),
+                    _ => continue,
+                };
+                if !want.contains(&row) {
+                    want.push(row);
+                }
+            }
+        }
         let mut got: Vec<(String, u32)> = changed_rows(&orig, &back);
         want.sort();
         got.sort();

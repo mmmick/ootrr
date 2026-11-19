@@ -59,6 +59,11 @@ pub fn grow_out(rf: &mut Romfs, t: &mut Rst, o: &Out) -> Res<usize> {
     if o.new > o.old && t.grow(&o.path, o.old as u64, o.new as u64, MARGIN)?.is_some() {
         n += 1;
     }
+    if o.old == 0 && t.get(&o.path).is_none() {
+        let size: u64 = rsizetable::align(o.new as u64) + rsizetable::align(MARGIN as u64);
+        t.set_size(&o.path, size as u32)?;
+        n += 1;
+    }
     if o.path.ends_with(".pack.zs") {
         let old: Vec<crate::sarc::Entry> = crate::sarc::parse(&rf.read_zs(&o.path)?)?;
         let new: Vec<crate::sarc::Entry> = crate::sarc::parse(&rf.zs.decompress(&o.z)?)?;

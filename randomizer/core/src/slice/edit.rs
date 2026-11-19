@@ -396,6 +396,7 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
     }
     let mut late: Vec<crate::staging::Out> = if p.qol.any() { crate::qol::worked(&mut rf, &pk, &p.qol)? } else { Vec::new() };
     late.extend(crate::open_world::worked(&mut rf, &pk, &p.open)?);
+    crate::difficulty::worked(&mut rf, &pk, &p.difficulty, &seed.seed, &mut late)?;
     crate::merchant_prices::stage_bean(&mut rf, seed, p.rewards.merchant_prices, p.rewards.bean_sale, &mut late)?;
     // Scenes that are dropped: Link runs the item get with what their check holds.
     let give_for = |loc: &str| -> crate::story_skip::SceneGive {
@@ -417,6 +418,8 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
         late.extend(crate::story_skip::worked(&mut rf, &pk)?);
         crate::story_skip::stage_arrows_give(&mut rf, &mut late, &give_for(crate::lacs_key::LOC))?;
         crate::story_skip::stage_saria_give(&mut rf, &mut late, &give_for(crate::slice::flow_rules::SARIA))?;
+        crate::story_skip::stage_requiem(&mut rf, &mut late, &work)?;
+        crate::story_skip::stage_arrows_row(&mut rf, &mut late, &work)?;
         crate::story_skip::stage_rauru_give(&mut rf, &mut late, &give_for(crate::story_skip::RAURU_LOC))?;
         for (loc, flow) in crate::story_skip::FAIRIES {
             crate::story_skip::stage_fairy_give(&mut rf, &mut late, &work, flow, &give_for(loc))?;
@@ -434,6 +437,7 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
         late.extend(crate::story_skip::worked_endings(&mut rf, &pk)?);
         let gives: Vec<(&str, &[&str], crate::story_skip::SceneGive)> = crate::story_skip::REWARD_SCENES.iter().map(|(loc, scene, extra)| (*scene, *extra, give_for(loc))).collect();
         crate::story_skip::stage_reward_gives(&mut rf, &mut late, &gives)?;
+        crate::story_skip::stage_late(&mut rf, &mut late, &work, crate::story_skip::ARROWS_FLOW, crate::story_skip::patch_last_sage)?;
     }
     if p.bridge {
         late.extend(crate::deku_bridge::worked(&mut rf, &pk)?);
@@ -443,6 +447,9 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
     }
     if p.rainbow.is_some() {
         crate::story_skip::stage_late(&mut rf, &mut late, &work, "AllSage", crate::rainbow_bridge::patch_lacs_step)?;
+    }
+    if p.short {
+        crate::short_get::stage(&mut rf, &mut late, &work)?;
     }
     for o in late {
         pk.write_romfs(&o.path, &o.z)?;
@@ -454,6 +461,14 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
             if let Some(t) = rst.as_mut() {
                 grown += crate::staging::grow_out(&mut rf, t, &o)?;
             }
+        }
+    }
+    if p.difficulty.backup {
+        if rst.is_none() {
+            rst = Some(rsizetable::load(&mut rf)?);
+        }
+        if let Some(t) = rst.as_mut() {
+            crate::difficulty::backup::size(&mut rf, t)?;
         }
     }
     extra += crate::slice::skull_kit::write(&mut rf, &pk, &mut rst, &skull_drops, kit_pool)?;

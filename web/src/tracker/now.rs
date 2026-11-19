@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn an_open_kakariko_counts_the_checks_handed_out_at_new_game() {
         let mut s: Settings = Settings::default();
-        for (k, v) in [("shuffle_rewards", "supported"), ("open_forest", "closed_deku"), ("open_kakariko", "open")] {
+        for (k, v) in [("shuffle_rewards", "supported"), ("open_forest", "open"), ("open_kakariko", "open")] {
             s.set(k, ootrr_core::settings::Value::s(v)).unwrap();
         }
         let g = generate(&s, "kak").unwrap();

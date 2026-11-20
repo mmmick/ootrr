@@ -11,7 +11,7 @@ pub const FLAG: &str = "Enemy_Skulltula_Gold_Nocturnal";
 pub const NIGHT: &str = "Logic/Module/Gimmick_Nighttime_Skulltula_Gold_Appear/Gimmick_Nighttime_Skulltula_Gold_Appear_05a9.logic.module.ain";
 pub const ALL_DAY: &str = "Logic/Module/Gimmick_AllDay_Skulltula/Gimmick_AllDay_Skulltula_115c.logic.module.ain";
 pub const RENAMES: [(&str, &str); 2] = [("Enemy_Skulltula_Gold_9a42", "Enemy_Skulltula_Gold_e916"), ("Land_SkulltulaGold_SpiderWeb_A_01_310c", "Land_SkulltulaGold_SpiderWeb_A_01_a32a")];
-pub const NOTE: &str = "Skulltulas by day: the Gold Skulltulas that only come out at night are out at any hour, and the logic no longer waits for night. Experimental.";
+pub const NOTE: &str = "Skulltulas by day: the Gold Skulltulas that only come out at night are out at any hour, and the logic no longer waits for night. Tested in the game in nearly every scene.";
 
 fn has(raw: &[u8], s: &str) -> bool {
     raw.windows(s.len()).any(|w| w == s.as_bytes())

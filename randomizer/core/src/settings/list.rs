@@ -303,7 +303,7 @@ pub fn build() -> Schema {
     );
     s.push(
         Setting::toggle(crate::slice::skull_day::NUM, crate::slice::skull_day::SETTING, "world", "Skulltulas by day", false)
-            .tip("The Gold Skulltulas that normally only come out at night are out at any hour, day or night. The logic no longer waits for night to reach them. Experimental."),
+            .tip("The Gold Skulltulas that normally only come out at night are out at any hour, day or night. The logic no longer waits for night to reach them. Tested in the game in nearly every scene."),
     );
     s.push(
         Setting::choice(7, "gerudo_fortress", "world", "Gerudo Fortress", "normal")

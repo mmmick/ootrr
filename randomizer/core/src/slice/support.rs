@@ -76,6 +76,7 @@ pub struct Plan {
     pub treasure: bool,
     pub scarecrow: bool,
     pub fishing: bool,
+    pub day_skulls: bool,
     pub kit: crate::start_items::Kit,
     pub open: crate::open_world::Opts,
     pub difficulty: crate::difficulty::Opts,
@@ -202,6 +203,9 @@ impl Plan {
         if self.scarecrow {
             out.push((crate::slice::scarecrow::KEY, crate::slice::scarecrow::ON));
         }
+        if self.day_skulls {
+            out.push((crate::slice::skull_day::KEY, crate::slice::skull_day::ON));
+        }
         out
     }
 
@@ -272,6 +276,7 @@ pub fn plan(s: &Settings) -> Res<Plan> {
     let treasure: bool = crate::slice::treasure::mode(s, &mut bad);
     let scarecrow: bool = toggle(s, crate::slice::scarecrow::SETTING, &mut bad);
     let fishing: bool = toggle(s, crate::easy_fishing::SETTING, &mut bad);
+    let day_skulls: bool = toggle(s, crate::slice::skull_day::SETTING, &mut bad);
     let open: crate::open_world::Opts = crate::open_world::read(s, &mut bad);
     let trials: crate::ganon_trials::Trials = crate::ganon_trials::read(s, &mut bad);
     let difficulty: crate::difficulty::Opts = crate::difficulty::read(s, &mut bad);
@@ -336,6 +341,7 @@ pub fn plan(s: &Settings) -> Res<Plan> {
         (rewards.potion, crate::flow_extra::potion::NOTE),
         (scarecrow, crate::slice::scarecrow::NOTE),
         (fishing, crate::easy_fishing::NOTE),
+        (day_skulls, crate::slice::skull_day::NOTE),
     ] {
         if on {
             notes.push(text.to_string());
@@ -399,7 +405,7 @@ pub fn plan(s: &Settings) -> Res<Plan> {
         notes.push(crate::lacs_key::NOTE.to_string());
         notes.push(crate::medal_gate::LACS_NOTE.to_string());
     }
-    Ok(Plan { chests, keys, rewards, hearts, world, songs, harp_colors, hints, fast, chest_sizes, intro, start, gates, excluded, notes, drops, skulls, remake, chus, qol, treasure, scarecrow, fishing, kit, open, npc, shops, bridge, silver, lacs, rainbow, trials, door, short, story, endings, ocarinas, kokiri_sword, difficulty })
+    Ok(Plan { chests, keys, rewards, hearts, world, songs, harp_colors, hints, fast, chest_sizes, intro, start, gates, excluded, notes, drops, skulls, remake, chus, qol, treasure, scarecrow, fishing, day_skulls, kit, open, npc, shops, bridge, silver, lacs, rainbow, trials, door, short, story, endings, ocarinas, kokiri_sword, difficulty })
 }
 
 #[cfg(test)]

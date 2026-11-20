@@ -37,6 +37,7 @@ pub mod tracker_fixes;
 pub mod scan;
 pub mod seed_packs;
 pub mod silver;
+pub mod skull_day;
 pub mod skull_edit;
 pub mod skull_kit;
 pub mod skull_names;

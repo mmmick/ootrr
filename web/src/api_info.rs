@@ -1,4 +1,5 @@
 use ootrr_core::TITLE_ID;
+use ootrr_core::colors;
 use ootrr_core::json::Json;
 use ootrr_core::settings::export::schema_json;
 use ootrr_core::settings::presets::{self, Preset};
@@ -25,6 +26,17 @@ pub fn info(sh: &Shared) -> Json {
         .with("lan", sh.guard.lan.into())
         .with("update_check", sh.updates.into())
         .with("title_id", TITLE_ID.into())
+        .with("color_parts", color_parts())
+}
+
+/// The parts the Cosmetics page offers a colour for, in page order.
+pub fn color_parts() -> Json {
+    Json::Arr(
+        colors::ITEMS
+            .iter()
+            .map(|i| Json::obj().with("id", i.id.into()).with("label", i.label.into()).with("group", i.group.into()))
+            .collect(),
+    )
 }
 
 fn gaps(p: &Preset) -> Vec<String> {
@@ -64,6 +76,9 @@ mod tests {
         assert_eq!(j.get("lan").and_then(|x| x.as_bool()), Some(false));
         assert!(j.get("version").is_some());
         assert!(!j.to_string().contains("tok123"));
+        let parts: &[Json] = j.get("color_parts").and_then(|x| x.as_arr()).unwrap();
+        assert_eq!(parts.len(), colors::ITEMS.len());
+        assert!(parts.iter().any(|p| p.get("id").and_then(|x| x.as_str()) == Some("kokiri_belt") && p.get("group").and_then(|x| x.as_str()) == Some("Kokiri tunic")));
     }
 
     #[test]

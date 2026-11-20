@@ -1,5 +1,6 @@
 use crate::error::{Error, Res};
 use crate::tex::astc;
+use crate::tex::bc7;
 use crate::tex::bcn;
 use crate::tex::bntx::Tex;
 use crate::tex::image::Img;
@@ -9,6 +10,7 @@ use crate::tex::swizzle;
 pub enum Kind {
     Bc1,
     Bc3,
+    Bc7,
     Astc(usize, usize),
 }
 
@@ -18,6 +20,7 @@ pub fn kind(fmt: u32) -> Option<Kind> {
     match fmt >> 8 {
         0x1a => Some(Kind::Bc1),
         0x1c => Some(Kind::Bc3),
+        0x20 => Some(Kind::Bc7),
         k @ 0x2d..=0x3a => {
             let (w, h): (usize, usize) = ASTC[(k - 0x2d) as usize];
             Some(Kind::Astc(w, h))
@@ -69,6 +72,12 @@ pub fn decode(b: &[u8], t: &Tex) -> Res<Img> {
                     px[..16].copy_from_slice(&o);
                     r
                 }
+                Kind::Bc7 => {
+                    let mut o: [[u8; 4]; 16] = [[0; 4]; 16];
+                    let r: bool = bc7::decode(s, &mut o);
+                    px[..16].copy_from_slice(&o);
+                    r
+                }
                 Kind::Astc(..) => {
                     let mut blk: [u8; 16] = [0; 16];
                     blk.copy_from_slice(s);
@@ -104,7 +113,9 @@ mod tests {
         assert_eq!(kind(0x1c06), Some(Kind::Bc3));
         assert_eq!(kind(0x3306), Some(Kind::Astc(8, 6)));
         assert_eq!(kind(0x3a01), Some(Kind::Astc(12, 12)));
-        assert_eq!(kind(0x2006), None);
+        assert_eq!(kind(0x2006), Some(Kind::Bc7));
+        assert_eq!(kind(0x1d01), None);
+        assert_eq!((Kind::Bc7.bytes(), Kind::Bc7.cell()), (16, (4, 4)));
         assert_eq!((Kind::Bc1.bytes(), Kind::Bc3.bytes(), Kind::Astc(8, 6).cell()), (8, 16, (8, 6)));
     }
 

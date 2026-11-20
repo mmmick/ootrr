@@ -2,7 +2,6 @@ import { $, h, fill } from "/js/dom.js";
 import { get } from "/js/api.js";
 import { state } from "/js/store.js";
 
-const OFF = "ootrr.update.off";
 const SKIP = "ootrr.update.skip";
 
 function read(k) {
@@ -28,16 +27,12 @@ function banner(box, r) {
     h(
       "div",
       { class: "update-in" },
-      h("span", { class: "update-text" }, h("b", null, `Version ${r.latest} is out`), ` (you have ${r.current}).`, r.note ? ` ${r.note}` : ""),
+      h("span", { class: "update-text" }, h("b", null, `Version ${r.latest} is out.`), ` You have ${r.current}.`),
       h("a", { class: "btn", href: r.url, target: "_blank", rel: "noopener noreferrer" }, "Get it"),
       h("button", { type: "button", class: "btn quiet", onclick: () => {
         write(SKIP, r.latest);
         close();
       } }, "Not now"),
-      h("button", { type: "button", class: "btn quiet", onclick: () => {
-        write(OFF, "1");
-        close();
-      } }, "Stop checking"),
     ),
   );
   box.classList.remove("hide");
@@ -45,7 +40,7 @@ function banner(box, r) {
 
 export async function start() {
   const box = $("#update");
-  if (!box || !state.info || !state.info.update_check || read(OFF)) return;
+  if (!box || !state.info || !state.info.update_check) return;
   let r = null;
   try {
     r = await get("/api/update");

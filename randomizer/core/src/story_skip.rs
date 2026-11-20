@@ -340,7 +340,8 @@ fn ends(f: &Flow, start: usize) -> Res<u16> {
         match &f.events[i].kind {
             Kind::Switch { cases, .. } => todo.extend(cases.iter().map(|c| c.ev as usize)),
             k => {
-                let n: u16 = next_of(k).ok_or(Error::Format("story skip: a gift event has no single next"))?;
+                // A Bow or Slingshot tier is followed by its bag adds (crate::starter_bags::line).
+                let n: u16 = crate::starter_bags::skip(f, next_of(k).ok_or(Error::Format("story skip: a gift event has no single next"))?);
                 if !seen.contains(&n) {
                     seen.push(n);
                 }
@@ -359,8 +360,12 @@ fn retarget(f: &mut Flow, start: usize, from: u16, to: u16) -> Res<()> {
     while let Some(i) = todo.pop() {
         if let Kind::Switch { cases, .. } = &f.events[i].kind {
             todo.extend(cases.iter().map(|c| c.ev as usize));
-        } else if next_of(&f.events[i].kind) == Some(from) {
-            set_next(&mut f.events[i].kind, to)?;
+        } else if let Some(n) = next_of(&f.events[i].kind) {
+            // The end of a Bow or Slingshot tier's bag line is the end of the give.
+            let at: usize = crate::starter_bags::line_end(f, n).unwrap_or(i);
+            if next_of(&f.events[at].kind) == Some(from) {
+                set_next(&mut f.events[at].kind, to)?;
+            }
         }
     }
     Ok(())
@@ -920,6 +925,11 @@ fn item_get(f: &mut Flow, name: &str, g: &SceneGive, then: u16, entries: &[&str]
         crate::progressive::wrap_grant_as(f, at as usize, name, "ActorName", family, &crate::ocarina_hold::forms_of(family))?;
     } else {
         held(f, at as usize, "ActorName")?;
+        // Ammo that needs a bag gives a green rupee to a player without one.
+        if g.key.is_none() {
+            crate::progressive::ammo_guard(f, at as usize, name, "ActorName")?;
+            crate::starter_bags::follow(f, at as usize, &g.actor)?;
+        }
     }
     if let Some((item, dungeon)) = g.key {
         let first: u16 = crate::gift_keys::credit(f, item, dungeon, then)?;

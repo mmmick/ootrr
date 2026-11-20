@@ -46,6 +46,6 @@ mod tests {
         let s: String = text(&l);
         assert!(s.starts_with("Shops, 0 special deals"));
         assert_eq!(s.lines().filter(|x| x.contains("rupees")).count(), 64);
-        assert!(s.contains("needs the Giant's Wallet"));
+        assert!(wallet_word(600).contains("Giant's Wallet"));
     }
 }

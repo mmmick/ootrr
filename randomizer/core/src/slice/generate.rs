@@ -236,6 +236,7 @@ pub fn generate_data(d: &Data, s: &Settings, seed: &str, o: &GenOpts) -> Res<Gen
     }
     let watch: Watch = Watch::new(o.limit, o.live.clone());
     let mut p: Plan = plan(s)?;
+    p.notes.extend(p.trials.note());
     let room: crate::shops::layout::Room = crate::shops::rules::room(d, &p)?;
     let mut lay: Option<crate::shops::Layout> = crate::shops::layout::of(&p.shops, seed, room)?;
     p.notes.extend(lay.as_ref().and_then(|l| crate::shops::rules::cut_note(l.cut, room)));
@@ -503,6 +504,8 @@ mod tests {
     /// spots for them.
     fn all_chests() -> Settings {
         let mut s: Settings = Settings::default();
+        // Seeds made before Ocarina and Kokiri Sword shuffle had both shuffled.
+        crate::slice::pick::shuffle_both(&mut s);
         s.set("shuffle_chests", Value::s("all")).unwrap();
         s.set(crate::flow_extra::SETTING, Value::Bool(false)).unwrap();
         s.set("shuffle_boss_hearts", Value::Bool(false)).unwrap();
@@ -739,6 +742,8 @@ mod tests {
 
     fn with(pairs: &[(&str, &str)]) -> Settings {
         let mut s: Settings = Settings::default();
+        // Seeds made before Ocarina and Kokiri Sword shuffle had both shuffled.
+        crate::slice::pick::shuffle_both(&mut s);
         for (k, v) in pairs {
             s.set(k, Value::s(v)).unwrap();
         }
@@ -874,12 +879,32 @@ mod tests {
     }
 
     #[test]
+    fn the_ocarina_and_kokiri_sword_stay_vanilla_unless_shuffled() {
+        let d: Data = Data::load().unwrap();
+        let free = |s: &Settings| -> Vec<String> {
+            let p: Plan = plan(s).unwrap();
+            let w: World = world_with(&d, &p.logic()).unwrap();
+            crate::slice::pick::pick(&d, &w, &p).free.iter().map(|l| w.locs[*l].name.clone()).collect()
+        };
+        let spots = [crate::slice::flow_rules::SARIA, crate::slice::flow_rules::OCARINA_OF_TIME, crate::slice::pick::SWORD_CHEST];
+        let off: Vec<String> = free(&Settings::default());
+        assert!(spots.iter().all(|x| !off.iter().any(|n| n == x)), "{off:?}");
+        let g: Generated = generate_data(&d, &Settings::default(), "vanilla gifts", &GenOpts::default()).unwrap();
+        assert!(spots.iter().all(|x| !g.seed_file.placements.contains_key(*x)));
+        let mut on: Settings = Settings::default();
+        on.set(crate::slice::pick::OCARINAS, Value::Bool(true)).unwrap();
+        on.set(crate::slice::pick::SWORD, Value::Bool(true)).unwrap();
+        let on: Vec<String> = free(&on);
+        assert!(spots.iter().all(|x| on.iter().any(|n| n == x)), "{on:?}");
+    }
+
+    #[test]
     fn an_open_forest_generates_and_can_put_progression_past_mido() {
         let d: Data = Data::load().unwrap();
-        for v in ["open", "closed_deku"] {
-            let s: Settings = with(&[("open_forest", v)]);
+        for kak in ["closed", "open"] {
+            let s: Settings = with(&[("open_forest", "open"), ("open_kakariko", kak)]);
             for n in 0..3 {
-                let g: Generated = generate_data(&d, &s, &format!("forest {v} {n}"), &GenOpts::default()).unwrap();
+                let g: Generated = generate_data(&d, &s, &format!("forest open {kak} {n}"), &GenOpts::default()).unwrap();
                 assert!(g.report.contains("Kokiri Forest starts open"));
             }
         }
@@ -908,7 +933,7 @@ mod tests {
                 assert!(!d.item(item).is_some_and(|i| i.adv), "seed kak {n}: the egg check holds {item}");
             }
         }
-        let off: Settings = with(&[("open_kakariko", "zelda")]);
+        let off: Settings = with(&[("open_kakariko", "closed")]);
         let g: Generated = generate_data(&d, &off, "kak off", &GenOpts::default()).unwrap();
         assert!(!g.report.contains("Kakariko gate starts open"));
         let p: Plan = plan(&off).unwrap();
@@ -1192,6 +1217,7 @@ mod tests {
     fn rewards_off_and_stones_and_medallions_on_keep_the_old_seeds() {
         let d: Data = Data::load().unwrap();
         let mut on: Settings = Settings::default();
+        crate::slice::pick::shuffle_both(&mut on);
         on.set("shuffle_dungeon_rewards", Value::s("anywhere")).unwrap();
         let mut pots: Settings = on.clone();
         pots.set("shuffle_pots", Value::s("all")).unwrap();
@@ -1242,6 +1268,7 @@ mod tests {
     fn beehives_on_seeds_are_pinned() {
         let d: Data = Data::load().unwrap();
         let mut hives: Settings = Settings::default();
+        crate::slice::pick::shuffle_both(&mut hives);
         hives.set(crate::pot_slice::plan::HIVES, Value::Bool(true)).unwrap();
         let mut both: Settings = hives.clone();
         both.set("shuffle_pots", Value::s("all")).unwrap();

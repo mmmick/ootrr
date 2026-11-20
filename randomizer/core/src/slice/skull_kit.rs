@@ -88,7 +88,15 @@ pub fn write(rf: &mut Romfs, pk: &Pack, rst: &mut Option<Rst>, ds: &[Drop], extr
     let id: u32 = dict_id(&rf.read(&pack_of(TOKEN))?).unwrap_or(PACK_DICT);
     let mut n: usize = 0;
     for a in made {
-        let pl: Plan = build(rf, &token, a)?;
+        let mut pl: Plan = build(rf, &token, a)?;
+        if crate::bomb_pickup::quieted(a) {
+            // Ammo a skulltula drops is refused silently without its bag, as on a breakable.
+            let (b, hit): (Vec<u8>, bool) = crate::bomb_pickup::quiet_all(&pl.sarc)?;
+            if !hit {
+                return Err(E::Msg(format!("skulltula kits: {a} no longer plays the get event at a full pouch, the game files may have changed")));
+            }
+            pl.sarc = b;
+        }
         copy_rows(&mut ys, &pl)?;
         fresh_sizes(table, &pl, &shared)?;
         pk.write_romfs(&pack_of(a), &zs::compress_raw(&pl.sarc, Some(id))?)?;
@@ -132,6 +140,24 @@ mod tests {
         } else {
             eprintln!("skipped, no RomFS dump at {} (set OOTRR_ROMFS)", p.display());
             None
+        }
+    }
+
+    #[test]
+    fn an_ammo_kit_carries_a_pouch_file_the_quiet_edit_reaches() {
+        let Some(root) = real() else {
+            return;
+        };
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        let token: Vec<Entry> = token_pack(&mut rf).unwrap();
+        for a in crate::bomb_pickup::ACTORS {
+            let kit: String = kit_actor(a);
+            assert!(crate::bomb_pickup::quieted(&kit), "{kit}");
+            let pl: Plan = build(&mut rf, &token, &kit).unwrap();
+            let (out, hit): (Vec<u8>, bool) = crate::bomb_pickup::quiet_all(&pl.sarc).unwrap();
+            assert!(hit, "{kit}");
+            assert_eq!(out.len(), pl.sarc.len(), "{kit}");
+            assert!(!crate::bomb_pickup::quiet_all(&out).unwrap().1, "{kit}");
         }
     }
 
@@ -216,6 +242,7 @@ mod tests {
         };
         let d: Data = Data::load().unwrap();
         let mut s: Settings = Settings::default();
+        crate::slice::pick::shuffle_both(&mut s);
         s.set("shuffle_rewards", Value::s("off")).unwrap();
         s.set("shuffle_skulltulas", Value::s("matched")).unwrap();
         let g: Generated = generate_data(&d, &s, "kit build 1", &GenOpts::default()).unwrap();

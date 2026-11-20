@@ -6,6 +6,7 @@ pub mod goods;
 pub mod hook;
 pub mod inner;
 pub mod seed;
+pub mod split;
 pub mod stage;
 pub mod text;
 

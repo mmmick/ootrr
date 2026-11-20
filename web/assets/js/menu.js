@@ -66,8 +66,9 @@ function settings_page(p) {
   });
   const n = p.sections.reduce((a, s) => a + s.ids.length, 0);
   const sub = `${p.heading} · ${n} setting${n === 1 ? "" : "s"}${stubs ? ` · ${stubs} not supported yet` : ""}`;
-  if (!secs.length) return [head(p.label), h("p", { class: "mempty" }, "Nothing here yet.")];
-  return [head(p.label), h("div", { class: "mgrid" }, secs)];
+  const warn = p.warning ? h("p", { class: "notice warn mwarn" }, p.warning) : null;
+  if (!secs.length) return [head(p.label), warn, h("p", { class: "mempty" }, "Nothing here yet.")];
+  return [head(p.label), warn, h("div", { class: "mgrid" }, secs)];
 }
 
 // An option's needs: "id" (a toggle that must be on), "id=value" or "id!=value".

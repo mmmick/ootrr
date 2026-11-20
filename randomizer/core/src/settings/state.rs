@@ -49,6 +49,7 @@ impl Schema {
     }
 
     pub fn normalize(&self, v: &mut Vals) {
+        crate::door_gate::legacy(v);
         v.retain(|k, _| self.get(k).is_some());
         for s in &self.settings {
             if !v.contains_key(&s.id) {

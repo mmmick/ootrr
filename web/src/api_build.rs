@@ -3,7 +3,7 @@ use std::path::PathBuf as PB;
 use std::sync::Arc;
 
 use ootrr_core::TITLE_ID;
-use ootrr_core::colors::Colors;
+use ootrr_core::colors::{self, Colors};
 use ootrr_core::cosmetic::{self, Cosmetics, Music};
 use ootrr_core::sfx::Sfx;
 use ootrr_core::json::Json;
@@ -120,14 +120,26 @@ pub fn plan(b: &Json) -> Hr<Plan> {
     };
     let colors: Colors = match body::opt_text(b, "colors")? {
         None | Some("") => Colors::Off,
-        Some(s) => Colors::parse(s).ok_or_else(|| refuse("Colours: use off, random or shared."))?,
+        Some(s) => Colors::parse(s).ok_or_else(|| refuse("Colours: use off, custom, random or shared."))?,
     };
     let seed_text: String = body::opt_text(b, "cosmetic_seed")?.unwrap_or("").trim().to_string();
     if seed_text.len() > 64 {
         return Err(refuse("Cosmetic seed: at most 64 characters."));
     }
     let title: bool = b.get("title_logo").and_then(|x| x.as_bool()) != Some(false);
-    let cos: Cosmetics = Cosmetics { music, sfx, colors, seed: seed_text, title };
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    if let Some(v) = b.get("color_parts") {
+        let o: &[(String, Json)] = v.as_obj().ok_or_else(|| refuse("Colours: the part colours must be a list of part names and colours."))?;
+        if o.len() > colors::ITEMS.len() {
+            return Err(refuse("Colours: too many part colours."));
+        }
+        for (k, x) in o {
+            let t: &str = x.as_str().ok_or_else(|| refuse("Colours: each part colour is follow, original, random or a #rrggbb colour."))?;
+            pairs.push((k.clone(), t.to_string()));
+        }
+    }
+    let parts: colors::Picks = colors::parse_picks(&pairs).map_err(|e| refuse(&format!("Colours: {e}")))?;
+    let cos: Cosmetics = Cosmetics { music, sfx, colors, seed: seed_text, title, parts };
     let spoiler: Option<String> = match body::opt_text(b, "spoiler_text")? {
         None | Some("") => None,
         Some(t) if t.len() > SPOILER_MAX => return Err(refuse("Spoiler: the spoiler log is too large.")),
@@ -183,7 +195,7 @@ pub fn run(jobs: &Arc<Jobs>, b: &Json) -> Hr<Json> {
                 }
                 if p.cos.any() {
                     c.begin("Write the cosmetic changes");
-                    match cosmetic::apply(&built.root, &romfs, &p.cos, &p.seed.seed) {
+                    match cosmetic::apply(&built.root, &romfs, &p.cos) {
                         Ok(notes) => {
                             for n in notes {
                                 built.report.push_str(&format!("{n}
@@ -374,6 +386,17 @@ mod tests {
         assert!(c.cos.any());
         assert_eq!(plan(&base()).unwrap().cos.colors, Colors::Off);
         assert!(plan(&base().with("colors", "neon".into())).is_err());
+        let parts = |o: Json| plan(&base().with("color_parts", o));
+        let p: Plan = parts(Json::obj().with("boots", "#804020".into()).with("kokiri", "original".into()).with("gloves", "random".into())).unwrap();
+        assert_eq!(p.cos.parts.len(), 2);
+        assert_eq!(p.cos.parts.get("boots"), Some(&colors::Pick::Rgb([0x80, 0x40, 0x20])));
+        assert!(!p.cos.any());
+        let c: Plan = plan(&base().with("colors", "custom".into()).with("color_parts", Json::obj().with("boots", "#804020".into()))).unwrap();
+        assert!(c.cos.any() && c.cos.colors == Colors::Custom);
+        assert!(parts(Json::obj().with("cape", "random".into())).is_err());
+        assert!(parts(Json::obj().with("boots", "brown".into())).is_err());
+        assert!(parts(Json::obj().with("boots", true.into())).is_err());
+        assert!(parts("boots".into()).is_err());
         assert!(plan(&base().with("cosmetic_seed", "x".repeat(65).into())).is_err());
         assert!(plan(&base()).unwrap().cos.title);
         assert!(plan(&base().with("title_logo", true.into())).unwrap().cos.title);

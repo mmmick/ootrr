@@ -379,7 +379,7 @@ mod tests {
     }
 
     #[test]
-    fn every_build_carries_the_pedestal_fix_and_only_the_door_setting_adds_the_door_modules() {
+    fn every_build_carries_the_pedestal_fix_and_the_door_modules() {
         let Some(root) = real() else {
             return;
         };
@@ -389,7 +389,7 @@ mod tests {
             assert!(on_disk(&plain, f).is_file(), "{f}");
         }
         for f in [MODULE, SWORD_MODULE] {
-            assert!(!on_disk(&plain, f).exists(), "{f}");
+            assert!(on_disk(&plain, f).is_file(), "{f}");
         }
         let flow: Bf = Bf::parse(&rf.zs.decompress(&std::fs::read(on_disk(&plain, crate::start_state::FIELD_FLOW_FILE)).unwrap()).unwrap()).unwrap();
         let f: &Flow = flow.flows.iter().find(|x| x.name == crate::start_state::FIELD_FLOW).unwrap();

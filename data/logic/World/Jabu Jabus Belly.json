@@ -13,10 +13,9 @@
         "dungeon": "Jabu Jabus Belly",
         "locations": {
             "Jabu Jabus Belly Boomerang Chest": "True",
+            "Jabu Jabus Belly Map Chest": "True",
             "Jabu Jabus Belly Basement 2 Octoroks Chest": "can_use(Boomerang)",
-            "Jabu Jabus Belly Deku Scrub": "
-                can_stun_deku and
-                (can_dive or is_child or logic_jabu_alcove_jump_dive or can_use(Iron_Boots))",
+            "Jabu Jabus Belly Deku Scrub": "can_use(Slingshot) or can_use(Boomerang)",
             "Jabu Jabus Belly Small Wooden Crate 1": "True",
             "Jabu Jabus Belly Small Wooden Crate 2": "True",
             "Jabu Jabus Belly Basement 2 Octoroks Pot 1": "can_use(Boomerang) or can_use(Hover_Boots)",
@@ -43,7 +42,6 @@
         "region_name": "Jabu Jabus Belly Depths",
         "dungeon": "Jabu Jabus Belly",
         "locations": {
-            "Jabu Jabus Belly Map Chest": "True",
             "Jabu Jabus Belly Compass Chest": "True"
         },
         "exits": {

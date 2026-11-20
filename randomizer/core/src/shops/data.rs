@@ -228,7 +228,7 @@ mod tests {
         assert!(!is_loc("Market Mask Shop Item 1"));
         assert!(!is_loc("KF Shop Wonderitem"));
         let units: std::collections::BTreeSet<String> = t.slots.iter().map(|s| t.unit(s)).collect();
-        assert_eq!(units.len(), 56);
+        assert_eq!(units.len(), 64, "every shop has a goods list of its own");
     }
 
     #[test]
@@ -260,14 +260,19 @@ mod tests {
     }
 
     #[test]
-    fn potion_shops_share_their_goods_slot_by_slot() {
+    fn potion_shops_stock_the_same_goods_on_their_own_lists() {
         let t: &Table = table().unwrap();
         for i in 0..8 {
             let a: &Slot = t.at("Market Potion Shop", i).unwrap();
             let b: &Slot = t.at("Kak Potion Shop", i).unwrap();
-            assert_eq!(t.unit(a), t.unit(b));
+            assert_ne!(t.unit(a), t.unit(b), "shelf::split gives the Kakariko keeper a goods list of its own");
             assert_eq!(a.actor, b.actor);
         }
+        for s in ["Market Potion Shop", "Kak Potion Shop"] {
+            let sh: &Shop = t.shop(s).unwrap();
+            assert!(sh.deals && sh.once && sh.keepers.len() == 1, "{s}");
+        }
+        assert_eq!(t.shop("Kak Potion Shop").unwrap().keepers[0], crate::shelf::split::KEEPER);
     }
 
     #[test]

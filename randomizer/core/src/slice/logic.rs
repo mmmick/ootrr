@@ -171,6 +171,23 @@ mod tests {
     }
 
     #[test]
+    fn the_door_of_time_requirement_moves_zeldas_escape() {
+        let d: Data = Data::load().unwrap();
+        let reach = |pairs: &[(&str, &str)], gone: &[&str]| -> bool {
+            let w: World = world_with(&d, pairs).unwrap();
+            let s: Search = explore(&w, &vanilla_without(&w, &d, gone), &gauntlets(&w));
+            seen(&s, &w, "HF Ocarina of Time Item")
+        };
+        assert!(reach(&[], &["Zora Sapphire"]));
+        assert!(!reach(&[("door_of_time_condition", "stones")], &["Zora Sapphire"]));
+        assert!(reach(&[("door_of_time_condition", "stones")], &[]));
+        assert!(reach(&[("door_of_time_condition", "stones"), ("door_of_time_escape", "moat")], &["Zora Sapphire"]));
+        let songless: World = world_with(&d, &[("open_door_of_time", "stones")]).unwrap();
+        let s: Search = explore(&songless, &vanilla_without(&songless, &d, &["Song of Time"]), &gauntlets(&songless));
+        assert!(seen(&s, &songless, "Master Sword Pedestal"));
+    }
+
+    #[test]
     fn every_audit_gate_can_be_satisfied_in_the_vanilla_world() {
         let d: Data = Data::load().unwrap();
         let w: World = world(&d).unwrap();
@@ -310,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn the_water_temple_gate_needs_the_ice_cavern() {
+    fn the_water_temple_gate_needs_no_ice_cavern() {
         let d: Data = Data::load().unwrap();
         let w: World = world(&d).unwrap();
         let boots: ItemId = w.item("Iron Boots").unwrap();
@@ -318,7 +335,7 @@ mod tests {
         let cut: Placement = vanilla_without(&w, &d, &["Silver Rupee (Ice Cavern Push Block)", "Silver Rupee Pouch (Ice Cavern Push Block)"]);
         let s: Search = explore(&w, &cut, &[boots]);
         assert!(!seen(&s, &w, "Water Temple Gate Open from Ice Cavern End"));
-        assert!(!s.region_reached(lobby, None));
+        assert!(s.region_reached(lobby, None));
         let s: Search = explore(&w, &vanilla_place(&w, &d).unwrap(), &[boots]);
         assert!(seen(&s, &w, "Water Temple Gate Open from Ice Cavern End"));
         assert!(s.region_reached(lobby, None));

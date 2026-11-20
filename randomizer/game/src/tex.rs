@@ -1,4 +1,5 @@
 pub mod astc;
+pub mod bc7;
 pub mod bcn;
 pub mod bntx;
 pub mod image;

@@ -57,17 +57,24 @@ pub struct Cosmetics {
     pub colors: Colors,
     pub seed: String,
     pub title: bool,
+    /// Colour picks for single parts, by part id. A part not listed follows `colors`.
+    pub parts: colors::Picks,
 }
 
 impl Default for Cosmetics {
     fn default() -> Cosmetics {
-        Cosmetics { music: Music::Off, sfx: Sfx::Off, colors: Colors::Off, seed: String::new(), title: true }
+        Cosmetics { music: Music::Off, sfx: Sfx::Off, colors: Colors::Off, seed: String::new(), title: true, parts: colors::Picks::new() }
     }
 }
 
 impl Cosmetics {
     pub fn any(&self) -> bool {
-        self.music != Music::Off || self.sfx != Sfx::Off || self.colors != Colors::Off
+        self.music != Music::Off || self.sfx != Sfx::Off || matches!(self.colors, Colors::Random | Colors::Shared) || (self.colors == Colors::Custom && !self.parts.is_empty())
+    }
+
+    /// Whether anything in these cosmetics is drawn at random, so the cosmetic seed matters.
+    pub fn rolls(&self) -> bool {
+        self.music != Music::Off || self.sfx != Sfx::Off || matches!(self.colors, Colors::Random | Colors::Shared) || (self.colors == Colors::Custom && self.parts.values().any(|p| *p == colors::Pick::Random))
     }
 }
 
@@ -286,11 +293,29 @@ pub fn shuffle_music(y: &mut Byml, m: Music, seed: &str, have: &dyn Fn(&str) -> 
     rewrite(y, &to) + rewrite_layers(y, &sets)
 }
 
-pub fn apply(mod_root: &P, romfs: &P, c: &Cosmetics, seed: &str) -> Res<Vec<String>> {
-    let mut notes: Vec<String> = apply_music(mod_root, romfs, c, seed)?;
-    let text: &str = if c.seed.trim().is_empty() { seed } else { c.seed.trim() };
-    notes.extend(sfx::apply(mod_root, romfs, c.sfx, text)?);
-    notes.extend(colors::apply(mod_root, romfs, c.colors, text)?);
+const SEED_CHARS: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/// A new cosmetic seed, different on every call: eight letters and digits.
+pub fn fresh_seed() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0));
+    h.write_u32(std::process::id());
+    let mut rng: Rng = Rng::from_seed(h.finish());
+    (0..8).map(|_| SEED_CHARS[rng.below(SEED_CHARS.len() as u64) as usize] as char).collect()
+}
+
+/// Applies the cosmetics. An empty cosmetic seed draws a new one for this build, so each
+/// build gets new music and colours; the notes name it so it can be typed in to repeat them.
+pub fn apply(mod_root: &P, romfs: &P, c: &Cosmetics) -> Res<Vec<String>> {
+    let given: &str = c.seed.trim();
+    let text: String = if given.is_empty() { fresh_seed() } else { given.to_string() };
+    let mut notes: Vec<String> = apply_music(mod_root, romfs, c, &text)?;
+    notes.extend(sfx::apply(mod_root, romfs, c.sfx, &text)?);
+    notes.extend(colors::apply(mod_root, romfs, c.colors, &c.parts, &text)?);
+    if c.rolls() && given.is_empty() {
+        notes.push(format!("Cosmetic seed: {text}. Type it in the Cosmetic seed box to build these music and colours again."));
+    }
     Ok(notes)
 }
 
@@ -315,7 +340,7 @@ pub fn moves(old: &Byml, new: &Byml) -> BM<(String, String), String> {
     out
 }
 
-fn apply_music(mod_root: &P, romfs: &P, c: &Cosmetics, seed: &str) -> Res<Vec<String>> {
+fn apply_music(mod_root: &P, romfs: &P, c: &Cosmetics, text: &str) -> Res<Vec<String>> {
     let mut notes: Vec<String> = Vec::new();
     if c.music == Music::Off {
         return Ok(notes);
@@ -325,7 +350,6 @@ fn apply_music(mod_root: &P, romfs: &P, c: &Cosmetics, seed: &str) -> Res<Vec<St
     let mut y: Byml = old.clone();
     let top: PB = rf.root.join(STREAM);
     let have = |k: &str| top.join(format!("{k}.bwav")).is_file();
-    let text: &str = if c.seed.trim().is_empty() { seed } else { c.seed.trim() };
     shuffle_music(&mut y, c.music, text, &have);
     let want: BM<(String, String), String> = moves(&old, &y);
     let z: Vec<u8> = rf.read(SLINK)?;
@@ -480,6 +504,22 @@ mod tests {
         }
         assert_eq!(Music::parse("loud"), None);
         assert!(!Cosmetics::default().any());
+        let mut c: Cosmetics = Cosmetics::default();
+        c.parts.insert("boots".into(), colors::Pick::Rgb([1, 2, 3]));
+        assert!(!c.any() && !c.rolls(), "picks do nothing outside the custom mode");
+        c.colors = Colors::Custom;
+        assert!(c.any() && !c.rolls());
+        c.parts.insert("boots".into(), colors::Pick::Random);
+        assert!(c.any() && c.rolls());
+    }
+
+    #[test]
+    fn a_fresh_cosmetic_seed_is_new_each_time_and_easy_to_type() {
+        let a: String = fresh_seed();
+        let b: String = fresh_seed();
+        assert_ne!(a, b);
+        assert_eq!(a.len(), 8);
+        assert!(a.bytes().all(|x| SEED_CHARS.contains(&x)));
     }
 
     fn real() -> Option<PB> {
@@ -502,8 +542,8 @@ mod tests {
         for text in ["first", "second"] {
             let out: PB = std::env::temp_dir().join(format!("ootrr_music_{}_{text}", std::process::id()));
             let _ = fs::remove_dir_all(&out);
-            let c: Cosmetics = Cosmetics { music: Music::Grouped, sfx: Sfx::Off, colors: Colors::Off, seed: text.to_string(), title: true };
-            let notes: Vec<String> = apply(&out, &root, &c, "seed").unwrap();
+            let c: Cosmetics = Cosmetics { music: Music::Grouped, sfx: Sfx::Off, colors: Colors::Off, seed: text.to_string(), title: true, parts: colors::Picks::new() };
+            let notes: Vec<String> = apply(&out, &root, &c).unwrap();
             assert!(notes[0].contains("music tracks moved"), "{notes:?}");
             assert!(!out.join("romfs").join(BGM_FILE).exists());
             assert!(!out.join("romfs").join(crate::rsizetable::TABLE_PATH).exists());

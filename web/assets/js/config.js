@@ -1,6 +1,6 @@
 import { h, fill, debounce } from "./dom.js";
 import { get, q } from "./api.js";
-import { state, touch } from "./store.js";
+import { state, touch, color_groups, SOLO } from "./store.js";
 import { pick_folder, pick_package } from "./picker.js";
 import { tip_button } from "./tooltip.js";
 import { marked } from "./controls.js";
@@ -50,9 +50,10 @@ const SHUFFLE = (what) => [
   { id: "anywhere", label: `Shuffle across all ${what === "music" ? "tracks" : "sounds"}` },
 ];
 const COLORS = [
-  { id: "off", label: "Off, keep the original colours" },
-  { id: "random", label: "A random colour for each item" },
-  { id: "shared", label: "One random colour for everything" },
+  { id: "off", label: "Vanilla, keep the original colours" },
+  { id: "custom", label: "Custom, pick colours below" },
+  { id: "random", label: "A random colour for each part" },
+  { id: "shared", label: "Shades of one random colour" },
 ];
 
 const CONFIG = { id: "config", label: "Configuration", heading: "Configuration" };
@@ -72,9 +73,13 @@ export const FIELDS = [
   { id: "music", page: COSMETICS, section: "Music and sound", label: "Music shuffle", choices: SHUFFLE("music"),
     tip: "Music changes only the mod you build, never the seed, so the same seed can be built with different music. Cutscene music keeps its own tracks. Themes built from stacked layers trade whole layer sets. Area themes that change with the time of day play one track all day. Jingles only trade with other jingles." },
   { id: "sfx", page: COSMETICS, section: "Music and sound", label: "Sound effect shuffle", choices: SHUFFLE("sounds"), tip: "Shuffles sound effects in the mod you build. The seed is not changed." },
-  { id: "colors", page: COSMETICS, section: "Colours", label: "Colour shuffle", choices: COLORS,
-    tip: "Colours cover the three tunics, the swords, the shields, Navi, hair, the boomerang gem, the gauntlet jewels and recovery hearts. Particle glows, trails and the menu keep their own colours." },
-  { id: "cosseed", page: COSMETICS, section: "Colours", label: "Cosmetic seed", tip: "Leave empty to use the seed text. Set it to get the same music and colours with a different seed." },
+  { id: "colors", page: COSMETICS, section: "Colours", label: "Colour mode", choices: COLORS,
+    tip: "Colours cover the three tunics, the swords, the shields, Navi, hair, the boomerang gem, the gauntlet jewels and recovery hearts. Vanilla changes nothing. Custom changes only the parts you pick below. A random colour for each part gives every part its own colour, vivid, deep, pastel, soft, dark, muted or a grey. Shades of one random colour picks one colour and gives every part its own lighter, darker or softer shade of it. Particle glows, trails and the menu keep their own colours." },
+  { id: "color_groups", page: COSMETICS, section: "Colours by part", label: "Part colours",
+    tip: "Used when Colour mode is Custom. Original keeps a tunic or the equipment as it is. Random gives each of its parts its own random colour. Pick colours… opens each part on the right. Only Link's own tunic is recoloured: Mido and the Fairy Ocarina holder keep theirs." },
+  { id: "color_custom", page: COSMETICS, section: "Picked colours", label: "Colours part by part",
+    tip: "Shows the parts of every tunic or the equipment set to Pick colours…. Random draws a colour for that part alone, Pick a colour sets it exactly." },
+  { id: "cosseed", page: COSMETICS, section: "Colours", label: "Cosmetic seed", tip: "Leave empty for new random music and colours on every build. The build notes name the cosmetic seed that was used: type it here to build the same music and colours again." },
   { id: "title_logo", page: COSMETICS, section: "Title screen", label: "Randomizer line under the logo",
     tip: "Draws a Randomizer line under the title screen logo. It changes the title screen files, so turn it off if another mod (a title screen, menu or UI mod) changes them too. The build stops and names the other mod when they clash. The seed is not changed." },
 ].map((f) => ({ ...f, page_label: f.page.label, heading: f.page.heading, page: f.page.id }));
@@ -103,6 +108,113 @@ function select(id, choices, value, onchange) {
 }
 
 const PACKAGE = /\.(nup|nx)$/i;
+const HEX = /^#[0-9a-f]{6}$/;
+
+// Colour parts come from the server, grouped by tunic or kind. Each group but "Other" has
+// one choice in cos.groups (follow, original, random or custom); "custom" opens its parts
+// on the right. A part's own choice is kept in cos.parts as "original", "random" or
+// "#rrggbb"; following the shuffle is no entry.
+let redraw_colors = () => {};
+
+function part_row(cos, g, p, live) {
+  const opts = [
+    { id: "original", label: "Original" },
+    { id: "random", label: "Random" },
+    { id: "custom", label: "Pick a colour" },
+  ];
+  const sel = h("select", { "aria-label": `${g} ${p.label}`, disabled: !live }, opts.map((o) => h("option", { value: o.id }, o.label)));
+  const swatch = h("input", { type: "color", "aria-label": `${g} ${p.label} colour`, value: "#2e8b57", disabled: !live });
+  const show = () => {
+    const v = cos.parts[p.id] || "";
+    sel.value = HEX.test(v) ? "custom" : v || "original";
+    if (HEX.test(v)) swatch.value = v;
+    swatch.hidden = sel.value !== "custom";
+  };
+  const keep = (v) => {
+    if (v === "original") delete cos.parts[p.id];
+    else cos.parts[p.id] = v;
+    touch();
+    show();
+  };
+  sel.addEventListener("change", () => keep(sel.value === "custom" ? swatch.value.toLowerCase() : sel.value));
+  swatch.addEventListener("input", () => keep(swatch.value.toLowerCase()));
+  show();
+  return h("div", { class: "cpart" }, h("span", null, p.label), h("div", { class: "cpick" }, sel, swatch));
+}
+
+const GROUP_MODES = [
+  { id: "original", label: "Original" },
+  { id: "random", label: "Random" },
+  { id: "custom", label: "Pick colours…" },
+];
+
+const MODE_NOTE = {
+  off: "Colours are vanilla. Set Colour mode to Custom to pick them part by part.",
+  random: "Every part gets its own random colour. Set Colour mode to Custom to pick them part by part.",
+  shared: "Every part gets a shade of one random colour. Set Colour mode to Custom to pick them part by part.",
+};
+
+function group_pickers(cos) {
+  cos.parts = cos.parts || {};
+  cos.groups = cos.groups || {};
+  const box = h("div", { class: "cparts", id: "f_color_groups" });
+  const draw = () => {
+    const live = cos.colors === "custom";
+    const kids = live ? [] : [h("p", { class: "hint" }, MODE_NOTE[cos.colors] || MODE_NOTE.off)];
+    for (const [g, ps] of color_groups()) {
+      if (g === SOLO) {
+        kids.push(h("div", { class: "cgroup" }, g));
+        for (const p of ps) kids.push(part_row(cos, g, p, live));
+        continue;
+      }
+      const sel = h("select", { "aria-label": `${g} colours`, disabled: !live }, GROUP_MODES.map((o) => h("option", { value: o.id }, o.label)));
+      sel.value = cos.groups[g] || "original";
+      sel.addEventListener("change", () => {
+        if (sel.value === "original") delete cos.groups[g];
+        else cos.groups[g] = sel.value;
+        touch();
+        redraw_colors();
+      });
+      kids.push(h("div", { class: "cpart" }, h("span", { class: "cname" }, g, h("small", null, ` · ${ps.length} parts`)), h("div", { class: "cpick" }, sel)));
+    }
+    fill(box, kids);
+  };
+  draw();
+  return { box, draw };
+}
+
+function custom_pickers(cos) {
+  cos.parts = cos.parts || {};
+  const box = h("div", { class: "cparts", id: "f_color_custom", "aria-live": "polite" });
+  const draw = () => {
+    if (cos.colors !== "custom") {
+      fill(box, h("p", { class: "hint" }, "Part by part colours are used when Colour mode is Custom."));
+      return;
+    }
+    const open = [...color_groups()].filter(([g]) => g !== SOLO && (cos.groups || {})[g] === "custom");
+    if (!open.length) {
+      fill(box, h("p", { class: "hint" }, "Set a tunic or the equipment to Pick colours… to colour its parts one by one here."));
+      return;
+    }
+    fill(box, open.map(([g, ps]) => [
+      h("div", { class: "cgroup" }, g),
+      ...ps.map((p) => part_row(cos, g, p, true)),
+      h("div", { class: "cpart" }, h("span"), h("button", { type: "button", class: "btn", onclick: () => {
+        for (const p of ps) delete cos.parts[p.id];
+        touch();
+        draw();
+      } }, `Reset ${g.toLowerCase()} parts`)),
+    ]));
+  };
+  draw();
+  return { box, draw };
+}
+
+let color_draws = { groups: () => {}, custom: () => {} };
+redraw_colors = () => {
+  color_draws.groups();
+  color_draws.custom();
+};
 
 // Where a picker starts: the folder itself, or the folder holding a picked package file.
 function start_of(v) {
@@ -305,13 +417,24 @@ export function field_el(f, terms = []) {
     });
     return row(f, terms, box);
   }
+  if (f.id === "color_groups") {
+    const g = group_pickers(cos);
+    color_draws.groups = g.draw;
+    return row(f, terms, g.box);
+  }
+  if (f.id === "color_custom") {
+    const c = custom_pickers(cos);
+    color_draws.custom = c.draw;
+    return row(f, terms, c.box);
+  }
   if (f.id === "music" || f.id === "sfx" || f.id === "colors") {
     return row(f, terms, select(f.id, f.choices, cos[f.id], (v) => {
       cos[f.id] = v;
       touch();
+      if (f.id === "colors") redraw_colors();
     }));
   }
-  const inp = h("input", { type: "text", id: "f_cosseed", value: cos.seed, spellcheck: "false", autocomplete: "off", maxlength: "64", placeholder: "Leave empty to use the seed text" });
+  const inp = h("input", { type: "text", id: "f_cosseed", value: cos.seed, spellcheck: "false", autocomplete: "off", maxlength: "64", placeholder: "Leave empty for new music and colours each build" });
   inp.addEventListener("input", () => {
     cos.seed = inp.value;
     touch();

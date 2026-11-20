@@ -121,17 +121,6 @@
       "note": "Navi's monster lesson from the Deku Tree's first room is marked as seen when a new game starts, so the D-pad calls Navi and targeting gives enemy information even if the Deku Tree is skipped. The new game values are set in the flag list, experimental and untested in the game."
     },
     {
-      "setting": "open_forest",
-      "value": "closed_deku",
-      "edits": [
-        {"kind": "bool", "name": "HavePlayedEvent.NaviHint_Trial", "value": true},
-        {"kind": "bool", "name": "HaveTalked.Npc_Navi", "value": true},
-        {"kind": "bool", "name": "ActionGuide_IsEnd.Navi", "value": true},
-        {"kind": "bool", "name": "ActionGuide_IsNew.Navi", "value": true}
-      ],
-      "note": "Navi's monster lesson from the Deku Tree's first room is marked as seen when a new game starts, so the D-pad calls Navi and targeting gives enemy information even if the Deku Tree is skipped. The new game values are set in the flag list, experimental and untested in the game."
-    },
-    {
       "setting": "shuffle_dungeon_rewards",
       "value": "true",
       "edits": [

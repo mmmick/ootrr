@@ -234,6 +234,39 @@ mod tests {
     }
 
     #[test]
+    fn a_shuffled_ocarina_of_time_spot_hands_out_its_placed_item_in_the_song_skip() {
+        let root: std::path::PathBuf = std::env::var_os("OOTRR_ROMFS").map(std::path::PathBuf::from).unwrap_or_else(|| std::path::PathBuf::from("D:/Oot/romfs"));
+        if !root.join("Pack").join("ZsDic.pack.zs").is_file() {
+            eprintln!("skipped: no romfs at {}, set OOTRR_ROMFS", root.display());
+            return;
+        }
+        let d: Data = Data::load().unwrap();
+        let mut s: crate::settings::Settings = crate::settings::Settings::default();
+        crate::slice::pick::shuffle_both(&mut s);
+        let spot: &str = crate::slice::flow_rules::OCARINA_OF_TIME;
+        let mut g = crate::slice::generate::generate_data(&d, &s, "ocarina of time spot", &crate::slice::GenOpts::default()).unwrap();
+        assert!(g.seed_file.placements.contains_key(spot), "the Ocarina of Time spot is not shuffled");
+        // Put the Hookshot there; only the build is tested here.
+        let at: String = g.seed_file.placements.iter().find(|(_, i)| i.as_str() == "Progressive Hookshot").map(|(l, _)| l.clone()).unwrap();
+        let there: String = g.seed_file.placements[spot].clone();
+        g.seed_file.placements.insert(at, there);
+        g.seed_file.placements.insert(spot.to_string(), "Progressive Hookshot".to_string());
+        let load: std::path::PathBuf = std::env::temp_dir().join(format!("ootrr_ocarina_of_time_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&load);
+        let b = crate::slice::edit::build(&g.seed_file, &root, &load, "ocarina of time").unwrap();
+        let romfs: std::path::PathBuf = b.root.join("romfs");
+        let mut rf: crate::romfs::Romfs = crate::romfs::Romfs::open(&root).unwrap();
+        let z: Vec<u8> = std::fs::read(crate::story_skip::DOOR_FILE.split('/').fold(romfs.clone(), |x, s| x.join(s))).unwrap();
+        let bf = crate::bfevfl::Bf::parse(&rf.zs.decompress(&z).unwrap()).unwrap();
+        let gives = |n: &str| {
+            bf.flows.iter().flat_map(|f| f.events.iter()).any(|e| e.name.starts_with("OOTRRSongDm_MelodyGet_Time") && e.kind.params().and_then(|c| c.get("ActorName")) == Some(&crate::bfevfl::Val::Str(n.to_string())))
+        };
+        assert!(gives("Item_Hookshot"), "the song skip does not hand out the placed Hookshot");
+        assert!(!gives("Item_Ocarina_Time"), "the song skip still hands out the vanilla Ocarina");
+        let _ = std::fs::remove_dir_all(&load);
+    }
+
+    #[test]
     fn a_seed_with_the_ocarina_at_the_man_on_the_roof_builds_both_pickup_packs_and_hands_them_out() {
         let root: std::path::PathBuf = std::env::var_os("OOTRR_ROMFS").map(std::path::PathBuf::from).unwrap_or_else(|| std::path::PathBuf::from("D:/Oot/romfs"));
         if !root.join("Pack").join("ZsDic.pack.zs").is_file() {
@@ -241,7 +274,9 @@ mod tests {
             return;
         }
         let d: Data = Data::load().unwrap();
-        let mut g = crate::slice::generate::generate_data(&d, &crate::settings::Settings::default(), "ocarina held", &crate::slice::GenOpts::default()).unwrap();
+        let mut s: crate::settings::Settings = crate::settings::Settings::default();
+        crate::slice::pick::shuffle_both(&mut s);
+        let mut g = crate::slice::generate::generate_data(&d, &s, "ocarina held", &crate::slice::GenOpts::default()).unwrap();
         // Trade one Ocarina copy with the man on the roof's item; only the build is tested here.
         let roof: &str = "Kak Man on Roof";
         let at: String = g.seed_file.placements.iter().find(|(_, i)| i.as_str() == "Ocarina").map(|(l, _)| l.clone()).unwrap();
@@ -301,6 +336,7 @@ mod pickup_tests {
         }
         let d: Data = Data::load().unwrap();
         let mut s: Settings = Settings::default();
+        crate::slice::pick::shuffle_both(&mut s);
         s.set("shuffle_freestanding_items", Value::s("all")).unwrap();
         s.set("shuffle_pots", Value::s("all")).unwrap();
         let spot = |loc: &str| d.pots.has(loc) || d.cat.by_name(loc).is_some_and(crate::slice::pickups::is_world);

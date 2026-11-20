@@ -20,13 +20,7 @@
             "Ganons Castle Light Trial": "can_use(Golden_Gauntlets)",
             "Ganons Castle Spirit Trial": "True",
             "Ganons Castle Deku Scrubs": "logic_lens_castle or can_use(Lens_of_Truth)",
-            "Ganons Castle Tower": "
-                (skipped_trials[Forest] or 'Forest Trial Clear') and
-                (skipped_trials[Fire] or 'Fire Trial Clear') and
-                (skipped_trials[Water] or 'Water Trial Clear') and
-                (skipped_trials[Shadow] or 'Shadow Trial Clear') and
-                (skipped_trials[Spirit] or 'Spirit Trial Clear') and
-                (skipped_trials[Light] or 'Light Trial Clear')"
+            "Ganons Castle Tower": "('Ganon Trial Clear', trials)"
         }
     },
     {
@@ -59,7 +53,8 @@
         "region_name": "Ganons Castle Forest Trial Ending",
         "dungeon": "Ganons Castle",
         "events": {
-            "Forest Trial Clear": "can_use(Light_Arrows)"
+            "Forest Trial Clear": "can_use(Light_Arrows)",
+            "Ganon Trial Clear": "can_use(Light_Arrows)"
         },
         "locations": {
             "Ganons Castle Forest Trial Pot 1": "True",
@@ -84,7 +79,8 @@
         "region_name": "Ganons Castle Water Trial Ending",
         "dungeon": "Ganons Castle",
         "events": {
-            "Water Trial Clear": "can_use(Light_Arrows)"
+            "Water Trial Clear": "can_use(Light_Arrows)",
+            "Ganon Trial Clear": "can_use(Light_Arrows)"
         },
         "locations": {
             "Ganons Castle Water Trial Pot 1": "True",
@@ -135,7 +131,8 @@
         "region_name": "Ganons Castle Shadow Trial Ending",
         "dungeon": "Ganons Castle",
         "events": {
-            "Shadow Trial Clear": "can_use(Light_Arrows)"
+            "Shadow Trial Clear": "can_use(Light_Arrows)",
+            "Ganon Trial Clear": "can_use(Light_Arrows)"
         },
         "locations": {
             "Ganons Castle Shadow Trial Pot 1": "True",
@@ -164,7 +161,8 @@
         "region_name": "Ganons Castle Fire Trial Ending",
         "dungeon": "Ganons Castle",
         "events": {
-            "Fire Trial Clear": "can_use(Light_Arrows)"
+            "Fire Trial Clear": "can_use(Light_Arrows)",
+            "Ganon Trial Clear": "can_use(Light_Arrows)"
         },
         "locations": {
             "Ganons Castle Fire Trial Pot 1": "True",
@@ -213,7 +211,8 @@
         "region_name": "Ganons Castle Light Trial Ending",
         "dungeon": "Ganons Castle",
         "events": {
-            "Light Trial Clear": "can_use(Light_Arrows)"
+            "Light Trial Clear": "can_use(Light_Arrows)",
+            "Ganon Trial Clear": "can_use(Light_Arrows)"
         },
         "locations": {
             "Ganons Castle Light Trial Pot 1": "True",
@@ -260,7 +259,8 @@
         "region_name": "Ganons Castle Spirit Trial Ending",
         "dungeon": "Ganons Castle",
         "events": {
-            "Spirit Trial Clear": "can_use(Light_Arrows)"
+            "Spirit Trial Clear": "can_use(Light_Arrows)",
+            "Ganon Trial Clear": "can_use(Light_Arrows)"
         },
         "locations": {
             "Ganons Castle Spirit Trial Pot 1": "True",

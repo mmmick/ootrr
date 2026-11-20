@@ -53,7 +53,7 @@
         or (glitch_pokey_escape and Deku_Shield and (Kokiri_Sword or Sticks))
         or (glitch_wess_escape and (Kokiri_Sword or Sticks))",
     "can_plant_bugs": "is_child and Bugs",
-    "can_ride_epona": "is_adult and Epona and (can_play_ocarina(Eponas_Song) or (can_hover and not shuffle_overworld_entrances))",
+    "can_ride_epona": "is_adult and ((Epona and (can_play_ocarina(Eponas_Song) or (can_hover and not shuffle_overworld_entrances))) or (skip_epona_race and can_play_ocarina(Eponas_Song)))",
     "can_stun_deku": "is_adult or (Slingshot or Boomerang or Sticks or Kokiri_Sword or has_explosives or can_use(Dins_Fire) or Nuts or Deku_Shield or can_use(Megaton_Hammer))",
     "can_summon_gossip_fairy": "can_play(Zeldas_Lullaby) or can_play(Eponas_Song) or can_play(Song_of_Time) or can_play(Suns_Song)",
     "can_summon_gossip_fairy_without_suns": "can_play(Zeldas_Lullaby) or can_play(Eponas_Song) or can_play(Song_of_Time)",
@@ -125,6 +125,8 @@
     "can_hit_deku_scrub": "has_shield or can_use(Slingshot) or can_use(Boomerang) or can_use(Bow)",
     # Lets link get into the crouching state
     "can_shield": "(is_adult and (Hylian_Shield or Mirror_Shield)) or (is_child and Deku_Shield)",
+    # Child boss fights want the Kokiri Sword: Deku Sticks are rare in the remake.
+    "can_finish_boss": "is_adult or Kokiri_Sword",
     "can_jumpslash": "is_adult or Sticks or Kokiri_Sword or can_use(Megaton_Hammer)",
 
     # Enemy killing
@@ -171,7 +173,10 @@
 
     # Bridge Requirements
     "has_all_stones": "Kokiri_Emerald and Goron_Ruby and Zora_Sapphire",
-    "story_stones": "'Defeat King Dodongo' and 'Defeat Barinade' and at('HC Garden Skippable Locations', is_child)",
+    "story_stones": "(
+        (door_of_time_condition == 'vanilla' and 'Defeat King Dodongo' and 'Defeat Barinade') or
+        (door_of_time_condition == 'stones' and has_all_stones)) and
+        at('HC Garden Skippable Locations', is_child)",
     "has_all_medallions": "Forest_Medallion and Fire_Medallion and Water_Medallion and Shadow_Medallion and Spirit_Medallion and Light_Medallion",
     "can_open_door_of_time": "(
         (open_door_of_time == 'open') or

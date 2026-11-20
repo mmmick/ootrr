@@ -32,6 +32,7 @@ mod router;
 pub mod server;
 mod spoiler_find;
 mod state;
+pub mod stdio;
 mod token;
 pub mod tracker;
 mod tracker_view;

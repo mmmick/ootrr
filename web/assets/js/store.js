@@ -11,7 +11,7 @@ export const state = {
   plando: [],
   paths: { game: "", update: "", mod: "", name: "My Seed", host: "eden" },
   include_update: false,
-  cosmetic: { music: "off", sfx: "off", colors: "off", seed: "", title: true },
+  cosmetic: { music: "off", sfx: "off", colors: "off", seed: "", title: true, parts: {}, groups: {} },
   game_check: null,
   mod_check: null,
   result: null,
@@ -75,11 +75,51 @@ export function restore(schema) {
   if (s && s.cosmetic && typeof s.cosmetic === "object") {
     if (["off", "grouped", "anywhere"].includes(s.cosmetic.music)) state.cosmetic.music = s.cosmetic.music;
     if (["off", "grouped", "anywhere"].includes(s.cosmetic.sfx)) state.cosmetic.sfx = s.cosmetic.sfx;
-    if (["off", "random", "shared"].includes(s.cosmetic.colors)) state.cosmetic.colors = s.cosmetic.colors;
+    if (["off", "custom", "random", "shared"].includes(s.cosmetic.colors)) state.cosmetic.colors = s.cosmetic.colors;
     if (typeof s.cosmetic.seed === "string") state.cosmetic.seed = s.cosmetic.seed.slice(0, 64);
     if (typeof s.cosmetic.title === "boolean") state.cosmetic.title = s.cosmetic.title;
+    if (s.cosmetic.parts && typeof s.cosmetic.parts === "object") {
+      const known = new Set(((state.info && state.info.color_parts) || []).map((p) => p.id));
+      for (const [k, v] of Object.entries(s.cosmetic.parts).slice(0, 64)) {
+        if (known.has(k) && typeof v === "string" && /^(original|random|#[0-9a-f]{6})$/.test(v)) state.cosmetic.parts[k] = v;
+      }
+    }
+    if (s.cosmetic.groups && typeof s.cosmetic.groups === "object") {
+      const known = new Set(((state.info && state.info.color_parts) || []).map((p) => p.group));
+      for (const [k, v] of Object.entries(s.cosmetic.groups).slice(0, 16)) {
+        if (known.has(k) && ["original", "random", "custom"].includes(v)) state.cosmetic.groups[k] = v;
+      }
+    }
   }
   const r = take(sessionStorage, RKEY);
   if (r && typeof r.seed_text === "string") state.result = r;
   if (!state.vals) state.vals = defaults(schema);
+}
+
+// Colour parts come from the server, grouped by tunic or kind.
+export const SOLO = "Other";
+export function color_groups() {
+  const groups = new Map();
+  for (const p of (state.info && state.info.color_parts) || []) {
+    if (!groups.has(p.group)) groups.set(p.group, []);
+    groups.get(p.group).push(p);
+  }
+  return groups;
+}
+
+// The part colours a build is sent, used only in the custom colour mode: whole groups by
+// their choice, picked groups and single parts by their own.
+export function color_picks(cos) {
+  const out = {};
+  if (cos.colors !== "custom") return out;
+  const gs = cos.groups || {};
+  const own = cos.parts || {};
+  for (const [g, ps] of color_groups()) {
+    const mode = g === SOLO ? "custom" : gs[g] || "original";
+    for (const p of ps) {
+      if (mode === "random") out[p.id] = "random";
+      else if (mode === "custom" && own[p.id]) out[p.id] = own[p.id];
+    }
+  }
+  return out;
 }

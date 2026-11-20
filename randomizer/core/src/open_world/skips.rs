@@ -22,7 +22,12 @@ pub const REGISTER: &str = "EventCopyAndRegisterOwnedHorse";
 pub const WARP: &str = "EventWarpToTargetActor";
 pub const OFFSTAGE: &str = "EventGoOffstageForUser";
 pub const SET_ENUM: &str = "EventTriggerSetGameDataEnum";
+pub const SET_BOOL: &str = "EventTriggerSetGameDataBool";
+pub const CHALLENGE_ACTOR: &str = "ChallengeSystemActor";
+pub const PROGRESS: &str = "EventExecuteProgressChallengeStep";
 pub const EPONA_STEP: &str = "Step_Get_Epona";
+pub const EPONA_CHALLENGE: &str = "Get_Epona";
+pub const ESCAPE_FLAG: &str = "Skullchild_JustAfterGetEpona";
 pub const EPONA_PREFIX: &str = "OOTRREpona";
 /// The event that makes and registers Epona: its event name, flow, entry and flow file.
 pub const OWN_EVENT: &str = "OOTRREponaOwn";
@@ -325,12 +330,14 @@ pub fn own_flow(song: &Bf) -> Res<Bf> {
     };
     let mut f: Flow = Flow {
         name: OWN_EVENT.to_string(),
-        actors: vec![epona_member(&base), like("GameDataActor")?, like("Player_Event")?],
+        actors: vec![epona_member(&base), like("GameDataActor")?, like("Player_Event")?, Actor { name: CHALLENGE_ACTOR.to_string(), ..like("GameDataActor")? }],
         events: Vec::new(),
         entries: vec![Entry { name: OWN_EVENT.to_string(), subs: Vec::new(), vars: Vec::new(), main: 0, pad: 0 }],
     };
     let (warp, reg, off): (u16, u16, u16) = (action_slot(&mut f, 0, WARP), action_slot(&mut f, 0, REGISTER), action_slot(&mut f, 0, OFFSTAGE));
+    let flag: u16 = action_slot(&mut f, 1, SET_BOOL);
     let set: u16 = action_slot(&mut f, 1, SET_ENUM);
+    let step: u16 = action_slot(&mut f, 3, PROGRESS);
     let chain: Vec<Kind> = vec![
         Kind::Action {
             next: 1,
@@ -360,6 +367,21 @@ pub fn own_flow(song: &Bf) -> Res<Bf> {
                     kv("IsSleepXLink", Val::Bool(TRUE)),
                     kv("ExecuteSetSpeedZeroEveryFrame", Val::Bool(FALSE)),
                     kv("IsRidingTargetGoOffstage", Val::Bool(FALSE)),
+                ],
+            }),
+        },
+        Kind::Action { next: 4, actor: 1, act: flag, params: Some(Cont { items: vec![kv("Value", Val::Bool(TRUE)), kv("Index", Val::Int(-1)), kv("GameDataName", Val::Str(ESCAPE_FLAG.to_string()))] }) },
+        Kind::Action {
+            next: 5,
+            actor: 3,
+            act: step,
+            params: Some(Cont {
+                items: vec![
+                    kv("ChallengeName", Val::Str(EPONA_CHALLENGE.to_string())),
+                    kv("IsWaitEnd", Val::Bool(TRUE)),
+                    kv("IsIgnoreCompletedChallenge", Val::Bool(FALSE)),
+                    kv("StepName", Val::Str("Complete".to_string())),
+                    kv("IsIgnoreChallengeProgressUI", Val::Bool(FALSE)),
                 ],
             }),
         },
@@ -511,10 +533,17 @@ mod tests {
             (EPONA_ACTOR.to_string(), WARP.to_string()),
             (EPONA_ACTOR.to_string(), REGISTER.to_string()),
             (EPONA_ACTOR.to_string(), OFFSTAGE.to_string()),
+            ("GameDataActor".to_string(), SET_BOOL.to_string()),
+            (CHALLENGE_ACTOR.to_string(), PROGRESS.to_string()),
             ("GameDataActor".to_string(), SET_ENUM.to_string()),
         ];
         assert_eq!(acts, want);
-        assert_eq!(text(&g.events[3], "Value"), Some("Complete"));
+        assert_eq!(text(&g.events[3], "GameDataName"), Some(ESCAPE_FLAG));
+        assert_eq!(g.events[3].kind.params().unwrap().get("Value"), Some(&Val::Bool(TRUE)));
+        assert_eq!((text(&g.events[4], "ChallengeName"), text(&g.events[4], "StepName")), (Some(EPONA_CHALLENGE), Some("Complete")));
+        assert_eq!(text(&g.events[5], "Value"), Some("Complete"));
+        let order: Vec<u16> = g.events.iter().map(|e| if let Kind::Action { next, .. } = &e.kind { *next } else { panic!() }).collect();
+        assert_eq!(order, vec![1, 2, 3, 4, 5, NONE]);
         let ep = g.actors.iter().find(|a| a.name == EPONA_ACTOR).unwrap();
         assert_eq!(ep.params.as_ref().unwrap().get("EventMemberCreateMethod"), Some(&Val::Int(1)));
         for (t, analyzed) in [(crate::progressive::SETTING_TABLE, false), (crate::progressive::ANALYZED_TABLE, true)] {

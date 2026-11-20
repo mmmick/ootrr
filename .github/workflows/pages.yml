@@ -1,0 +1,86 @@
+name: pages
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "site/**"
+      - "web/**"
+      - "randomizer/**"
+      - "data/**"
+      - "Cargo.lock"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --target wasm32-wasip1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build
+        run: |
+          export RUSTFLAGS="--remap-path-prefix=$HOME=user --remap-path-prefix=$GITHUB_WORKSPACE=ootrr"
+          cargo build --release --locked -p ootrr --target wasm32-wasip1
+          cargo build --release --locked -p ootrr
+      - name: Test the stdio server
+        run: |
+          cargo test --release --locked -p ootrr-web -p ootrr -- stdio options_parse jobs::
+      - name: Audit
+        run: python3 -I tools/audit.py target/wasm32-wasip1/release/ootrr.wasm
+      - name: Parity with the native build
+        run: node site/test/parity.mjs --exe target/release/ootrr --wasm target/wasm32-wasip1/release/ootrr.wasm
+      - name: Site
+        run: node site/make.mjs
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: site
+          path: site/dist
+          if-no-files-found: error
+
+  # The built site is committed to the gh-pages branch, and GitHub Pages serves
+  # that branch (Settings > Pages > Deploy from a branch > gh-pages, / (root)).
+  # Each deploy replaces the branch with one commit, so old wasm builds do not
+  # pile up in the history.
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: site
+      - name: Commit to gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd site
+          touch .nojekyll
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Site from ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages

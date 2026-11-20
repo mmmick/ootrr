@@ -151,6 +151,15 @@ fn survivors(t: &Table, mut goods: Vec<Goods>, room: usize, bottles: usize) -> R
     Ok(kept)
 }
 
+/// Shop goods a child can buy in any shop (shelf::hook::child_tunics). Moved out of the shop that
+/// sells them in the game, they cost a random shopsanity price instead of their own.
+pub const TUNICS: [&str; 2] = ["Buy Goron Tunic", "Buy Zora Tunic"];
+
+/// Whether `item` is a tunic standing in a shop other than its own.
+pub fn moved_tunic(t: &Table, item: &str, shop: &str) -> bool {
+    TUNICS.contains(&item) && !t.slots.iter().any(|x| x.item == item && x.shop == shop)
+}
+
 pub fn make(o: &Opts, seed: &str, room: Room) -> Res<Layout> {
     let t: &Table = table()?;
     let mut rng: Rng = Rng::from_text(&format!("{seed}/shops"));
@@ -192,7 +201,13 @@ pub fn make(o: &Opts, seed: &str, room: Room) -> Res<Layout> {
             continue;
         }
         let g: &Goods = given.get(&t.unit(s)).ok_or_else(|| E::Msg(format!("shops: {} got no goods", s.name)))?;
-        places.push(Place { loc: s.name.clone(), item: g.item.clone(), actor: g.actor.clone(), price: g.price, deal: false, pool: String::new() });
+        let price: i32 = if moved_tunic(t, &g.item, &s.shop) {
+            let cap: i32 = t.shop(&s.shop).and_then(|x| x.cap).unwrap_or(i32::MAX);
+            price::draw(o, &mut rng).min(cap)
+        } else {
+            g.price
+        };
+        places.push(Place { loc: s.name.clone(), item: g.item.clone(), actor: g.actor.clone(), price, deal: false, pool: String::new() });
     }
     Ok(Layout { places, cut })
 }
@@ -246,12 +261,41 @@ mod tests {
             }
         }
         assert!(moved > 30, "{moved}");
-        for i in 0..8 {
-            let m: &Place = a.get(&t.at("Market Potion Shop", i).unwrap().name).unwrap();
-            let k: &Place = a.get(&t.at("Kak Potion Shop", i).unwrap().name).unwrap();
-            assert_eq!((&m.item, m.price), (&k.item, k.price));
-            assert!(t.bottle.contains(&m.item), "{}", m.item);
+        for p in &a.places {
+            let s: &Slot = t.slot(&p.loc).unwrap();
+            if moved_tunic(t, &p.item, &s.shop) {
+                assert!((10..=300).contains(&p.price) && p.price % 5 == 0, "{} {}", p.loc, p.price);
+            } else {
+                assert!(t.slots.iter().any(|x| x.item == p.item && x.price == p.price), "{} keeps the price of {}", p.loc, p.item);
+            }
         }
+        let differ: bool = (0..20).any(|n| {
+            let l: Layout = make(&opts(Level::Shuffle), &format!("p{n}"), Room::any(64)).unwrap();
+            (0..8).any(|i| l.get(&t.at("Market Potion Shop", i).unwrap().name).unwrap().item != l.get(&t.at("Kak Potion Shop", i).unwrap().name).unwrap().item)
+        });
+        assert!(differ, "the two Potion Shops stock their shelves apart");
+    }
+
+    #[test]
+    fn a_tunic_out_of_its_own_shop_costs_a_random_price() {
+        let t: &Table = table().unwrap();
+        assert!(!moved_tunic(t, "Buy Goron Tunic", "GC Shop"));
+        assert!(moved_tunic(t, "Buy Goron Tunic", "KF Shop"));
+        assert!(moved_tunic(t, "Buy Zora Tunic", "GC Shop"));
+        assert!(!moved_tunic(t, "Buy Deku Shield", "GC Shop"));
+        let mut seen: usize = 0;
+        for n in 0..40 {
+            let l: Layout = make(&Opts { max: 500, ..opts(Level::Deals(2)) }, &format!("t{n}"), Room::any(64)).unwrap();
+            for p in l.places.iter().filter(|p| !p.deal && TUNICS.contains(&p.item.as_str())) {
+                let shop: &str = &t.slot(&p.loc).unwrap().shop;
+                if moved_tunic(t, &p.item, shop) {
+                    seen += 1;
+                    let cap: i32 = t.shop(shop).unwrap().cap.unwrap_or(500);
+                    assert!((10..=cap.min(500)).contains(&p.price), "{} {}", p.loc, p.price);
+                }
+            }
+        }
+        assert!(seen > 10, "{seen}");
     }
 
     #[test]
@@ -260,7 +304,7 @@ mod tests {
         for n in 1..=4u8 {
             for s in 0..6 {
                 let l: Layout = make(&opts(Level::Deals(n)), &format!("d{n} {s}"), Room::any(64)).unwrap();
-                assert_eq!(l.deal_count(), 6 * n as usize);
+                assert_eq!(l.deal_count(), 8 * n as usize);
                 for sh in t.shops.iter() {
                     for (k, i) in sh.deal_order.iter().enumerate() {
                         let p: &Place = l.get(&t.at(&sh.shop, *i).unwrap().name).unwrap();
@@ -280,9 +324,9 @@ mod tests {
             }
         }
         let r: Layout = make(&opts(Level::Random), "r", Room::any(64)).unwrap();
-        assert!(r.deal_count() <= 24);
+        assert!(r.deal_count() <= 32);
         let few: Layout = make(&opts(Level::Deals(4)), "few", Room::any(3)).unwrap();
-        assert_eq!((few.deal_count(), few.cut), (3, 21));
+        assert_eq!((few.deal_count(), few.cut), (3, 29));
         for sh in t.shops.iter().filter(|s| s.deals).take(3) {
             assert!(few.get(&t.at(&sh.shop, sh.deal_order[0]).unwrap().name).unwrap().deal, "{}", sh.shop);
         }

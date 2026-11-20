@@ -139,7 +139,7 @@ mod tests {
             .filter(|s| s.get("unsupported").and_then(|x| x.as_bool()) == Some(true))
             .filter_map(|s| s.get("id").and_then(|x| x.as_str()))
             .collect();
-        for id in ["bridge_medallions", "ganon_bosskey_medallions", "trials", "triforce_hunt", "logic_rules"] {
+        for id in ["bridge_medallions", "ganon_bosskey_medallions", "triforce_hunt", "logic_rules"] {
             assert!(marked.contains(&id), "{id}");
         }
         // The bridge applies Vanilla and Dungeon rewards (crate::rainbow_bridge).
@@ -154,7 +154,7 @@ mod tests {
         ] {
             assert!(!marked.contains(&id), "{id}");
         }
-        assert_eq!(marked.len(), 16);
+        assert_eq!(marked.len(), 14);
         for s in all {
             if let Some(u) = s.get("unsupported") {
                 assert_eq!(u.as_bool(), Some(true));
@@ -169,6 +169,6 @@ mod tests {
         let st: &Json = all.iter().find(|s| s.get("id").and_then(|x| x.as_str()) == Some("bridge_stones")).unwrap();
         assert_eq!(st.get("deps").unwrap().to_string(), r#"[{"on":"bridge","is":"stones"}]"#);
         let tr: &Json = all.iter().find(|s| s.get("id").and_then(|x| x.as_str()) == Some("trials")).unwrap();
-        assert_eq!(tr.get("deps").unwrap().to_string(), r#"[{"on":"trials_random","is":false}]"#);
+        assert_eq!(tr.get("deps").unwrap().to_string(), r#"[{"on":"skip_ganon_trials","is":false}]"#);
     }
 }

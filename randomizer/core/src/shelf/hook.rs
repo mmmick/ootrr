@@ -366,14 +366,62 @@ pub fn audit(a: &Flow, b: &Flow) -> Vec<String> {
     bad
 }
 
-pub fn edit(raw: &[u8], sold: &[Sold]) -> Res<Vec<u8>> {
+/// The tunic question of the shop flow: entry [`CLOTH`] asks whether the player is a child once
+/// Shop_SelectItemName names a tunic, and for a child goes on to the Goron and Zora shops'
+/// "that outfit is for grown-ups" refusal. Other shops already sell a tunic to a child.
+pub const CLOTH: &str = "Outofstock_SelectCloth";
+pub const AGE: (usize, &str) = (84, "Event169");
+const PLAYER: &str = "Player_Event";
+const IS_CHILD: &str = "EventQueryPlayerIsChild";
+/// The answer of a yes or no question that means yes (a child).
+const YES: u32 = 0;
+
+/// Lets a child buy a tunic in every shop: the child answer of the tunic age question leads where
+/// the adult one does. Idempotent. Returns whether it changed the flow.
+pub fn child_tunics(f: &mut Flow) -> Res<bool> {
+    let (i, name): (usize, &str) = AGE;
+    if !f.entries.iter().any(|e| e.name == CLOTH && reach(f, e.main).contains(&(i as u16))) {
+        return Err(E::Msg(format!("child tunics: the shop flow entry {CLOTH} does not reach event {i}, the game files differ")));
+    }
+    let asks: bool = f.events.get(i).is_some_and(|e| {
+        e.name == name
+            && matches!(&e.kind, Kind::Switch { actor, query, cases, .. } if cases.len() == 2 && f.actors.get(*actor as usize).is_some_and(|a| a.name == PLAYER && a.queries.get(*query as usize).is_some_and(|q| q == IS_CHILD)))
+    });
+    if !asks {
+        return Err(E::Msg(format!("child tunics: event {i} is not the age question {name}, the game files differ")));
+    }
+    let Kind::Switch { cases, .. } = &mut f.events[i].kind else {
+        return Err(E::Format("child tunics: the age question is not a switch"));
+    };
+    let adult: u16 = cases.iter().find(|c| c.val != YES).map(|c| c.ev).ok_or(E::Format("child tunics: the age question has no adult answer"))?;
+    let mut n: bool = false;
+    for c in cases.iter_mut().filter(|c| c.ev != adult) {
+        c.ev = adult;
+        n = true;
+    }
+    Ok(n)
+}
+
+/// Edits the shop flow: the tier entries when `sold` names families, and with `tunics` a child
+/// may buy a tunic anywhere ([`child_tunics`]).
+pub fn edit(raw: &[u8], sold: &[Sold], tunics: bool) -> Res<Vec<u8>> {
     let orig: Bf = Bf::parse(raw)?;
     let mut bf: Bf = orig.clone();
-    let before: &Flow = orig.flows.first().ok_or(E::Format("shelf tiers: the shop flow file holds no flow"))?;
     let f: &mut Flow = bf.flows.first_mut().ok_or(E::Format("shelf tiers: the shop flow file holds no flow"))?;
-    apply(f, sold)?;
-    if let Some(m) = audit(before, f).first() {
-        return Err(E::Msg(format!("shelf tiers: the edited shop flow fails its audit, {m}")));
+    if tunics {
+        child_tunics(f)?;
+        let a: &Flow = orig.flows.first().ok_or(E::Format("shelf tiers: the shop flow file holds no flow"))?;
+        let changed: Vec<usize> = (0..a.events.len().max(f.events.len())).filter(|&i| a.events.get(i) != f.events.get(i)).collect();
+        if a.entries != f.entries || a.actors != f.actors || changed.iter().any(|&i| i != AGE.0) {
+            return Err(E::Msg(format!("child tunics: the shop flow changed in more than the age question: events {changed:?}")));
+        }
+    }
+    if !sold.is_empty() {
+        let before: Flow = f.clone();
+        apply(f, sold)?;
+        if let Some(m) = audit(&before, f).first() {
+            return Err(E::Msg(format!("shelf tiers: the edited shop flow fails its audit, {m}")));
+        }
     }
     let out: Vec<u8> = bf.write()?;
     if Bf::parse(&out)? != bf {
@@ -471,7 +519,7 @@ mod tests {
             Sold { family: "Hookshot", counters: vec!["H.0".into()], copies: 1 },
             Sold { family: "Strength", counters: vec!["S.0".into(), "S.1".into()], copies: 2 },
         ];
-        let out: Vec<u8> = edit(&raw, &sold).unwrap();
+        let out: Vec<u8> = edit(&raw, &sold, false).unwrap();
         let b: Bf = Bf::parse(&out).unwrap();
         let f: &Flow = &b.flows[0];
         let none = |_: &str| 0;
@@ -491,6 +539,25 @@ mod tests {
         let n: usize = Bf::parse(&raw).unwrap().flows[0].events.len();
         let into: Vec<usize> = (0..n).filter(|&i| targets(&f.events[i].kind).contains(&(CHECK.0 as u16))).collect();
         assert!(into.iter().all(|&i| matches!(&f.events[i].kind, Kind::Sub { entry, .. } if entry == PICK)), "{into:?}");
-        assert!(edit(&out, &sold).is_err());
+        assert!(edit(&out, &sold, false).is_err());
+    }
+
+    #[test]
+    fn a_child_may_buy_a_tunic_and_the_edit_runs_twice() {
+        let Some(mut rf) = real() else { return };
+        let raw: Vec<u8> = rf.read_zs(FLOW).unwrap();
+        let a: Bf = Bf::parse(&raw).unwrap();
+        let Kind::Switch { cases, .. } = &a.flows[0].events[AGE.0].kind else { panic!() };
+        let (child, adult): (u16, u16) = (cases.iter().find(|c| c.val == YES).unwrap().ev, cases.iter().find(|c| c.val != YES).unwrap().ev);
+        assert_ne!(child, adult);
+        let out: Vec<u8> = edit(&raw, &[], true).unwrap();
+        let b: Bf = Bf::parse(&out).unwrap();
+        let Kind::Switch { cases, .. } = &b.flows[0].events[AGE.0].kind else { panic!() };
+        assert!(cases.iter().all(|c| c.ev == adult), "{cases:?}");
+        assert_eq!(edit(&out, &[], true).unwrap(), out, "a seed mod read back is edited again without change");
+        let sold: Vec<Sold> = vec![Sold { family: "Hookshot", counters: vec!["H.0".into()], copies: 1 }];
+        let both: Bf = Bf::parse(&edit(&raw, &sold, true).unwrap()).unwrap();
+        assert!(both.flows[0].entries.iter().any(|e| e.name == PICK));
+        assert_eq!(both.flows[0].events[AGE.0], b.flows[0].events[AGE.0]);
     }
 }

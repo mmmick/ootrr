@@ -11,7 +11,29 @@ use crate::staging::{rewrite, Out};
 pub const ACTOR: &str = "Obj_Bomb";
 pub const PACK: &str = "Pack/Actor/Obj_Bomb.pack.zs";
 pub const PARAM: &str = "Component/PouchContentParam/Obj_Bomb.game__component__PouchContentParam.bgyml";
-pub const ACTORS: [&str; 4] = [ACTOR, "Obj_ArrowBundle_Small", "Obj_ArrowBundle_Medium", "Obj_ArrowBundle_Large"];
+pub const ACTORS: [&str; 5] = [ACTOR, "Obj_ArrowBundle_Small", "Obj_ArrowBundle_Medium", "Obj_ArrowBundle_Large", "Obj_DekuSeed"];
+const PARAMS: &str = "Component/PouchContentParam/";
+
+/// Whether the pickup `actor` (or the skulltula kit copy of one) is ammo whose get event would
+/// set up a bag the player does not have.
+pub fn quieted(actor: &str) -> bool {
+    let base: &str = crate::pickup_pack::kit::parent_of(actor).unwrap_or(actor);
+    ACTORS.contains(&base)
+}
+
+/// Stops every pouch file of a pack from playing the get event at a full pouch. A skulltula kit
+/// copy carries its own copy of the pickup's pouch file, so the kit gets the same edit.
+pub fn quiet_all(raw: &[u8]) -> Res<(Vec<u8>, bool)> {
+    let names: Vec<String> = sarc::parse(raw)?.into_iter().map(|e| e.name).filter(|n| n.starts_with(PARAMS)).collect();
+    let mut out: Vec<u8> = raw.to_vec();
+    let mut hit: bool = false;
+    for n in &names {
+        let (b, h): (Vec<u8>, bool) = quiet_in(&out, n)?;
+        out = b;
+        hit |= h;
+    }
+    Ok((out, hit))
+}
 
 pub fn pack_of(actor: &str) -> String {
     format!("Pack/Actor/{actor}.pack.zs")
@@ -136,7 +158,8 @@ mod tests {
     #[test]
     fn wanted_lists_each_quieted_pickup_once_whatever_placed_it() {
         let got: Vec<&str> = wanted(["Obj_Rupee_Red", "Obj_ArrowBundle_Large", "Obj_Bomb", "TBox_ArrowBundle_Large", "Obj_Bomb", "Obj_DekuSeed"].into_iter());
-        assert_eq!(got, vec!["Obj_Bomb", "Obj_ArrowBundle_Large"]);
+        assert_eq!(got, vec!["Obj_Bomb", "Obj_ArrowBundle_Large", "Obj_DekuSeed"]);
+        assert!(quieted("Obj_Bomb_GH") && quieted("Obj_DekuSeed") && !quieted("Obj_Rupee_Red_GH") && !quieted("Obj_DekuNut"));
         assert!(wanted(["Obj_Rupee_Red", "Obj_Bombchu", "Enemy_Skulltula_Gold"].into_iter()).is_empty());
         assert_eq!(pack_of("Obj_ArrowBundle_Small"), "Pack/Actor/Obj_ArrowBundle_Small.pack.zs");
         assert_eq!(param_of(ACTOR), PARAM);

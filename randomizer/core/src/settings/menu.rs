@@ -169,12 +169,12 @@ const GANON_BK: View = View {
 const FOREST: View = View {
     id: "open_forest",
     label: "Kokiri Forest",
-    tip: "Whether the way out of the forest and into the Deku Tree is blocked.\n\nOpen - Nothing blocks the forest or the Deku Tree.\n\nClosed Deku - The forest exit is open but the Deku Tree is closed.\n\nClosed - The forest and the Deku Tree stay closed until the story opens them.
+    tip: "Whether the way out of the forest and into the Deku Tree is blocked.\n\nOpen - Nothing blocks the forest or the Deku Tree.\n\nClosed - The forest and the Deku Tree stay closed until the story opens them, and the Kakariko gate stays closed.
 
-Open Kakariko needs Open: with the Kakariko gate open, Closed Deku and Closed are locked out.",
+Open Kakariko needs Open: with the Kakariko gate open, Closed is locked out.",
     kind: Kind::Pick,
-    // An open Kakariko gate needs the forest open (settings/list.rs), so the closed choices lock out.
-    opts: &[yes("Open", "open"), needs("Closed Deku", "closed_deku", "open_kakariko!=open"), needs("Closed", "closed", "open_kakariko!=open")],
+    // An open Kakariko gate needs the forest open (settings/list.rs), so the closed choice locks out.
+    opts: &[yes("Open", "open"), needs("Closed", "closed", "open_kakariko!=open")],
 };
 
 const GV_BRIDGE: View = View {
@@ -186,11 +186,16 @@ const GV_BRIDGE: View = View {
 };
 
 const DOOR_OF_TIME: View = View {
-    id: "open_door_of_time",
+    id: "door_of_time_condition",
     label: "Door of Time",
-    tip: "Closed - The Ocarina of Time, the Song of Time and all three Spiritual Stones are required to open the Door of Time.\n\nSong only - Play the Song of Time in front of the Door of Time to open it.\n\nOpen - The Door of Time is permanently open with no requirements.",
+    tip: "What it takes to open the Door of Time. With a Closed choice, walk up to the altar in the Temple of Time and play the Song of Time once the requirement is met.\n\nClosed - Vanilla - Clear Dodongo's Cavern and Jabu-Jabu's Belly (the remake's own rule).\n\nClosed - Classic - Hold all three Spiritual Stones.\n\nClosed - Song Only - No other requirement: just the Song of Time and an Ocarina. Zelda's Escape then sets what the Ocarina of Time in the castle moat waits for.\n\nOpen - The Door of Time is already open. Zelda's Escape then sets what the Ocarina of Time in the castle moat waits for.",
     kind: Kind::Pick,
-    opts: &[yes("Closed", "false"), missing("Song only"), yes("Open", "true")],
+    opts: &[
+        yes("Closed - Vanilla", "vanilla"),
+        yes("Closed - Classic", "stones"),
+        yes("Closed - Song Only", "song"),
+        yes("Open", "open"),
+    ],
 };
 
 const ZORAS_FOUNTAIN: View = View {
@@ -222,18 +227,18 @@ const CARPENTERS: View = View {
 };
 
 const TRIALS: View = View {
-    id: "trials_random",
+    id: "skip_ganon_trials",
     label: "Ganon's Trials",
-    tip: "Sets the number of Ganon's Trials required to dispel the barrier.\n\nSkip - No Trials are required and the barrier is already dispelled.\n\nSet Number - Select a number of trials that will be required from the slider below. Which specific trials you need to complete will be random.\n\nRandom Number - A random number and set of trials will be required.",
+    tip: "Sets the number of Ganon's Trials required to dispel the barrier.\n\nSkip - No Trials are required and the barrier is already dispelled.\n\nSet Number - Select a number of trials from the slider below. Clearing that many of the six trials, any of them, dispels the barrier.",
     kind: Kind::Pick,
-    opts: &[missing("Skip"), yes("Set Number", "false"), broken("Random Number", "true")],
+    opts: &[yes("Skip", "true"), yes("Set Number", "false")],
 };
 
 const TRIAL_COUNT: View = View {
     id: "trials",
     label: "Ganon's Trials Count",
-    tip: "Set the number of trials required to enter Ganon's Tower.",
-    kind: Kind::Number(0, 6, false),
+    tip: "Set the number of trials required to enter Ganon's Tower. Any of the six trials count.",
+    kind: Kind::Number(0, 6, true),
     opts: &[],
 };
 
@@ -337,7 +342,14 @@ pub const MOVED: &[(&str, &[PortSection])] = &[
     ("world", &[AREA_ACCESS, port("Entrances", &[Entry::View(&DUNGEON_ENTRANCES)])]),
     ("locations", LOCATIONS_TAB),
     ("dungeon", DUNGEONS_TAB),
+    ("experimental", EXPERIMENTAL_TAB),
 ];
+
+/// A warning shown at the top of a page, above its settings.
+pub const WARNINGS: &[(&str, &str)] = &[(
+    "experimental",
+    "These settings have known unexpected behavior that could lead to many seeds being unbeatable and other minor bugs.",
+)];
 
 const LOGIC: PortSection = port(
                 "Logic",
@@ -412,6 +424,9 @@ const AREA_ACCESS: PortSection = port(
                     Entry::View(&FOREST),
                     Entry::Plain("open_kakariko"),
                     Entry::View(&DOOR_OF_TIME),
+                    Entry::Plain("door_of_time_escape"),
+                    Entry::Plain("door_of_time_song"),
+                    Entry::Hidden("open_door_of_time"),
                     Entry::View(&ZORAS_FOUNTAIN),
                     gray_pick(
                         "Sleeping Waterfall",
@@ -431,7 +446,6 @@ const AREA_ACCESS: PortSection = port(
                     Entry::Hidden("bridge_hearts"),
                     Entry::View(&TRIALS),
                     Entry::View(&TRIAL_COUNT),
-                    gray_check("Medallion Locked Trials", "Doors to trials will be barred until their corresponding medallion is acquired."),
                 ],
             );
 
@@ -545,6 +559,41 @@ const MERCHANT_FIXED: View = View {
     opts: &[],
 };
 
+const FAIRY_PRICES: View = View {
+    id: "fairy_prices",
+    label: "Great Fairy Prices",
+    tip: "Vanilla - The fairy's usual offering: 25, 50, 100, 200, 300 or 500 rupees.
+Cheap Balanced - Prices will range between 0 to 95 rupees, favoring lower numbers.
+Balanced - Prices will range between 0 to 300 rupees, favoring lower numbers.
+Fixed - A fixed number.
+Range - A random point between specific ranges.
+Set By Wallet - Set weights that decide the choice of each wallet, and get a random price in that range if that wallet is chosen.
+
+Every Great Fairy asks the new price, and her offering line names it.
+
+Not working yet:
+- Balanced, Range and Set By Wallet are not built.
+- Prices stop at 99, so the starting wallet can always pay.
+- Untested in the game.",
+    kind: Kind::Pick,
+    opts: &[
+        yes("Vanilla", "vanilla"),
+        yes("Cheap Balanced", "cheap"),
+        missing("Balanced"),
+        yes("Fixed", "fixed"),
+        missing("Range"),
+        missing("Set By Wallet"),
+    ],
+};
+
+const FAIRY_FIXED: View = View {
+    id: "fairy_price_fixed",
+    label: "Great Fairy Fixed Price",
+    tip: "The offering every Great Fairy asks when Great Fairy Prices is Fixed.",
+    kind: Kind::Number(0, 99, true),
+    opts: &[],
+};
+
 const MERCHANTS: View = View {
     id: "shuffle_merchants",
     label: "Shuffle Merchants",
@@ -561,7 +610,7 @@ const MERCHANTS: View = View {
 const SHOPSANITY: View = View {
     id: "shuffle_shops",
     label: "Shopsanity",
-    tip: "Off - All shop items will be the same as vanilla.\n\n0 Items - Vanilla shop items will be shuffled among different shops.\n\n1-4 Items - Vanilla shop items will be shuffled among different shops, and each shop will contain 1-4 non-vanilla shop items (special deals).\n\nRandom - Vanilla shop items will be shuffled among different shops, and each shop will contain a random number (0-4) of non-vanilla shop items. The Kokiri Shop always gets at least one.\n\nA special deal sells its item once. It can hold anything that cannot be held twice, upgrades at the tier you must already have reached, and songs when songs are shuffled anywhere. Ammo, refills and hearts only go to the two Bazaars and the Bombchu Shop, where one purchase closes the slot.\n\nNot working yet:\n- The Potion Shops and the Happy Mask Shop get no special deals.\n- Untested in the game except one Kokiri Shop deal.",
+    tip: "Off - All shop items will be the same as vanilla.\n\n0 Items - Vanilla shop items will be shuffled among different shops.\n\n1-4 Items - Vanilla shop items will be shuffled among different shops, and each shop will contain 1-4 non-vanilla shop items (special deals).\n\nRandom - Vanilla shop items will be shuffled among different shops, and each shop will contain a random number (0-4) of non-vanilla shop items. The Kokiri Shop always gets at least one.\n\nA special deal sells its item once. It can hold anything that cannot be held twice, upgrades at the tier you must already have reached, and songs when songs are shuffled anywhere. Ammo, refills and hearts only go to the two Bazaars, the two Potion Shops and the Bombchu Shop, where one purchase closes the slot.\n\nA Goron or Zora Tunic moved out of its own shop costs a random price in the Shopsanity Prices range, and a child can buy tunics in every shop.\n\nNot working yet:\n- The Happy Mask Shop gets no special deals.\n- Untested in the game except one Kokiri Shop deal.",
     kind: Kind::Pick,
     opts: &[
         yes("Off", "off"),
@@ -595,7 +644,17 @@ const LOCATIONS_TAB: &[PortSection] = &[
             Entry::Hidden("shuffle_scrubs_b"),
         ],
     ),
-    port("Items", &[Entry::Plain("shuffle_songs"), Entry::Plain("song_harp_colors"), Entry::View(&SKULLTULAS), Entry::View(&FREESTANDING)]),
+    port(
+        "Items",
+        &[
+            Entry::Plain("shuffle_songs"),
+            Entry::Plain("song_harp_colors"),
+            Entry::Plain("shuffle_ocarinas"),
+            Entry::Plain("shuffle_kokiri_sword"),
+            Entry::View(&SKULLTULAS),
+            Entry::View(&FREESTANDING),
+        ],
+    ),
     port(
         "Shops",
         &[
@@ -607,16 +666,8 @@ const LOCATIONS_TAB: &[PortSection] = &[
             Entry::View(&MERCHANTS),
             Entry::View(&MERCHANT_PRICES),
             Entry::View(&MERCHANT_FIXED),
-        ],
-    ),
-    port(
-        "Sanities",
-        &[
-            Entry::Plain("shuffle_pots"),
-            Entry::Plain("shuffle_crates"),
-            Entry::Plain("shuffle_rocks"),
-            Entry::Plain("shuffle_grass"),
-            Entry::Plain("shuffle_beehives"),
+            Entry::View(&FAIRY_PRICES),
+            Entry::View(&FAIRY_FIXED),
         ],
     ),
     port(
@@ -633,6 +684,17 @@ const LOCATIONS_TAB: &[PortSection] = &[
         ],
     ),
 ];
+
+const EXPERIMENTAL_TAB: &[PortSection] = &[port(
+    "Sanities",
+    &[
+        Entry::Plain("shuffle_pots"),
+        Entry::Plain("shuffle_crates"),
+        Entry::Plain("shuffle_rocks"),
+        Entry::Plain("shuffle_grass"),
+        Entry::Plain("shuffle_beehives"),
+    ],
+)];
 
 pub const RANDOMIZER: &str = "Randomizer";
 pub const GAMEPLAY: &str = "Gameplay";
@@ -657,6 +719,12 @@ pub const MENU: &[Page] = &[
     Page {
         id: "locations",
         label: "Shuffle",
+        heading: RANDOMIZER,
+        sections: &[],
+    },
+    Page {
+        id: "experimental",
+        label: "Experimental",
         heading: RANDOMIZER,
         sections: &[],
     },
@@ -702,12 +770,6 @@ pub const MENU: &[Page] = &[
             sec("Game over", &["lose_heart_on_death"]),
             sec("Just for fun", &["bean_pitch", "enemy_spawn_combo"]),
         ],
-    },
-    Page {
-        id: "item_gets",
-        label: "Item gets",
-        heading: IN_DEV,
-        sections: &[sec("Item gets", &["item_get_short"])],
     },
 ];
 
@@ -844,7 +906,11 @@ fn stub_json(label: &str, w: &Widget) -> Json {
 }
 
 fn page_json(id: &str, label: &str, heading: &str, secs: Vec<Json>) -> Json {
-    Json::obj().with("id", id.into()).with("label", label.into()).with("heading", heading.into()).with("sections", Json::Arr(secs))
+    let j: Json = Json::obj().with("id", id.into()).with("label", label.into()).with("heading", heading.into()).with("sections", Json::Arr(secs));
+    match WARNINGS.iter().find(|(p, _)| *p == id) {
+        Some((_, w)) => j.with("warning", (*w).into()),
+        None => j,
+    }
 }
 
 #[cfg(test)]
@@ -876,6 +942,15 @@ mod tests {
         seen.sort();
         want.sort();
         assert_eq!(seen, want);
+    }
+
+    #[test]
+    fn the_sanities_sit_on_the_experimental_page_under_its_warning() {
+        let j: Json = menu_json(schema());
+        let p: &Json = j.as_arr().unwrap().iter().find(|p| p.get("id").and_then(|x| x.as_str()) == Some("experimental")).unwrap();
+        assert!(p.get("warning").and_then(|x| x.as_str()).unwrap().contains("unbeatable"));
+        let ids: Vec<&str> = p.get("sections").and_then(|x| x.as_arr()).unwrap().iter().flat_map(|s| s.get("ids").and_then(|x| x.as_arr()).unwrap().iter().map(|i| i.as_str().unwrap())).collect();
+        assert_eq!(ids, vec!["shuffle_pots", "shuffle_crates", "shuffle_rocks", "shuffle_grass", "shuffle_beehives"]);
     }
 
     #[test]

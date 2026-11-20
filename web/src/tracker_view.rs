@@ -64,7 +64,7 @@ pub fn loc_json(g: &Inner, i: usize) -> Json {
     Json::obj()
         .with("id", t.id.as_str().into())
         .with("label", t.label().into())
-        .with("item", crate::tracker::drops::item_of(t, g.placed.as_ref()).map(Json::from).unwrap_or(Json::Null))
+        .with("item", crate::tracker::drops::item_of(t, g.placed.as_ref()).map(|i| Json::from(ootrr_core::spoiler::shown(i))).unwrap_or(Json::Null))
         .with("name", t.name.as_str().into())
         .with("maybe", maybe)
         .with("kind", t.kind.as_str().into())

@@ -42,6 +42,22 @@ pub fn banc_out(rf: &mut Romfs, f: &str, old: usize, bytes: &[u8]) -> Res<Out> {
     Ok(Out { path: f.to_string(), z: zs::compress_raw(bytes, Some(id))?, old, new: bytes.len() })
 }
 
+pub fn edit_staged(rf: &mut Romfs, more: &mut Vec<Out>, work: &P, path: &str, packed: bool, f: impl FnOnce(&[u8]) -> Res<Vec<u8>>) -> Res<()> {
+    if let Some(i) = more.iter().position(|o| o.path == path) {
+        let raw: Vec<u8> = if packed { rf.zs.decompress(&more[i].z)? } else { more[i].z.clone() };
+        let out: Vec<u8> = f(&raw)?;
+        let old: usize = more[i].old;
+        more[i] = if packed { banc_out(rf, path, old, &out)? } else { Out { path: path.to_string(), old, new: out.len(), z: out } };
+        return Ok(());
+    }
+    let local: PB = path.split('/').fold(work.to_path_buf(), |a, s| a.join(s));
+    let z: Vec<u8> = if local.is_file() { fs::read(&local)? } else { rf.read(path)? };
+    let raw: Vec<u8> = if packed { rf.zs.decompress(&z)? } else { z };
+    let out: Vec<u8> = f(&raw)?;
+    more.push(if packed { banc_out(rf, path, raw.len(), &out)? } else { Out { path: path.to_string(), old: raw.len(), new: out.len(), z: out } });
+    Ok(())
+}
+
 pub fn rewrite(rf: &mut Romfs, path: &str, f: impl FnOnce(&[u8]) -> Res<Vec<u8>>) -> Res<Out> {
     let z: Vec<u8> = rf.read(path)?;
     let id: Option<u32> = dict_id(&z);

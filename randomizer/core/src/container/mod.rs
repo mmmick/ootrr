@@ -132,6 +132,13 @@ pub fn read_at(f: &File, off: u64, len: usize) -> Res<Vec<u8>> {
             done += n;
         }
     }
+    #[cfg(not(any(unix, windows)))]
+    {
+        use std::io::{Read, Seek, SeekFrom};
+        let mut g: &File = f;
+        g.seek(SeekFrom::Start(off))?;
+        g.read_exact(&mut b).map_err(|e| err(format!("could not read {len} bytes at {off}: {e}")))?;
+    }
     Ok(b)
 }
 

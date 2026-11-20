@@ -1,7 +1,7 @@
 use crate::settings::Settings;
 use crate::slice::support::show;
 
-pub(crate) const UNCHANGED: [&str; 20] = [
+pub(crate) const UNCHANGED: [&str; 19] = [
     "logic_rules",
     "starting_age",
     "bridge",
@@ -10,7 +10,6 @@ pub(crate) const UNCHANGED: [&str; 20] = [
     "bridge_rewards",
     "bridge_tokens",
     "bridge_hearts",
-    "trials_random",
     "trials",
     "triforce_hunt",
     "triforce_count_per_world",
@@ -24,7 +23,7 @@ pub(crate) const UNCHANGED: [&str; 20] = [
     "ganon_bosskey_hearts",
 ];
 
-pub(crate) const APPLIED: [&str; 4] = ["starting_hearts", "starting_songs", "bridge", "bridge_rewards"];
+pub(crate) const APPLIED: [&str; 5] = ["starting_hearts", "starting_songs", "bridge", "bridge_rewards", "trials"];
 
 pub fn not_yet(id: &str) -> bool {
     UNCHANGED.contains(&id) && !APPLIED.contains(&id)

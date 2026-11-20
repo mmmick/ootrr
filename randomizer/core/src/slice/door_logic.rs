@@ -73,4 +73,31 @@ mod tests {
         assert!(!adult_at(&w, &p, &base, mouth));
         assert!(adult_at(&w, &p, &["Bow", "Progressive Strength Upgrade", "Megaton Hammer"], mouth));
     }
+
+    fn reached(w: &World, p: &Placement, more: &[&str], loc: &str) -> bool {
+        let extra: Vec<ItemId> = more.iter().map(|n| w.item(n).unwrap()).collect();
+        explore(w, p, &extra).loc_access(w.loc(loc).unwrap())
+    }
+
+    #[test]
+    fn jabus_map_sits_before_the_boomerang_and_the_compass_after_it() {
+        let d: Data = Data::load().unwrap();
+        let w: World = world(&d).unwrap();
+        let p: Placement = stripped(&w, &d, &["Boomerang"]);
+        assert!(reached(&w, &p, &[], "Jabu Jabus Belly Map Chest"));
+        assert!(reached(&w, &p, &[], "Jabu Jabus Belly Deku Scrub"));
+        assert!(!reached(&w, &p, &[], "Jabu Jabus Belly Compass Chest"));
+        assert!(reached(&w, &p, &["Boomerang"], "Jabu Jabus Belly Compass Chest"));
+    }
+
+    #[test]
+    fn child_bosses_want_the_kokiri_sword_and_not_sticks() {
+        let d: Data = Data::load().unwrap();
+        let w: World = world(&d).unwrap();
+        let p: Placement = stripped(&w, &d, &["Kokiri Sword"]);
+        for boss in ["Deku Tree Queen Gohma Heart", "Jabu Jabus Belly Barinade Heart"] {
+            assert!(!reached(&w, &p, &["Deku Stick (1)"], boss), "{boss}");
+            assert!(reached(&w, &p, &["Kokiri Sword"], boss), "{boss}");
+        }
+    }
 }

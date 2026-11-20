@@ -16,7 +16,7 @@ use crate::rsizetable::{self, Rst, TABLE_PATH};
 use crate::sarc::{self, Entry};
 use crate::shelf::actor::{self, int, Shelf};
 use crate::shelf::goods::{self, Edit};
-use crate::shelf::{banc, counters, hook, inner, text, Job, What, BASE, KEEPER_PACKS};
+use crate::shelf::{banc, counters, hook, inner, split, text, Job, What, BASE, KEEPER_PACKS};
 use crate::staging::{BANC_DICT, MARGIN};
 use crate::zs;
 use crate::TITLE_ID;
@@ -121,6 +121,13 @@ fn keeper_files(c: &mut Ctx, jobs: &[Job]) -> Res<(Vec<File>, BM<String, String>
     for k in KEEPER_PACKS {
         packs.insert(k.to_string(), sarc::parse(&c.read(&pack_of(k))?)?);
     }
+    // The Kakariko Potion Shop gets a goods list of its own (shelf::split).
+    let parted: bool = per.keys().any(|(k, _)| k == split::KEEPER);
+    let mut grown: split::Grown = Vec::new();
+    if parted {
+        let es: &mut Vec<Entry> = packs.get_mut(split::KEEPER).ok_or_else(|| E::Msg(format!("{} is not a shelf keeper", split::KEEPER)))?;
+        grown = split::split(es)?;
+    }
     let mut refs: BM<String, String> = BM::new();
     let mut by_file: BM<String, Vec<Edit>> = BM::new();
     for ((k, _), e) in &per {
@@ -146,13 +153,17 @@ fn keeper_files(c: &mut Ctx, jobs: &[Job]) -> Res<(Vec<File>, BM<String, String>
     for k in KEEPER_PACKS {
         let es: &Vec<Entry> = &packs[k];
         let hit: Vec<&String> = fresh.keys().filter(|f| sarc::get(es, f).is_some()).collect();
-        if hit.is_empty() {
+        let parts: bool = parted && k == split::KEEPER;
+        if hit.is_empty() && !parts {
             continue;
         }
         let path: String = pack_of(k);
-        let mut inner: Vec<(String, usize, usize)> = Vec::new();
+        let mut inner: Vec<(String, usize, usize)> = if parts { grown.clone() } else { Vec::new() };
         let mut file: File = c.file(&path, |r: &[u8]| {
             let mut es: Vec<Entry> = sarc::parse(r)?;
+            if parts {
+                split::split(&mut es)?;
+            }
             for f in &hit {
                 let (w, old): &(Vec<u8>, usize) = &fresh[*f];
                 sarc::set(&mut es, f, w.clone());
@@ -284,10 +295,9 @@ pub fn run(romfs: &P, base: Option<&P>, load: &P, mod_name: &str, host: Host, jo
     files.extend(keepers);
     files.extend(banc_files(&mut c, jobs)?);
     files.extend(counter_file(&mut c, jobs)?);
+    // Every shelf build lets a child buy a tunic, wherever the shuffle puts one.
     let sold: Vec<hook::Sold> = hook::plan(jobs);
-    if !sold.is_empty() {
-        files.push(c.file(hook::FLOW, |r: &[u8]| hook::edit(r, &sold))?);
-    }
+    files.push(c.file(hook::FLOW, |r: &[u8]| hook::edit(r, &sold, true))?);
     files.extend(text_files(&mut c, &made)?);
     let mut note: String = String::new();
     let pk: Pack = Pack::create_for(load, TITLE_ID, mod_name, host)?;
@@ -301,6 +311,9 @@ pub fn run(romfs: &P, base: Option<&P>, load: &P, mod_name: &str, host: Host, jo
         }
         pk.write_romfs(&path, &zs::compress_raw(&sh.pack, Some(id))?)?;
         let _ = writeln!(note, "  new shelf actor {} for {} at {} rupees, pouch identity {}, {} bytes", sh.name, sh.item, sh.price, sh.who, sh.pack.len());
+    }
+    if refs.get(split::KEEPER).is_some_and(|f| f == split::OWN) {
+        split::size(&mut rst)?;
     }
     for f in &files {
         pk.write_romfs(&f.path, &zs::compress_raw(&f.raw, dict(&c.rf, &f.path)?)?)?;
@@ -383,20 +396,29 @@ mod tests {
         let back: PB = done.root.join("romfs");
         let lines: Vec<String> = audit::run(&root, &back, &js).unwrap();
         assert!(lines.iter().any(|l| l.contains("0 problems")), "{lines:?}");
-        assert!(!back.join("Event/EventFlow/DisplayShop.bfevfl.zs").exists());
+        assert!(back.join("Event/EventFlow/DisplayShop.bfevfl.zs").exists(), "the child tunic edit is always written");
         let _ = fs::remove_dir_all(&load);
     }
 
     #[test]
-    fn two_goods_for_one_shared_potion_slot_are_refused() {
+    fn the_two_potion_shops_sell_different_goods_in_one_slot() {
         let Some(root) = real() else {
             return;
         };
         let d: Data = Data::load().unwrap();
-        let js: Vec<Job> = jobs(&d, &["Market Potion Shop Item 3=Buy Heart@5", "Kak Potion Shop Item 3=Buy Fish@50"]);
+        let js: Vec<Job> = jobs(&d, &["Market Potion Shop Item 3=Buy Heart@5", "Kak Potion Shop Item 3=Buy Fish@50", "Kak Potion Shop Item 4=Hover Boots@40"]);
         let load: PB = std::env::temp_dir().join(format!("ootrr_shelf_stage_two_{}", std::process::id()));
-        let e: String = run(&root, None, &load, "shelf", Host::Hookshot, &js).err().unwrap().to_string();
-        assert!(e.contains("share a goods list"), "{e}");
+        let _ = fs::remove_dir_all(&load);
+        let done: Done = run(&root, None, &load, "shelf", Host::Hookshot, &js).unwrap();
+        assert!(done.report.contains(&format!("keeper {} reads {}", split::KEEPER, split::OWN)), "{}", done.report);
+        let back: PB = done.root.join("romfs");
+        let lines: Vec<String> = audit::run(&root, &back, &js).unwrap();
+        assert!(lines.iter().any(|l| l.contains("0 problems")), "{lines:?}");
+        let rst: Rst = Rst::parse(&Romfs::open(&root).unwrap().zs.decompress(&fs::read(back.join(TABLE_PATH)).unwrap()).unwrap()).unwrap();
+        assert!(rst.get(split::OWN).is_some());
+        let again: Done = run(&root, Some(&back), &load, "shelf", Host::Hookshot, &jobs(&d, &["Kak Potion Shop Item 3=Buy Heart@5"])).unwrap();
+        assert_eq!(again.root, done.root);
+        audit::run(&root, &back, &jobs(&d, &["Kak Potion Shop Item 3=Buy Heart@5", "Market Potion Shop Item 3=Buy Heart@5"])).unwrap();
         let _ = fs::remove_dir_all(&load);
     }
 

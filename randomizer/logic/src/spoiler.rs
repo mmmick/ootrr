@@ -17,9 +17,9 @@ pub const SHOWN: [(&str, &str); 5] = [
 
 /// What the tiers of the renamed items are, for the top of the spoiler.
 pub const LEGEND: &str = "Progressive items, in the order they are found:
-  Progressive Bow: Fairy Bow, then the big quiver, then the biggest quiver
+  Progressive Bow: Fairy Bow with a quiver of 30 arrows, then the big quiver (40), then the biggest quiver (50)
   Progressive Bomb Bag: Bomb Bag, then the big bomb bag, then the biggest bomb bag
-  Progressive Slingshot: Fairy Slingshot, then the big bullet bag, then the biggest bullet bag
+  Progressive Slingshot: Fairy Slingshot with a bullet bag of 30 seeds, then the big bullet bag (40), then the biggest bullet bag (50)
   Progressive Magic Meter: Gift of Improved Spin (gives the magic meter and the magic spin attack), then Gift of Doubled Magic
   Progressive Ocarina: Fairy Ocarina, then Ocarina of Time
 ";

@@ -12,6 +12,20 @@ pub struct Pick {
     pub flow: usize,
 }
 
+pub const OCARINAS: &str = "shuffle_ocarinas";
+pub const OCARINAS_NUM: u16 = 105;
+pub const SWORD: &str = "shuffle_kokiri_sword";
+pub const SWORD_NUM: u16 = 135;
+pub const SWORD_CHEST: &str = "KF Kokiri Sword Chest";
+
+/// Turns Ocarina and Kokiri Sword shuffle on, the behaviour before the two settings existed.
+#[cfg(test)]
+pub fn shuffle_both(s: &mut crate::settings::Settings) {
+    for k in [OCARINAS, SWORD] {
+        s.set(k, crate::settings::Value::Bool(true)).unwrap();
+    }
+}
+
 const COUNTED_VANILLA: [&str; 3] = ["Small Key (Fire Temple)", "Small Key (Water Temple)", "Small Key (Spirit Temple)"];
 
 fn class(kind: &str) -> u8 {
@@ -60,6 +74,9 @@ fn reason(d: &Data, w: &World, p: &Plan, name: &str) -> Option<String> {
         (Mode::Overworld, true) => return Some("chest shuffle is overworld only".to_string()),
         (Mode::Dungeons, false) => return Some("chest shuffle is dungeons only".to_string()),
         _ => {}
+    }
+    if name == SWORD_CHEST && !p.kokiri_sword {
+        return Some("Kokiri Sword shuffle is off".to_string());
     }
     let kind: &str = d.vanilla_of(name).and_then(|v| d.item(v)).map(|i| i.kind.as_str()).unwrap_or("");
     if pinned_vanilla(p, kind) {
@@ -113,6 +130,10 @@ pub fn pick(d: &Data, w: &World, p: &Plan) -> Pick {
                 continue;
             }
             flow += 1;
+            if [crate::slice::flow_rules::SARIA, crate::slice::flow_rules::OCARINA_OF_TIME].contains(&l.name.as_str()) && !p.ocarinas {
+                *left.entry("Ocarina shuffle is off".to_string()).or_insert(0) += 1;
+                continue;
+            }
             if p.gates.kakariko && crate::start_state::KAKARIKO_EXCLUDED.contains(&l.name.as_str()) {
                 *left.entry("the castle visit is skipped, so the check cannot be reached".to_string()).or_insert(0) += 1;
                 continue;

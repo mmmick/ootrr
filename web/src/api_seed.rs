@@ -12,7 +12,7 @@ pub fn describe(sf: &SeedFile) -> Hr<Json> {
     let ps: Vec<Json> = sf
         .placements
         .iter()
-        .map(|(k, v)| Json::Arr(vec![k.as_str().into(), v.as_str().into()]))
+        .map(|(k, v)| Json::Arr(vec![k.as_str().into(), ootrr_core::spoiler::shown(v).into()]))
         .collect();
     out.put("seed", sf.seed.as_str().into());
     out.put("game", sf.game.as_str().into());

@@ -88,9 +88,9 @@ mod tests {
         let rupee: String = l.deals().next().unwrap().pool.clone();
         balance(&d, &back, &rupee, &mut acts);
         assert!(!acts.is_empty());
-        let mut boom: Vec<String> = vec!["Item_Boomerang".into(); 7];
+        let mut boom: Vec<String> = vec!["Item_Boomerang".into(); 9];
         balance(&d, &back, "Boomerang", &mut boom);
-        assert_eq!(boom.len(), 7 - l.deal_count());
+        assert_eq!(boom.len(), 9 - l.deal_count());
         assert!(check(&o, &back).is_ok());
         assert!(check(&Opts::default(), &back).is_err());
         assert!(check(&o, &SeedFile::new("x", &Settings::default(), "g", BM::new()).unwrap()).is_err());

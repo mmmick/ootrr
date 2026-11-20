@@ -131,6 +131,9 @@ impl Opts {
         if self.bridge {
             out.push((BRIDGE, "1"));
         }
+        if self.epona {
+            out.push((EPONA, "1"));
+        }
         if let Some(v) = self.fortress.value() {
             out.push((FORTRESS, v));
         }
@@ -230,7 +233,6 @@ pub fn read(s: &Settings, bad: &mut Vec<String>) -> Opts {
     };
     let navi: Option<&'static str> = match s.text(FOREST) {
         Ok("open") => Some("open"),
-        Ok("closed_deku") => Some("closed_deku"),
         _ => None,
     };
     Opts {
@@ -343,7 +345,6 @@ impl Gates {
         use crate::slice::support::Forest;
         let forest: Forest = match s.text("open_forest") {
             Ok("closed") => Forest::Closed,
-            Ok("closed_deku") => Forest::ClosedDeku,
             Ok("open") => Forest::Open,
             Ok(v) => {
                 bad.push(format!("open_forest is {v}, which is not a known choice"));
@@ -354,12 +355,12 @@ impl Gates {
                 Forest::Closed
             }
         };
-        let door: bool = crate::slice::support::toggle(s, "open_door_of_time", bad);
+        let door: bool = crate::slice::support::toggle(s, "open_door_of_time", bad) || s.text(crate::door_gate::SETTING).is_ok_and(|v| v == crate::door_gate::OPEN);
         let kakariko: bool = match s.text("open_kakariko") {
             Ok("open") => true,
-            Ok("zelda") => false,
+            Ok("closed") => false,
             Ok(v) => {
-                bad.push(format!("open_kakariko is {v}, which this build cannot apply yet (only open and zelda work)"));
+                bad.push(format!("open_kakariko is {v}, which this build cannot apply yet (only open and closed work)"));
                 false
             }
             Err(e) => {
@@ -387,36 +388,34 @@ mod tests {
     }
 
     #[test]
-    fn only_the_clock_is_on_by_default() {
+    fn only_the_clock_and_the_epona_race_skip_are_on_by_default() {
         let (o, bad) = opts(&[]);
         assert!(bad.is_empty());
-        assert_eq!(o, Opts { time: true, ..Opts::default() });
-        assert!(!o.edits_files());
-        assert!(o.logic().is_empty());
+        assert_eq!(o, Opts { time: true, epona: true, ..Opts::default() });
+        assert!(o.edits_files());
+        assert_eq!(o.logic(), vec![(EPONA, "1")]);
         assert_eq!(o.defaults(), vec![(TIME, "true")]);
-        let (off, _) = opts(&[(TIME, Value::Bool(false))]);
+        let (off, _) = opts(&[(TIME, Value::Bool(false)), (EPONA, Value::Bool(false))]);
         assert_eq!(off, Opts::default());
         assert!(!off.any() && off.defaults().is_empty() && off.notes().unwrap().is_empty());
         assert_eq!(off.logic(), vec![(TIME, "0")]);
     }
 
     #[test]
-    fn navi_follows_an_open_forest_and_a_closed_deku_forest() {
-        let (o, bad) = opts(&[(FOREST, Value::s("closed_deku"))]);
+    fn navi_follows_an_open_forest() {
+        let (open, bad) = opts(&[(FOREST, Value::s("open"))]);
         assert!(bad.is_empty());
-        assert_eq!(o.navi, Some("closed_deku"));
-        assert_eq!(o.defaults(), vec![(TIME, "true"), (FOREST, "closed_deku")]);
-        assert!(o.logic().is_empty());
-        assert!(o.notes().unwrap().iter().any(|n| n.contains("Navi's monster lesson")));
-        let (open, _) = opts(&[(FOREST, Value::s("open"))]);
         assert_eq!(open.navi, Some("open"));
+        assert_eq!(open.defaults(), vec![(TIME, "true"), (FOREST, "open")]);
+        assert_eq!(open.logic(), vec![(EPONA, "1")]);
+        assert!(open.notes().unwrap().iter().any(|n| n.contains("Navi's monster lesson")));
         let (shut, _) = opts(&[(FOREST, Value::s("closed"))]);
         assert_eq!(shut.navi, None);
     }
 
     #[test]
     fn each_setting_becomes_its_logic_value_its_new_game_defaults_and_a_note() {
-        let (o, bad) = opts(&[(ZORA, Value::s("open")), (JABU, Value::Bool(true)), (DOOR, Value::Bool(true)), (BEDS, Value::Bool(true))]);
+        let (o, bad) = opts(&[(ZORA, Value::s("open")), (JABU, Value::Bool(true)), (DOOR, Value::Bool(true)), (BEDS, Value::Bool(true)), (EPONA, Value::Bool(false))]);
         assert!(bad.is_empty());
         assert_eq!(o, Opts { zora: true, jabu: true, time: true, beds: true, ..Opts::default() });
         assert_eq!(o.logic(), vec![(ZORA, "open"), (JABU, "1")]);
@@ -557,11 +556,12 @@ mod tests {
         assert!(!reach(&[], &quiet, At::Loc("Master Sword Pedestal")));
         assert!(reach(&[(DOOR, Value::Bool(true))], &quiet, At::Loc("Master Sword Pedestal")));
         let story = |n: &str| n == "Zeldas Letter" || n == "Weird Egg";
-        assert!(!reach(&[(DOOR, Value::Bool(true))], &story, At::Loc("HF Ocarina of Time Item")));
+        assert!(!reach(&[(DOOR, Value::Bool(true)), (crate::door_gate::ESCAPE, Value::s(crate::door_gate::VANILLA))], &story, At::Loc("HF Ocarina of Time Item")));
+        assert!(reach(&[(DOOR, Value::Bool(true))], &story, At::Loc("HF Ocarina of Time Item")));
     }
 
     #[test]
-    fn the_bowling_prizes_need_the_cavern_cleared_and_no_bomb_bag() {
+    fn the_bowling_prizes_need_no_cavern_and_no_bomb_bag() {
         let d: crate::slice::data::Data = crate::slice::data::Data::load().unwrap();
         let w: crate::world::World = crate::slice::logic::world_with(&d, &plan_of(&[]).logic()).unwrap();
         let mut p: crate::world::Placement = crate::slice::fill::vanilla_place(&w, &d).unwrap();
@@ -578,7 +578,7 @@ mod tests {
         for l in ["Market Bombchu Bowling First Prize", "Market Bombchu Bowling Second Prize"] {
             assert!(reach(&[], &|_| false, At::Loc(l)), "{l}");
             assert!(done.loc_access(w.loc(l).unwrap()), "{l}");
-            assert!(!bare.loc_access(w.loc(l).unwrap()), "{l}");
+            assert!(bare.loc_access(w.loc(l).unwrap()), "{l}");
         }
         assert!(reach(&[], &|_| false, At::Loc("Market Bombchu Bowling Bomb")));
         assert!(!done.loc_access(w.loc("Market Bombchu Bowling Bomb").unwrap()));
@@ -588,7 +588,7 @@ mod tests {
         let src: &str = crate::slice::world_files::overworld_text();
         for l in ["First Prize", "Second Prize", "Bombchus", "Bomb"] {
             let line: &str = src.lines().find(|x| x.contains(&format!("\"Market Bombchu Bowling {l}\":"))).unwrap();
-            assert!(line.contains("'Defeat King Dodongo'"), "{l}");
+            assert!(!line.contains("'Defeat King Dodongo'"), "{l}");
             assert_eq!(line.contains("Bombs"), l == "Bomb", "{l}");
         }
     }
@@ -621,13 +621,13 @@ mod tests {
         assert!(bad.is_empty());
         assert_eq!(o, Opts { epona: true, masks: true, beans: true, bridge: true, ..Opts::default() });
         assert!(o.edits_files());
-        assert_eq!(o.logic(), vec![(TIME, "0"), ("complete_mask_quest", "1"), (BEANS, "1"), (BRIDGE, "1")]);
+        assert_eq!(o.logic(), vec![(TIME, "0"), ("complete_mask_quest", "1"), (BEANS, "1"), (BRIDGE, "1"), (EPONA, "1")]);
         assert_eq!(o.defaults(), vec![(MASKS, "true"), (BEANS, "true")]);
         let n: Vec<String> = o.notes().unwrap();
         for t in ["Epona's Song is enough to own Epona", "Happy Mask Shop quest starts complete", "bean patch starts planted", "Gerudo Valley bridge is repaired"] {
             assert!(n.iter().any(|x| x.contains(t)), "{t}");
         }
-        let (state_only, _) = opts(&[(MASKS, Value::Bool(true))]);
+        let (state_only, _) = opts(&[(MASKS, Value::Bool(true)), (EPONA, Value::Bool(false))]);
         assert!(!state_only.edits_files());
         let (race, _) = opts(&[(EPONA, Value::Bool(true))]);
         assert!(race.edits_files() && !race.defaults().iter().any(|(k, _)| *k == EPONA));

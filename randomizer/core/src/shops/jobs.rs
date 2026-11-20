@@ -93,7 +93,7 @@ mod tests {
         let js: Vec<Job> = of(&d, &l).unwrap();
         assert_eq!(js.len(), 64);
         let deals: Vec<&Job> = js.iter().filter(|j| matches!(j.what, What::Deal { .. })).collect();
-        assert_eq!(deals.len(), 6);
+        assert_eq!(deals.len(), 8);
         assert!(deals.iter().all(|j| j.shelf_actor() == "Shop_OOTRR_Item_HoverBoot_10"));
         let kf: &Job = js.iter().find(|j| j.shop == "KF Shop" && j.slot == 6).unwrap();
         assert_eq!(kf.keepers.len(), 3);

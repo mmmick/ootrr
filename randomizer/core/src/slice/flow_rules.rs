@@ -34,8 +34,15 @@ pub const SARIA: &str = "LW Gift from Saria";
 /// checks. It holds the item up, so the Ocarinas and songs go through crate::ocarina_hold.
 pub const DARUNIA: &str = "GC Darunias Joy";
 
+/// The Ocarina of Time Zelda throws in the moat. Its vanilla Ocarina is progressive, which pinned
+/// it like Saria's gift. Its scene, Dm_MelodyGet_Time, is dropped by the song lesson skip
+/// (crate::story_skip::SONG_TRIGGERS, Song from Ocarina of Time), whose item get hands out what
+/// this location holds before the Song of Time, so like Saria it holds any pouch item; a placed
+/// progressive item gets its tier check from that give (crate::slice::edit, give_for).
+pub const OCARINA_OF_TIME: &str = "HF Ocarina of Time Item";
+
 /// The NPC gifts that add any pouch item generically.
-pub const ANY_POUCH: [&str; 2] = [SARIA, DARUNIA];
+pub const ANY_POUCH: [&str; 3] = [SARIA, DARUNIA, OCARINA_OF_TIME];
 
 /// Gift scenes: cutscenes, Great Fairies and the dungeon reward scenes. Every grant they run ends
 /// in the game's generic pouch get, GetPouchContent:GetPouchContent, which shows the get window
@@ -202,8 +209,7 @@ mod tests {
         "GC Rolling Goron as Child",
     ];
 
-    const PINNED: [&str; 5] = [
-        "HF Ocarina of Time Item",
+    const PINNED: [&str; 4] = [
         "DMT Biggoron",
         "GC Medigoron",
         "KF Links House Cow",
@@ -247,7 +253,10 @@ mod tests {
         // A scrub sale keeps the accept list; the reward events hand out any pouch item (any_item).
         assert!(!allows(&d, "HF Deku Scrub Grotto", item(&d, "Progressive Hookshot")));
         assert!(allows(&d, "Kak 50 Gold Skulltula Reward", item(&d, "Progressive Hookshot")));
-        assert!(!d.flow_ok("HF Ocarina of Time Item"), "the Ocarina of Time scene stays pinned");
+        assert!(d.flow_ok(OCARINA_OF_TIME), "the Ocarina of Time scene holds any item");
+        for n in ["Ocarina", "Progressive Hookshot", "Bow", "Bombs (5)"] {
+            assert!(allows(&d, OCARINA_OF_TIME, item(&d, n)), "{n}");
+        }
         // Every item a chest gives works through the generic pouch get; dungeon items go through
         // crate::gift_keys instead.
         for n in ["Bottle with Milk", "Bombs (5)", "Gold Skulltula Token", "Rupees (20)", "Deku Shield", "Heart Container"] {

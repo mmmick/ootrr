@@ -14,7 +14,6 @@
     "gerudo_fortress": "fast",
     "bridge": "stones",
     "bridge_stones": 3,
-    "trials_random": false,
-    "trials": 0
+    "skip_ganon_trials": true
   }
 }

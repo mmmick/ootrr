@@ -119,7 +119,10 @@ fn dry(romfs: &P, host: Host, w: &Want) -> Res<Extra> {
 pub fn pool(romfs: &P, host: Host, wants: &BM<String, Want>) -> Res<Extra> {
     let ws: Vec<&Want> = wants.values().collect();
     let n: usize = std::thread::available_parallelism().map_or(1, |x| x.get()).clamp(1, POOL_THREADS).min(ws.len().max(1));
-    let parts: Vec<Vec<(usize, Res<Extra>)>> = std::thread::scope(|sc| {
+    let parts: Vec<Vec<(usize, Res<Extra>)>> = if n == 1 {
+        vec![ws.iter().enumerate().map(|(i, w)| (i, dry(romfs, host, w))).collect()]
+    } else {
+        std::thread::scope(|sc| {
         let hs: Vec<std::thread::ScopedJoinHandle<Vec<(usize, Res<Extra>)>>> = (0..n)
             .map(|k| {
                 let ws: &[&Want] = &ws;
@@ -127,7 +130,8 @@ pub fn pool(romfs: &P, host: Host, wants: &BM<String, Want>) -> Res<Extra> {
             })
             .collect();
         hs.into_iter().map(|h| h.join().unwrap_or_default()).collect()
-    });
+        })
+    };
     let mut done: Vec<Option<Res<Extra>>> = (0..ws.len()).map(|_| None).collect();
     for (i, r) in parts.into_iter().flatten() {
         done[i] = Some(r);

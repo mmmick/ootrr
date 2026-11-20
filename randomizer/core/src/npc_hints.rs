@@ -198,7 +198,7 @@ pub fn read(s: &crate::settings::Settings, kakariko_open: bool, bad: &mut Vec<St
 /// Item name as a phrase: "a Progressive Hookshot", "the Lens of Truth",
 /// "20 rupees", "a Piece of Heart".
 pub fn item_phrase(name: &str) -> String {
-    let pretty: String = pretty(&name.replace(" (Treasure Chest Game)", ""));
+    let pretty: String = pretty(&crate::spoiler::shown(name).replace(" (Treasure Chest Game)", ""));
     let name: &str = pretty.as_str();
     if NO_ARTICLE.contains(&name) {
         return name.to_string();

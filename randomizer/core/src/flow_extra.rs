@@ -58,6 +58,7 @@ pub struct Rewards {
     pub scrub_prices: crate::scrub_prices::Mode,
     pub scrub_hint: bool,
     pub merchant_prices: crate::scrub_prices::Mode,
+    pub fairy_prices: crate::scrub_prices::Mode,
 }
 
 impl Rewards {
@@ -114,6 +115,7 @@ impl Rewards {
             scrub_prices: crate::scrub_prices::Mode::Vanilla,
             scrub_hint: false,
             merchant_prices: crate::scrub_prices::Mode::Vanilla,
+            fairy_prices: crate::scrub_prices::Mode::Vanilla,
         }
     }
 
@@ -124,5 +126,6 @@ impl Rewards {
         self.scrub_prices = crate::scrub_prices::read(s, bad);
         self.scrub_hint = crate::scrub_prices::read_hint(s, bad);
         self.merchant_prices = crate::merchant_prices::read(s, bad);
+        self.fairy_prices = crate::fairy_prices::read(s, bad);
     }
 }

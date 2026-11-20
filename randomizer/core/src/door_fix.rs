@@ -71,7 +71,7 @@ fn query_slot(f: &mut Flow, query: &str) -> Res<(u16, u16)> {
     Ok((idx(i)?, idx(j)?))
 }
 
-fn retarget(f: &mut Flow, from: u16, to: u16) -> Vec<String> {
+pub(crate) fn retarget(f: &mut Flow, from: u16, to: u16) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for e in f.events.iter_mut() {
         let mut hit: bool = false;

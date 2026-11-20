@@ -7,7 +7,7 @@
         "scene": "Deku Tree Boss",
         "is_boss_room": true,
         "events": {
-            "Defeat Queen Gohma": "(Nuts or can_use(Slingshot)) and can_jumpslash"
+            "Defeat Queen Gohma": "(Nuts or can_use(Slingshot)) and can_finish_boss"
         },
         "locations": {
             "Deku Tree Queen Gohma Heart": "'Defeat Queen Gohma'",
@@ -34,7 +34,7 @@
             "Defeat King Dodongo": "
                 ((can_use(Megaton_Hammer) and logic_dc_hammer_floor) or
                     has_explosives or king_dodongo_shortcuts) and
-                (((Bombs or Progressive_Strength_Upgrade) and can_jumpslash) or deadly_bonks == 'ohko')"
+                (((Bombs or Progressive_Strength_Upgrade) and can_finish_boss) or deadly_bonks == 'ohko')"
         },
         "locations": {
             "Dodongos Cavern Boss Room Chest": "True",
@@ -59,7 +59,7 @@
         "scene": "Jabu Jabus Belly Boss",
         "is_boss_room": true,
         "events": {
-            "Defeat Barinade": "can_use(Boomerang) and (Sticks or Kokiri_Sword)"
+            "Defeat Barinade": "can_use(Boomerang) and can_finish_boss"
         },
         "locations": {
             "Jabu Jabus Belly Barinade Heart": "'Defeat Barinade'",

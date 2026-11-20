@@ -549,11 +549,10 @@ mod tests {
         s.set(FOREST, Value::s("open")).unwrap();
         let o: Opts = read(&s, &mut bad);
         assert!(o.gates() && o.gate_list().len() == gates::GATES.len() - gates::HELD.len() - 1);
-        s.set(FOREST, Value::s("closed_deku")).unwrap();
         s.set(KAKARIKO, Value::s("open")).unwrap();
         let o: Opts = read(&s, &mut bad);
         assert!(o.mido_gone && o.gate_list().len() == gates::GATES.len() - gates::HELD.len() - 1);
-        s.set(KAKARIKO, Value::s("zelda")).unwrap();
+        s.set(KAKARIKO, Value::s("closed")).unwrap();
         s.set(ENTRANCES, Value::s("dungeons")).unwrap();
         let o: Opts = read(&s, &mut bad);
         assert!(o.entrances && !o.gates());

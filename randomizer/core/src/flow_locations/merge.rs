@@ -15,7 +15,12 @@ struct Work<'a> {
     reqs: Vec<Req>,
     ops: Vec<Op>,
     grants: Vec<&'a Grant>,
+    ammo: Vec<(usize, String, String)>,
+    bags: Vec<(usize, String)>,
 }
+
+/// The roles whose change hands the placed item to the player.
+const GIVES: [&str; 2] = ["grant", "give"];
 
 pub fn stage_merged(rf: &mut Romfs, d: &Data, cs: &[Choice], gs: &[Grant], o: &Opts) -> Res<Stage> {
     let (changes, same, untested): (Vec<Change>, usize, Vec<String>) = plan(d, cs, o)?;
@@ -28,6 +33,12 @@ pub fn stage_merged(rf: &mut Romfs, d: &Data, cs: &[Choice], gs: &[Grant], o: &O
             old: c.old.clone(),
             new: c.new.clone(),
         });
+        if GIVES.contains(&c.role.as_str()) && crate::progressive::guarded(&c.new) {
+            by.entry(c.file.clone()).or_default().ammo.push((c.index, c.event.clone(), c.param.clone()));
+        }
+        if GIVES.contains(&c.role.as_str()) && crate::starter_bags::bag_for(&c.new).is_some() {
+            by.entry(c.file.clone()).or_default().bags.push((c.index, c.new.clone()));
+        }
     }
     for (file, os) in ops_for(&changes)? {
         by.entry(file).or_default().ops.extend(os);
@@ -50,11 +61,21 @@ pub fn stage_merged(rf: &mut Romfs, d: &Data, cs: &[Choice], gs: &[Grant], o: &O
             let f: &mut Flow = b.flows.first_mut().ok_or(E::Format("flow_locations: the file holds no flow"))?;
             g.apply(f)?;
         }
+        // Ammo that needs a bag gives a green rupee to a player without one (progressive::ammo_guard).
+        for (index, event, param) in &w.ammo {
+            let f: &mut Flow = b.flows.first_mut().ok_or(E::Format("flow_locations: the file holds no flow"))?;
+            crate::progressive::ammo_guard(f, *index, event, param)?;
+        }
+        // A plain give of the Bow or Slingshot then adds its starting bag (crate::starter_bags).
+        for (index, tier) in &w.bags {
+            let f: &mut Flow = b.flows.first_mut().ok_or(E::Format("flow_locations: the file holds no flow"))?;
+            crate::starter_bags::follow(f, *index, tier)?;
+        }
         let out: Vec<u8> = b.write()?;
         if Bf::parse(&out)? != b {
             return Err(E::Format("flow_locations: the written flow does not parse back to the edited model"));
         }
-        let dict: Option<u32> = if w.reqs.is_empty() && w.ops.is_empty() { id } else { Some(id.unwrap_or(FRAME_DICT)) };
+        let dict: Option<u32> = if w.reqs.is_empty() && w.ops.is_empty() && w.ammo.is_empty() && w.bags.is_empty() { id } else { Some(id.unwrap_or(FRAME_DICT)) };
         files.push(StagedFile { path, z: zs::compress_raw(&out, dict)?, old: raw.len(), new: out.len() });
     }
     Ok(Stage { files, changes, same, untested })

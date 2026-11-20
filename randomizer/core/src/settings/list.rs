@@ -5,11 +5,12 @@ pub const SCHEMA_VERSION: u32 = 1;
 /// Setting numbers and ids that are gone. An old settings string or file that carries one
 /// still imports, with a warning that its value is ignored, and no setting may reuse them.
 /// 55 and 92 (remake only chests and pots) now follow Chests, Pots and Crates.
-pub const RETIRED: [(u16, &str); 8] = [
+pub const RETIRED: [(u16, &str); 9] = [
     (crate::difficulty::ENCOUNTERS_NUM, crate::difficulty::ENCOUNTERS),
     (55, "shuffle_remake_chests"),
     (63, "shop_deal_gear"),
     (92, "shuffle_remake_pots"),
+    (106, crate::short_get::SETTING),
     crate::shops::plan::OLD[0],
     crate::shops::plan::OLD[1],
     crate::shops::plan::OLD[2],
@@ -263,19 +264,17 @@ pub fn build() -> Schema {
     );
     s.push(
         Setting::choice(3, "open_forest", "world", "Kokiri Forest", "closed")
-            .tip("Whether the way out of the forest and into the Deku Tree is blocked. An open Kakariko gate needs the forest fully open, since its story state skips the Deku Tree quest past Mido; with an open Kakariko gate, Closed and Closed Deku are locked out.")
+            .tip("Whether the way out of the forest and into the Deku Tree is blocked. Closed also closes the Kakariko gate. An open Kakariko gate needs the forest open, since its story state skips the Deku Tree quest past Mido; with an open Kakariko gate, Closed is locked out.")
             .opt("open", "Open", "Nothing blocks the forest or the Deku Tree.")
-            .opt("closed_deku", "Closed Deku", "The forest exit is open but the Deku Tree is closed.")
-            .opt("closed", "Closed", "The forest and the Deku Tree stay closed until the story opens them."),
+            .opt("closed", "Closed", "The forest and the Deku Tree stay closed until the story opens them, and the Kakariko gate stays closed."),
     );
     s.push(
-        Setting::choice(4, "open_kakariko", "world", "Kakariko Gate", "zelda")
+        Setting::choice(4, "open_kakariko", "world", "Kakariko Gate", "closed")
             .dep("open_forest", super::model::Cond::Is(super::model::Value::s("open")))
-            .disabled_as(super::model::Value::s("zelda"))
-            .tip("Whether the gate to Kakariko Village needs Zelda's Letter. Open also skips the castle visit: a new game starts after Zelda and Impa, with their two items already given. Needs Kokiri Forest set to Open; with Closed or Closed Deku the gate is locked to Zelda's Letter, and a seed that asks for both is refused.")
+            .disabled_as(super::model::Value::s("closed"))
+            .tip("Whether the Kakariko Village gate to Death Mountain starts open. Open also skips the castle visit: a new game starts after Zelda and Impa, with their two items already given. Needs Kokiri Forest set to Open; with Closed the gate is locked to Closed, and a seed that asks for both is refused.")
             .opt("open", "Open", "The gate is open from the start and the castle visit is skipped. Zelda's Letter and the Song from Impa, or whatever is placed there, are given when a new game starts.")
-            .opt("zelda", "Zelda's Letter", "The gate opens when you show the letter.")
-            .opt("closed", "Closed", "The gate stays closed until the story opens it."),
+            .opt("closed", "Closed", "The gate opens when you show Zelda's Letter to the guard."),
     );
     s.push(
         Setting::toggle(5, "open_door_of_time", "world", "Open Door of Time", false)
@@ -327,6 +326,17 @@ pub fn build() -> Schema {
             Setting::choice(10, "shuffle_crates", "shuffle", "Crates", "off")
                 .tip("Which crates, including the crates only the remake has, hold random items. Key items whose pickup pack is built can sit in a crate. A shuffled crate gives its item once and stays broken in the save. An item you do not pick up is lost and can make the seed unbeatable, so save before breaking crates that may hold key items. Experimental, untested in the game."),
         ),
+    );
+    s.push(
+        // Old settings strings carry no value here and always shuffled both, so they read as on.
+        Setting::toggle(crate::slice::pick::OCARINAS_NUM, crate::slice::pick::OCARINAS, "shuffle", "Ocarina Shuffle", false)
+            .wire_as(Value::Bool(true))
+            .tip("Whether both Ocarinas join the item pool: the Fairy Ocarina from Saria's gift and the Ocarina of Time Zelda throws in the moat after her escape. Off keeps them at those two spots. Both are only shuffled while NPC rewards are."),
+    );
+    s.push(
+        Setting::toggle(crate::slice::pick::SWORD_NUM, crate::slice::pick::SWORD, "shuffle", "Kokiri Sword Shuffle", false)
+            .wire_as(Value::Bool(true))
+            .tip("Whether the Kokiri Sword joins the item pool. Off keeps it in its chest in the Kokiri Forest training area. The chest is only shuffled while overworld chests are."),
     );
     s.push(
         Setting::toggle(67, crate::pot_slice::plan::HIVES, "shuffle", "Beehives", false)
@@ -401,18 +411,15 @@ pub fn build() -> Schema {
     s.extend(ganon_key());
     s.extend(bridge());
     s.extend(crate::medal_gate::settings());
+    s.extend(crate::door_gate::settings());
     s.push(
-        Setting::toggle(106, crate::short_get::SETTING, "world", "Short item get text", true)
-            .tip("Item gets say only \"You got X!\" in one text box: item descriptions, the pickup window, Piece of Heart counts and the other lines after the get message are dropped. Gold Skulltula tokens say the count, and the small key count lines stay."),
-    );
-    s.push(
-        Setting::toggle(30, "trials_random", "goal", "Random Ganon's Trials", false)
-            .tip("Pick the number of trials to clear at random."),
+        Setting::toggle(30, crate::ganon_trials::SKIP, "goal", "Skip Ganon's Trials", false)
+            .tip("The barrier in Ganon's Castle starts dispelled, so the tower is open without clearing any of the six trials. The trial rooms stay open and their chests and pots can still be checked. Experimental, untested in the game."),
     );
     s.push(
         Setting::number(31, "trials", "goal", "Ganon's Trials", 6, 0, 6)
-            .tip("How many of the six trials in Ganon's Castle must be cleared.")
-            .when_off("trials_random"),
+            .tip("How many of the six trials in Ganon's Castle must be cleared. Any of the six count: below 6, the barrier is dispelled once that many trials are cleared, whichever they are.")
+            .when_off(crate::ganon_trials::SKIP),
     );
     s.push(
         Setting::toggle(32, "triforce_hunt", "goal", "Triforce Hunt", false)
@@ -530,6 +537,18 @@ pub fn build() -> Schema {
             .when(crate::merchant_prices::SETTING, "fixed"),
     );
     s.push(
+        Setting::choice(crate::fairy_prices::NUM, crate::fairy_prices::SETTING, "shuffle", "Great Fairy Prices", "vanilla")
+            .tip("What the six Great Fairies ask as an offering before they grant their reward.")
+            .opt("vanilla", "Vanilla", "The fairy's usual offering: 25, 50, 100, 200, 300 or 500 rupees.")
+            .opt("cheap", "Cheap Balanced", "0 to 95 rupees, favoring low prices.")
+            .opt("fixed", "Fixed", "One price for every Great Fairy."),
+    );
+    s.push(
+        Setting::number(crate::fairy_prices::FIXED_NUM, crate::fairy_prices::FIXED, "shuffle", "Great Fairy Fixed Price", 10, 0, 99)
+            .tip("The offering every Great Fairy asks when Great Fairy Prices is Fixed.")
+            .when(crate::fairy_prices::SETTING, "fixed"),
+    );
+    s.push(
         Setting::toggle(crate::scrub_prices::HINT_NUM, crate::scrub_prices::HINT, "world", "Scrub Hint Text", false)
             .tip("Shuffled scrubs name the item they really sell. Off, they call it a Mystery Item. The price they say is always the price they take."),
     );
@@ -645,8 +664,8 @@ pub fn build() -> Schema {
             .opt("jump", "Faster running and longer jumps", "Link also leaves the ground 1.5 times as fast when jumping, so jumps go further."),
     );
     s.push(
-        Setting::toggle(81, crate::open_world::EPONA, "world", "Skip Epona's race", false)
-            .tip("Learning Epona's Song is enough to own Epona, with no ranch visit and no race against Ingo. The first time adult Link plays the song where a horse can be ridden, Epona is registered as his horse and comes, and the Epona quest is marked complete. Experimental, untested in the game."),
+        Setting::toggle(81, crate::open_world::EPONA, "world", "Skip Epona's race", true)
+            .tip("Learning Epona's Song is enough to own Epona, with no ranch visit and no race against Ingo. The first time adult Link plays the song where a horse can be ridden, Epona is registered as his horse and comes, and the Epona quest is marked complete. The logic counts Epona's Song as Epona when this is on, and needs Ingo's race at the ranch when it is off. Experimental, untested in the game."),
     );
     s.push(
         Setting::toggle(82, crate::open_world::MASKS, "world", "Skip the mask trading quest", false)

@@ -8,10 +8,11 @@ struct Args {
     open: bool,
     updates: bool,
     now: bool,
+    stdio: bool,
 }
 
 fn parse(a: &[String]) -> Res<Args> {
-    let mut o: Args = Args { port: DEFAULT_PORT, explicit: false, lan: false, open: true, updates: true, now: false };
+    let mut o: Args = Args { port: DEFAULT_PORT, explicit: false, lan: false, open: true, updates: true, now: false, stdio: false };
     let mut i: usize = 0;
     while i < a.len() {
         match a[i].as_str() {
@@ -25,6 +26,7 @@ fn parse(a: &[String]) -> Res<Args> {
             "--no-open" => o.open = false,
             "--no-update-check" => o.updates = false,
             "--now" => o.now = true,
+            "--stdio" => o.stdio = true,
             other => return Err(Error::Msg(format!("unknown option {other}"))),
         }
         i += 1;
@@ -34,6 +36,9 @@ fn parse(a: &[String]) -> Res<Args> {
 
 pub fn run(a: &[String]) -> Res<()> {
     let o: Args = parse(a)?;
+    if o.stdio {
+        return ootrr_web::stdio::serve();
+    }
     let mut h: Handle = start(&Opts { port: o.port, lan: o.lan, fallback: !o.explicit, updates: o.updates })?;
     let base: String = h.url();
     let now_url: String = base.replacen("/#", "/now#", 1);
@@ -67,7 +72,8 @@ mod tests {
     fn options_parse() {
         let d: Args = parse(&[]).unwrap();
         assert_eq!(d.port, DEFAULT_PORT);
-        assert!(!d.explicit && !d.lan && d.open);
+        assert!(!d.explicit && !d.lan && d.open && !d.stdio);
+        assert!(parse(&v(&["--stdio"])).unwrap().stdio);
         let o: Args = parse(&v(&["--port", "0", "--lan", "--no-open"])).unwrap();
         assert_eq!(o.port, 0);
         assert!(o.explicit && o.lan && !o.open);

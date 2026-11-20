@@ -5,8 +5,8 @@ use ootrr_core::json::{self, Json};
 
 use crate::state::Shared;
 
-pub const API: &str = "https://api.github.com/repos/realazk/ootrr/releases?per_page=1";
-pub const PAGE: &str = "https://github.com/realazk/ootrr/";
+pub const API: &str = "https://api.github.com/repos/ootrando/ootrr/releases?per_page=1";
+pub const PAGE: &str = "https://github.com/ootrando/ootrr/";
 pub const WAIT: &str = "6";
 pub const KEEP: Duration = Duration::from_secs(3600);
 pub const RETRY: Duration = Duration::from_secs(600);
@@ -154,13 +154,13 @@ mod tests {
 
     #[test]
     fn only_release_pages_of_this_project_become_links() {
-        assert!(link_ok("https://github.com/realazk/ootrr/releases/tag/v0.2.0"));
+        assert!(link_ok("https://github.com/ootrando/ootrr/releases/tag/v0.2.0"));
         for u in [
-            "http://github.com/realazk/ootrr/",
+            "http://github.com/ootrando/ootrr/",
             "https://github.com/other/ootrr/",
-            "https://github.com/realazk/ootrr.evil.com/",
+            "https://github.com/ootrando/ootrr.evil.com/",
             "javascript:alert(1)",
-            "https://github.com/realazk/ootrr/ x",
+            "https://github.com/ootrando/ootrr/ x",
         ] {
             assert!(!link_ok(u), "{u}");
         }
@@ -176,8 +176,8 @@ mod tests {
 
     #[test]
     fn the_newest_release_is_read_from_a_list_and_drafts_are_skipped() {
-        let a: Json = rel("v9.0.0", "https://github.com/realazk/ootrr/releases/tag/v9.0.0", "x").with("draft", true.into());
-        let b: Json = rel("v8.0.0", "https://github.com/realazk/ootrr/releases/tag/v8.0.0", "x");
+        let a: Json = rel("v9.0.0", "https://github.com/ootrando/ootrr/releases/tag/v9.0.0", "x").with("draft", true.into());
+        let b: Json = rel("v8.0.0", "https://github.com/ootrando/ootrr/releases/tag/v8.0.0", "x");
         let list: Json = Json::Arr(vec![a, b]);
         assert_eq!(newest(&list).and_then(|r| r.get("tag_name")).and_then(|x| x.as_str()), Some("v8.0.0"));
         assert!(newest(&Json::Arr(Vec::new())).is_none());
@@ -185,11 +185,11 @@ mod tests {
 
     #[test]
     fn a_newer_release_is_reported_and_a_bad_one_is_ignored() {
-        let ok: Json = reply(&rel("v9.0.0", "https://github.com/realazk/ootrr/releases/tag/v9.0.0", "Big one"), "0.1.0");
+        let ok: Json = reply(&rel("v9.0.0", "https://github.com/ootrando/ootrr/releases/tag/v9.0.0", "Big one"), "0.1.0");
         assert_eq!(ok.get("newer").and_then(|x| x.as_bool()), Some(true));
         assert_eq!(ok.get("latest").and_then(|x| x.as_str()), Some("9.0.0"));
         assert_eq!(ok.get("note").and_then(|x| x.as_str()), Some("Big one"));
-        let same: Json = reply(&rel("v0.1.0", "https://github.com/realazk/ootrr/releases/tag/v0.1.0", ""), "0.1.0");
+        let same: Json = reply(&rel("v0.1.0", "https://github.com/ootrando/ootrr/releases/tag/v0.1.0", ""), "0.1.0");
         assert_eq!(same.get("newer").and_then(|x| x.as_bool()), Some(false));
         let bad: Json = reply(&rel("v9.0.0", "https://evil.example/x", ""), "0.1.0");
         assert_eq!(bad.get("newer").and_then(|x| x.as_bool()), Some(false));

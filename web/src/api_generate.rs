@@ -87,7 +87,7 @@ pub fn options(b: &Json) -> Hr<Json> {
     let l: Loaded = api_settings::from_body(b)?;
     let d: Data = Data::load()?;
     let (locs, items): (Vec<String>, Vec<String>) = slice::plando_options(&d, &l.settings)?;
-    Ok(Json::obj().with("locations", Json::strs(locs.iter().map(|x| x.as_str()))).with("items", Json::strs(items.iter().map(|x| x.as_str()))))
+    Ok(Json::obj().with("locations", Json::strs(locs.iter().map(|x| x.as_str()))).with("items", Json::strs(items.iter().map(|x| ootrr_core::spoiler::shown(x)))))
 }
 
 fn pair(l: &str, i: &str) -> Json {

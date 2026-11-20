@@ -123,13 +123,20 @@ pub fn build(a: &[String]) -> Res<()> {
         }
         if a[i] == "--colors" {
             let v: &str = a.get(i + 1).map(|s| s.as_str()).ok_or(Error::Format("missing mode after --colors"))?;
-            cos.colors = Colors::parse(v).ok_or(Error::Format("--colors is off, random or shared"))?;
+            cos.colors = Colors::parse(v).ok_or(Error::Format("--colors is off, custom, random or shared"))?;
             i += 2;
             continue;
         }
         if a[i] == "--no-title-logo" {
             cos.title = false;
             i += 1;
+            continue;
+        }
+        if a[i] == "--color-part" {
+            let v: &str = a.get(i + 1).map(|s| s.as_str()).ok_or(Error::Format("missing part=colour after --color-part"))?;
+            let (k, c): (&str, &str) = v.split_once('=').ok_or(Error::Format("--color-part takes part=colour, as boots=#804020, used with --colors custom"))?;
+            cos.parts.extend(colors::parse_picks(&[(k.to_string(), c.to_string())])?);
+            i += 2;
             continue;
         }
         if a[i] == "--cosmetic-seed" {
@@ -185,7 +192,7 @@ pub fn build(a: &[String]) -> Res<()> {
             println!("{n}");
         }
     }
-    for n in cosmetic::apply(&b.root, P::new(romfs), &cos, &seed.seed)? {
+    for n in cosmetic::apply(&b.root, P::new(romfs), &cos)? {
         println!("{n}");
     }
     if let (true, Some(s)) = (with_update, &source) {
@@ -199,8 +206,10 @@ pub fn build(a: &[String]) -> Res<()> {
 pub fn preview(a: &[String]) -> Res<()> {
     let romfs: &str = arg(a, 0, "missing romfs_root")?;
     let out: &str = arg(a, 1, "missing out_dir")?;
-    let mode: Colors = Colors::parse(arg(a, 2, "missing mode")?).ok_or(Error::Format("the mode is random or shared"))?;
-    for l in colors::preview(P::new(romfs), P::new(out), mode, arg(a, 3, "missing seed text")?)? {
+    let mode: Colors = Colors::parse(arg(a, 2, "missing mode")?).ok_or(Error::Format("the mode is off, custom, random or shared"))?;
+    let pairs: Vec<(String, String)> = a.iter().skip(4).filter_map(|x| x.split_once('=')).map(|(k, v)| (k.to_string(), v.to_string())).collect();
+    let picks: colors::Picks = colors::parse_picks(&pairs)?;
+    for l in colors::preview(P::new(romfs), P::new(out), mode, &picks, arg(a, 3, "missing seed text")?)? {
         println!("{l}");
     }
     Ok(())

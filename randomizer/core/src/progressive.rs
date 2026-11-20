@@ -36,9 +36,28 @@ const POUCH: &str = "PouchSystemActor";
 const EXISTS: &str = "EventQueryIsExistInPouch";
 const HOLDER: &str = "GameDataActor";
 const ROOT_ENTRY: &str = "Success_";
-const GUARD: &str = "BombGuard_";
-const GUARDED: &[&str] = &["Item_BombBundle_Small", "Item_Bomb"];
-const NO_BAG: &str = "TBox_Rupee_Green";
+const GUARD: &str = "AmmoGuard_";
+pub const NO_BAG: &str = "TBox_Rupee_Green";
+const BOMB_BAGS: &[&str] = &["Item_BombBag_Small", "Item_BombBag_Medium", "Item_BombBag_Large"];
+const QUIVERS: &[&str] = &["Item_Quiver_Small", "Item_Quiver_Medium", "Item_Quiver_Large"];
+const BULLET_BAGS: &[&str] = &["Item_BulletBag_Small", "Item_BulletBag_Medium", "Item_BulletBag_Large"];
+/// Ammo the pouch can only hold with a bag, and those bags. Handed out without one, the give adds
+/// the ammo anyway and the game sets up its slot (a usable bomb bag for bombs), so every give of
+/// these checks for a bag first and hands out a green rupee without one.
+const AMMO: &[(&str, &[&str])] = &[
+    ("Item_Bomb", BOMB_BAGS),
+    ("Item_BombBundle_Small", BOMB_BAGS),
+    ("TBox_ArrowBundle_Medium", QUIVERS),
+    ("TBox_ArrowBundle_Large", QUIVERS),
+    ("Item_Arrow_Normal", QUIVERS),
+    ("TBox_DekuSeedBundle", BULLET_BAGS),
+    ("Item_DekuSeed", BULLET_BAGS),
+];
+
+/// The bags that let the pouch hold `actor`, if it is ammo that needs one.
+pub fn bags_of(actor: &str) -> Option<&'static [&'static str]> {
+    AMMO.iter().find(|a| a.0 == actor).map(|a| a.1)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Size {
@@ -192,7 +211,7 @@ pub fn wrap(f: &mut Flow, family: &str) -> Res<()> {
 }
 
 pub fn guarded(actor: &str) -> bool {
-    GUARDED.contains(&actor)
+    bags_of(actor).is_some()
 }
 
 pub fn guard_family(actor: &str) -> String {
@@ -214,11 +233,12 @@ pub fn guard(f: &mut Flow, actor: &str) -> Res<()> {
         .find(|e| e.name == ROOT_ENTRY)
         .map(|e| e.pad)
         .ok_or(Error::Format("progressive: the chest flow has no Success_ entry"))?;
+    let bags: &[&str] = bags_of(actor).ok_or_else(|| Error::Msg(format!("progressive: {actor} is not ammo that needs a bag")))?;
     let (a, q) = ensure_query(f)?;
     let keep: u16 = give(f, actor)?;
     let none: u16 = give(f, NO_BAG)?;
     let mut at: u16 = none;
-    for owner in owners("BombBag")? {
+    for owner in bags {
         let c: Cont = Cont { items: vec![("ActorName".to_string(), Val::Str(owner.to_string()))] };
         let cases: Vec<Case> = vec![Case { val: 0, ev: keep }, Case { val: 1, ev: at }];
         at = push(f, Kind::Switch { actor: a, query: q, cases, params: Some(c) })?;
@@ -311,6 +331,12 @@ pub fn wrap_grant_as(f: &mut Flow, index: usize, event: &str, param: &str, famil
             let added: u16 = crate::ocarina_hold::after(f, tier, then)?;
             set_next(&mut give, added)?;
         }
+        // The Bow or Slingshot tier then adds its starting bag (crate::starter_bags).
+        if let Some(then) = next_of(&give)
+            && let Some(bag) = crate::starter_bags::line(f, tier, then)?
+        {
+            set_next(&mut give, bag)?;
+        }
         gives.push(push(f, give)?);
     }
     f.events[index].kind = chain(f, a, q, family, o, &gives)?;
@@ -358,6 +384,12 @@ pub fn guard_grant(f: &mut Flow, index: usize, event: &str, param: &str, family:
     let (pa, pq) = ensure(f, POUCH, EXISTS)?;
     let keep: u16 = push(f, kept)?;
     let base: u16 = push(f, first)?;
+    // The base tier given to a player without the weapon brings its starting bag (crate::starter_bags).
+    if let Some(then) = next_of(&f.events[usize::from(base)].kind)
+        && let Some(bag) = crate::starter_bags::line(f, t[0], then)?
+    {
+        set_next(&mut f.events[usize::from(base)].kind, bag)?;
+    }
     let stock: Cont = Cont { items: vec![("Num".to_string(), Val::Int(1)), ("Actor".to_string(), Val::Str(o[0].to_string()))] };
     let in_pouch: u16 = push(f, Kind::Switch { actor: pa, query: pq, cases: vec![Case { val: 0, ev: keep }, Case { val: 1, ev: base }], params: Some(stock) })?;
     let c: Cont = Cont { items: vec![("ActorName".to_string(), Val::Str(o[0].to_string()))] };
@@ -371,6 +403,51 @@ pub fn guard_grant(f: &mut Flow, index: usize, event: &str, param: &str, family:
         }
     }
     Ok(())
+}
+
+/// The give at `index` hands out the actor in its `param`. When that actor is ammo that needs a
+/// bag, the give becomes a question: a player with a bag gets it, anyone else a green rupee given
+/// the same way. Other actors, and a give that is already a question, are left alone.
+pub fn ammo_guard(f: &mut Flow, index: usize, event: &str, param: &str) -> Res<bool> {
+    let kept: Kind = {
+        let e: &Event = f.events.get(index).ok_or_else(|| Error::Msg(format!("event index {index} is out of range")))?;
+        if e.name != event {
+            return Err(Error::Msg(format!("event {index} is named {} and not {event}, the game files differ", e.name)));
+        }
+        if matches!(e.kind, Kind::Switch { .. }) {
+            return Ok(false);
+        }
+        e.kind.clone()
+    };
+    let actor: Option<String> = match kept.params().and_then(|c| c.get(param)) {
+        Some(Val::Str(s)) => Some(s.clone()),
+        _ => None,
+    };
+    let Some(bags) = actor.as_deref().and_then(bags_of) else {
+        return Ok(false);
+    };
+    let rupee: Kind = with_param(&kept, param, NO_BAG)?;
+    let (a, q) = ensure_query(f)?;
+    let keep: u16 = push(f, kept)?;
+    let none: u16 = push(f, rupee)?;
+    let mut at: u16 = none;
+    for (i, owner) in bags.iter().enumerate() {
+        let c: Cont = Cont { items: vec![("ActorName".to_string(), Val::Str(owner.to_string()))] };
+        let k: Kind = Kind::Switch { actor: a, query: q, cases: vec![Case { val: 0, ev: keep }, Case { val: 1, ev: at }], params: Some(c) };
+        if i + 1 == bags.len() {
+            f.events[index].kind = k;
+        } else {
+            at = push(f, k)?;
+        }
+    }
+    let was: u16 = idx(index)?;
+    for e in f.entries.iter_mut() {
+        if let Some(p) = e.subs.iter().position(|x| *x == was) {
+            e.subs.remove(p);
+            e.subs.extend([keep, none]);
+        }
+    }
+    Ok(true)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -782,14 +859,21 @@ mod tests {
     fn a_guarded_prize_keeps_the_vanilla_event_for_an_owner_and_gives_the_base_to_anyone_else() {
         let mut f: Flow = prize_flow("Item_BulletBag_Large", ("NpcCommon", "NpcCommon_HandOver_NpcToPlayer_NoDisplay"));
         guard_grant(&mut f, 0, "Event378", "ReveiveItem", "Slingshot", false).unwrap();
-        assert_eq!(f.events.len(), 4);
+        assert_eq!(f.events.len(), 6);
         assert_eq!(f.entries[0].subs, vec![1, 2]);
         let Kind::Switch { cases, params, .. } = &f.events[0].kind else {
             panic!("expected a switch at the old index");
         };
-        assert_eq!(cases, &vec![Case { val: 0, ev: 1 }, Case { val: 1, ev: 3 }]);
+        assert_eq!(cases, &vec![Case { val: 0, ev: 1 }, Case { val: 1, ev: 5 }]);
         assert_eq!(params.as_ref().and_then(|c| c.get("ActorName")), Some(&Val::Str("Weapon_Range_SlingShot".to_string())));
-        let Kind::Switch { actor, query, cases, params } = &f.events[3].kind else {
+        // The base Slingshot then adds the small bullet bag and 30 seeds before going on.
+        for (i, actor, next) in [(4usize, "Item_BulletBag_Small", 3u16), (3, "Item_DekuSeed", 7)] {
+            let Kind::Action { next: n, params, .. } = &f.events[i].kind else {
+                panic!("expected an add");
+            };
+            assert_eq!((params.as_ref().and_then(|c| c.get("Actor")), *n), (Some(&Val::Str(actor.to_string())), next));
+        }
+        let Kind::Switch { actor, query, cases, params } = &f.events[5].kind else {
             panic!("expected the pouch switch");
         };
         assert_eq!(cases, &vec![Case { val: 0, ev: 1 }, Case { val: 1, ev: 2 }]);
@@ -800,7 +884,7 @@ mod tests {
             let Kind::Sub { next, params, flow, entry } = &f.events[i].kind else {
                 panic!("expected a sub");
             };
-            assert_eq!((*next, flow.as_str(), entry.as_str()), (7, "NpcCommon", "NpcCommon_HandOver_NpcToPlayer_NoDisplay"));
+            assert_eq!((*next, flow.as_str(), entry.as_str()), (if i == 2 { 4 } else { 7 }, "NpcCommon", "NpcCommon_HandOver_NpcToPlayer_NoDisplay"));
             assert_eq!(params.as_ref().and_then(|c| c.get("ReveiveItem")), Some(&Val::Str(want.to_string())));
             assert_eq!(params.as_ref().and_then(|c| c.get("ASName")), Some(&Val::Str("Wait".to_string())));
         }
@@ -896,10 +980,64 @@ mod tests {
         for (owned, want) in cases {
             let mut f: Flow = flow();
             guard(&mut f, "Item_BombBundle_Small").unwrap();
-            assert_eq!(f.entries[1].name, "Success_Prog_BombGuard_Item_BombBundle_Small");
+            assert_eq!(f.entries[1].name, "Success_Prog_AmmoGuard_Item_BombBundle_Small");
             let main: u16 = f.entries[1].main;
             assert_eq!(walk(&f, main, owned), want, "{owned:?}");
         }
+    }
+
+    #[test]
+    fn arrow_and_seed_chests_need_their_bag() {
+        let cases: [(&str, &[&str], &str); 5] = [
+            ("TBox_ArrowBundle_Medium", &[], NO_BAG),
+            ("TBox_ArrowBundle_Medium", &["Weapon_Range_Bow"], NO_BAG),
+            ("TBox_ArrowBundle_Medium", &["Item_Quiver_Small"], "TBox_ArrowBundle_Medium"),
+            ("TBox_DekuSeedBundle", &["Item_BulletBag_Large"], "TBox_DekuSeedBundle"),
+            ("TBox_DekuSeedBundle", &["Item_Quiver_Small"], NO_BAG),
+        ];
+        for (actor, owned, want) in cases {
+            let mut f: Flow = flow();
+            guard(&mut f, actor).unwrap();
+            let main: u16 = f.entries[1].main;
+            assert_eq!(walk(&f, main, owned), want, "{actor} {owned:?}");
+        }
+        assert!(guard(&mut flow(), "Item_Hookshot").is_err());
+    }
+
+    #[test]
+    fn an_ammo_gift_gives_a_rupee_without_a_bag_and_other_gifts_stay() {
+        for (item, bag) in [("Item_BombBundle_Small", "Item_BombBag_Medium"), ("Item_Bomb", "Item_BombBag_Small"), ("TBox_ArrowBundle_Large", "Item_Quiver_Large"), ("TBox_DekuSeedBundle", "Item_BulletBag_Small")] {
+            let mut f: Flow = prize_flow(item, ("Dm_SY_GetInEvent", "GetInEvent_NotTurn"));
+            assert!(ammo_guard(&mut f, 0, "Event378", "ReveiveItem").unwrap());
+            assert_eq!(f.entries[0].subs, vec![1, 2]);
+            let pick = |owned: &[&str]| -> String {
+                let mut at: u16 = 0;
+                loop {
+                    match &f.events[at as usize].kind {
+                        Kind::Switch { cases, params, .. } => {
+                            let has: bool = matches!(params.as_ref().and_then(|c| c.get("ActorName")), Some(Val::Str(s)) if owned.contains(&s.as_str()));
+                            at = cases.iter().find(|c| c.val == if has { 0 } else { 1 }).unwrap().ev;
+                        }
+                        Kind::Sub { next, params, .. } => {
+                            assert_eq!(*next, 7);
+                            let Some(Val::Str(s)) = params.as_ref().and_then(|c| c.get("ReveiveItem")) else { panic!("no item") };
+                            return s.clone();
+                        }
+                        _ => panic!("unexpected event"),
+                    }
+                }
+            };
+            assert_eq!(pick(&[]), NO_BAG, "{item}");
+            assert_eq!(pick(&[bag]), item, "{item}");
+            let before: Flow = f.clone();
+            assert!(!ammo_guard(&mut f, 0, "Event378", "ReveiveItem").unwrap());
+            assert_eq!(f, before);
+        }
+        let mut f: Flow = prize_flow("Item_Hookshot", ("Dm_SY_GetInEvent", "GetInEvent_NotTurn"));
+        let before: Flow = f.clone();
+        assert!(!ammo_guard(&mut f, 0, "Event378", "ReveiveItem").unwrap());
+        assert_eq!(f, before);
+        assert!(ammo_guard(&mut f, 0, "Other", "ReveiveItem").is_err());
     }
 
     #[test]

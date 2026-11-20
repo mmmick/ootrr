@@ -1,6 +1,6 @@
 import { h, fill, notice, copy, save_text } from "./dom.js";
 import { get, post, q } from "./api.js";
-import { state, touch } from "./store.js";
+import { state, touch, color_picks } from "./store.js";
 import { effective } from "./rules.js";
 import { button as report_button } from "./report.js";
 import { panel as spoiler_panel, full_text } from "./spoiler.js";
@@ -52,6 +52,7 @@ async function build(res) {
     music: state.cosmetic.music,
     sfx: state.cosmetic.sfx,
     colors: state.cosmetic.colors,
+    color_parts: color_picks(state.cosmetic),
     cosmetic_seed: state.cosmetic.seed,
     title_logo: state.cosmetic.title !== false,
     spoiler_text: spoiler_for(res),

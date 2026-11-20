@@ -96,6 +96,7 @@ pub fn area_of(d: &Data, loc: &str) -> Option<String> {
 }
 
 pub fn item_text(name: &str) -> String {
+    let name: &str = crate::spoiler::shown(name);
     if name.starts_with("Progressive ") {
         format!("a {name}")
     } else {

@@ -66,6 +66,11 @@ pub fn run(romfs: &P, root: &P, jobs: &[Job]) -> Res<Vec<String>> {
         let old: Vec<Entry> = sarc::parse(&rf.read_zs(&pack_of(k))?)?;
         for e in es.iter().filter(|e| e.name.contains("ShopParam/")) {
             let Some(o) = sarc::get(&old, &e.name) else {
+                // A goods list the build added (shelf::split) needs a size entry of its own.
+                checked += 1;
+                if !rst.get(&e.name).is_some_and(|n| n as usize >= e.data.len()) {
+                    bad.push(format!("new inner file {} in {k} has no size table entry that fits {} bytes", e.name, e.data.len()));
+                }
                 continue;
             };
             if o.data == e.data {

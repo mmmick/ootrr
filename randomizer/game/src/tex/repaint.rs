@@ -1,5 +1,6 @@
 use crate::error::{Error, Res};
-use crate::tex::astc::recolor::{Done, Tables, recolor_block};
+use crate::tex::astc::recolor::{Done, Tables, recolor_sized};
+use crate::tex::bc7;
 use crate::tex::bcn;
 use crate::tex::bntx::{self, Tex};
 use crate::tex::surface::{self, Kind};
@@ -25,10 +26,11 @@ pub fn repaint(b: &mut [u8], f: &dyn Fn([u8; 3]) -> [u8; 3]) -> Res<Count> {
             match k {
                 Kind::Bc1 => n.changed += bcn::recolor_bc1(blk, f) as usize,
                 Kind::Bc3 => n.changed += bcn::recolor_bc3(blk, f) as usize,
+                Kind::Bc7 => n.changed += bc7::recolor(blk, f) as usize,
                 Kind::Astc(..) => {
                     let mut x: [u8; 16] = [0; 16];
                     x.copy_from_slice(blk);
-                    match recolor_block(&mut x, &tb, f) {
+                    match recolor_sized(&mut x, k.cell().0, k.cell().1, &tb, f) {
                         Done::Changed => {
                             blk.copy_from_slice(&x);
                             n.changed += 1;
@@ -86,7 +88,7 @@ mod tests {
 
     #[test]
     fn unknown_formats_are_refused() {
-        let mut b: Vec<u8> = build(&[Fake { name: "A", fmt: 0x2006, w: 8, h: 8, layout: 0, comp: [2, 3, 4, 5], rgba: paint }]);
+        let mut b: Vec<u8> = build(&[Fake { name: "A", fmt: 0x1d01, w: 8, h: 8, layout: 0, comp: [2, 3, 4, 5], rgba: paint }]);
         assert!(repaint(&mut b, &|c| c).is_err());
     }
 }

@@ -74,10 +74,18 @@ pub fn edit_file_with(file: &str, raw: &[u8], ts: &[Target], keys: bool, small: 
                     let size: Size = route(&mut y, t.hash, f).ok_or(E::Format("edited actor vanished"))?;
                     used.push((f.to_string(), size));
                 }
-            } else if t.key.is_none() && guarded(&t.new_actor) && special::of(t.hash).is_none() && t.ev != Some(Ev::Keep) {
+            } else if t.key.is_none() && guarded(&t.new_actor) && t.ev != Some(Ev::Keep) {
                 let fam: String = guard_family(&t.new_actor);
-                let size: Size = route(&mut y, t.hash, &fam).ok_or(E::Format("edited actor vanished"))?;
-                used.push((fam, size));
+                if special::of(t.hash).is_some() {
+                    // A summoned chest starts its open event from its story flow, which the special
+                    // stage points at the guard, as it does for an upgrade chain.
+                    let g: String = find(&y, file, t.hash).into_iter().next().map(|x| x.gyaml).unwrap_or_default();
+                    used.push((fam.clone(), Size::of_gyaml(&g)));
+                    wraps.push((t.hash, fam));
+                } else {
+                    let size: Size = route(&mut y, t.hash, &fam).ok_or(E::Format("edited actor vanished"))?;
+                    used.push((fam, size));
+                }
             }
             let f: Found = find(&y, file, t.hash).into_iter().next().ok_or(E::Format("edited actor vanished"))?;
             hits.push((i, f));

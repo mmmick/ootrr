@@ -84,6 +84,8 @@ fn link_file(src: &P, dst: &P) -> io::Result<()> {
     return std::os::unix::fs::symlink(src, dst);
     #[cfg(windows)]
     return std::os::windows::fs::symlink_file(src, dst);
+    #[cfg(not(any(unix, windows)))]
+    return fs::copy(src, dst).map(|_| ());
 }
 
 fn link_dir(src: &P, dst: &P) -> io::Result<()> {
@@ -91,6 +93,8 @@ fn link_dir(src: &P, dst: &P) -> io::Result<()> {
     return std::os::unix::fs::symlink(src, dst);
     #[cfg(windows)]
     return std::os::windows::fs::symlink_dir(src, dst);
+    #[cfg(not(any(unix, windows)))]
+    return Err(io::Error::new(io::ErrorKind::Unsupported, format!("cannot link folder {} to {} here", src.display(), dst.display())));
 }
 
 struct Job<'a> {

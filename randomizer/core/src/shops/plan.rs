@@ -13,7 +13,7 @@ pub const HIGH: i32 = 995;
 pub const FLOOR: i32 = 10;
 
 pub const NOTE: &str = "Shop shelves are shuffled. The shop goods trade places between the eight shelf shops, each keeps its own price, and the logic needs a bigger wallet for anything above 200 rupees. Experimental, untested in the game.";
-pub const DEALS: &str = "Special deals sell a random item once, through a new shelf actor per item and price. Only items the shop can sell once go on a deal: items that cannot be held twice (a second copy is turned away with the bag full message), upgrades at the tier the player must already have reached, songs when songs can go anywhere, and ammo, refills and hearts only in the Bazaars and the Bombchu Shop, where one purchase closes the slot. The Potion Shops get no deals. Experimental, only one Kokiri Shop deal is tested in the game.";
+pub const DEALS: &str = "Special deals sell a random item once, through a new shelf actor per item and price. Only items the shop can sell once go on a deal: items that cannot be held twice (a second copy is turned away with the bag full message), upgrades at the tier the player must already have reached, songs when songs can go anywhere, and ammo, refills and hearts only in the one-keeper shops (the Bazaars, the Potion Shops and the Bombchu Shop), where one purchase closes the slot. Experimental, only one Kokiri Shop deal is tested in the game.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
@@ -87,7 +87,7 @@ fn with_deals(s: Setting) -> Setting {
 pub fn settings() -> Vec<Setting> {
     vec![
         Setting::choice(58, SETTING, "shuffle", "Shopsanity", "off")
-            .tip("Whether the shelves of the eight shelf shops sell shuffled goods or random items, like shopsanity in the N64 randomizer. A slot that sells a random item is a special deal. The Happy Mask Shop and the Potion Shops get no special deals. Prices above 200 rupees need a bigger wallet in the logic. Experimental, none of these edits are tested in the game yet except one Kokiri Shop deal.")
+            .tip("Whether the shelves of the eight shelf shops sell shuffled goods or random items, like shopsanity in the N64 randomizer. A slot that sells a random item is a special deal. The Happy Mask Shop gets no special deals. A Goron or Zora Tunic moved to another shop costs a random price in the shopsanity range, and a child can buy it. Prices above 200 rupees need a bigger wallet in the logic. Experimental, none of these edits are tested in the game yet except one Kokiri Shop deal.")
             .opt("off", "Off", "Every shop sells its usual goods.")
             .opt("shuffle", "0 Items", "The usual shop goods move between the shops and keep their prices, nothing new is sold.")
             .opt("deals_1", "1 Item", "One slot in each shop is a special deal that sells a random item once, the other slots sell shuffled shop goods.")

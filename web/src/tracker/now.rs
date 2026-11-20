@@ -126,7 +126,12 @@ impl Now {
             s.age = a.filter(|_| !s.dungeon);
         }
         let start_hearts: i64 = s.int("starting_hearts").unwrap_or(3);
-        let given: Vec<String> = ootrr_core::slice::support::plan(&s).map(|p| skipped_locations(&p).iter().map(|x| x.to_string()).collect()).unwrap_or_default();
+        let p: Option<ootrr_core::slice::support::Plan> = ootrr_core::slice::support::plan(&s).ok();
+        let given: Vec<String> = p.as_ref().map(|p| skipped_locations(p).iter().map(|x| x.to_string()).collect()).unwrap_or_default();
+        let out: &[String] = p.as_ref().map(|p| p.excluded.as_slice()).unwrap_or(&[]);
+        for sp in spots.iter_mut().filter(|sp| out.contains(&sp.name)) {
+            sp.hidden = true;
+        }
         Ok(Now { log, rb, spots, start_hearts, given })
     }
 
@@ -207,6 +212,18 @@ mod tests {
             assert_eq!(s.hidden, s.name == "KF West Ledge Chest", "{}", s.name);
         }
         assert!(n.spots.iter().any(|s| !s.hidden));
+    }
+
+    #[test]
+    fn excluded_checks_are_hidden() {
+        let mut s: Settings = Settings::default();
+        s.set("disabled_locations", ootrr_core::settings::Value::set(&["ZD Chest", "LH Child Fishing"])).unwrap();
+        let g = generate(&s, "out").unwrap();
+        let log: SeedLog = SeedLog { seed: "out".to_string(), settings_string: s.encode().unwrap(), checksum: String::new(), placements: g.seed_file.placements };
+        let n: Now = Now::from_log(log).unwrap();
+        for s in &n.spots {
+            assert_eq!(s.hidden, ["ZD Chest", "LH Child Fishing", "KF West Ledge Chest"].contains(&s.name.as_str()), "{}", s.name);
+        }
     }
 
     #[test]

@@ -1,6 +1,6 @@
 #define AppName "OOTRR"
 #define AppVersion GetEnv("OOTRR_VERSION")
-#define RepoUrl "https://github.com/realazk/ootrr"
+#define RepoUrl "https://github.com/ootrando/ootrr"
 
 [Setup]
 AppId={{6F3B1E0A-52C9-4D3E-9A41-0B7C8D2E5F17}

@@ -29,6 +29,9 @@ fn setting_json(s: &Setting) -> Json {
         .with("tag", s.tag.name().into())
         .with("tip", s.tip.as_str().into())
         .with("default", s.default.to_json());
+    if s.legacy {
+        o.put("legacy", Json::Bool(true));
+    }
     if matches!(s.kind, Kind::Choice | Kind::Multi) {
         let cs: Vec<Json> = s
             .choices

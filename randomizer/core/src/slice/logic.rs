@@ -182,9 +182,16 @@ mod tests {
         assert!(!reach(&[("door_of_time_condition", "stones")], &["Zora Sapphire"]));
         assert!(reach(&[("door_of_time_condition", "stones")], &[]));
         assert!(reach(&[("door_of_time_condition", "stones"), ("door_of_time_escape", "moat")], &["Zora Sapphire"]));
-        let songless: World = world_with(&d, &[("open_door_of_time", "stones")]).unwrap();
+        let songless: World = world_with(&d, &[("open_door_of_time", "req")]).unwrap();
         let s: Search = explore(&songless, &vanilla_without(&songless, &d, &["Song of Time"]), &gauntlets(&songless));
         assert!(seen(&s, &songless, "Master Sword Pedestal"));
+        let classic: World = world_with(&d, &[("open_door_of_time", "req"), ("door_of_time_condition", "stones")]).unwrap();
+        let sword = |gone: &[&str]| -> bool {
+            let s: Search = explore(&classic, &vanilla_without(&classic, &d, gone), &gauntlets(&classic));
+            seen(&s, &classic, "Master Sword Pedestal")
+        };
+        assert!(sword(&["Song of Time"]));
+        assert!(!sword(&["Song of Time", "Zora Sapphire"]));
     }
 
     #[test]

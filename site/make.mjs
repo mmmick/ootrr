@@ -47,8 +47,8 @@ const fonts = {
 for (const [to, from] of Object.entries(fonts)) cpSync(join(assets, "fonts", from), join(out, "fonts", to));
 for (const f of readdirSync(join(assets, "fonts")).filter((x) => x.startsWith("OFL-"))) cpSync(join(assets, "fonts", f), join(out, "fonts", f));
 
-for (const f of ["api.js", "picker.js", "folders.js"]) cpSync(join(here, "web", f), join(out, "js", f));
-const ROOT = ["worker.js", "host.js", "wasi.js", "zip.js"];
+for (const f of ["api.js", "picker.js", "folders.js", "drop.js"]) cpSync(join(here, "web", f), join(out, "js", f));
+const ROOT = ["worker.js", "host.js", "wasi.js", "zip.js", "remote.js"];
 for (const f of ROOT) cpSync(join(here, f), join(out, f));
 cpSync(wasm, join(out, "ootrr.wasm"));
 for (const f of ["LICENSE", "NOTICE"]) if (existsSync(join(repo, f))) cpSync(join(repo, f), join(out, `${f}.txt`));
@@ -96,6 +96,9 @@ edit(js("config.js"), (t) => {
   s = must(s, 'label: "Mod folder", tip: "The folder your emulator or loader reads mods from. Generate writes the mod here." }',
     'label: "Mod download", tip: "The browser builds the mod and offers it as a zip. Nothing is uploaded." }');
   s = must(s, "  return `${base}${base.endsWith(sep) ? \"\" : sep}${mid}${state.paths.name}`;", "  return `${mid}${state.paths.name}, in the zip`;");
+  s = must(s, 'import { pick_folder, pick_package } from "./picker.js";', 'import { pick_folder, pick_package } from "./picker.js";\nimport { drop_zone } from "./drop.js";');
+  s = must(s, 'return row(f, terms, h("div", { class: "pathrow" }, inp, browse, pack), [out, upd && upd.el], stat);',
+    'return row(f, terms, h("div", { class: "pathrow" }, inp, browse, pack), [out, f.id === "game" ? drop_zone(set) : null, upd && upd.el], stat);');
   return s;
 });
 

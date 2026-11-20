@@ -95,7 +95,7 @@ export function sanitize(schema, raw) {
   const out = defaults(schema);
   if (!raw || typeof raw !== "object") return out;
   for (const s of schema.settings) {
-    if (!(s.id in raw)) continue;
+    if (s.legacy || !(s.id in raw)) continue;
     const v = raw[s.id];
     if (s.kind === "toggle" && typeof v === "boolean") out[s.id] = v;
     else if (s.kind === "choice" && s.choices.some((c) => c.id === v)) out[s.id] = v;

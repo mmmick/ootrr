@@ -1,5 +1,6 @@
 use std::path::PathBuf as PB;
 
+use crate::ainb::build::{Spec, QUERY};
 use crate::ainb::Ainb;
 use crate::bfevfl::flow::NONE;
 use crate::bfevfl::{Bf, Case, Cont, Event, Flow, Kind, Val};
@@ -42,7 +43,6 @@ pub const MOAT_HASH: u64 = 2802436684568022035;
 pub const MOAT_STEP: &str = "Step04";
 pub const PICKED: &str = "HavePlayedEvent.HyruleField_DoorOfTime_GetOcarinaOfTime";
 pub const ESCAPE_STEP: &str = "Step03";
-pub const OPEN_STEP: &str = "Step03";
 pub const SONG_CHECK: &str = "Event60";
 pub const PREFIX: &str = "OOTRRDoorGate";
 
@@ -52,7 +52,7 @@ pub const NOTE: &str = "Door of Time, Closed - Classic: the song opens the door 
 pub const ESCAPE_NOTE: &str = "Zelda's escape waits for the three Spiritual Stones in place of Dodongo's Cavern and Jabu-Jabu's Belly: clearing those two dungeons no longer moves the Door of Time quest, and the escape area in Hyrule Field appears while DoorOfTime_IsAfter_Step2_1_Exp holds (Impa's send off played, the escape not played yet, the Stones held).";
 pub const SONG_ONLY_NOTE: &str = "Door of Time, Closed - Song Only: the Song of Time opens the door with no other requirement.";
 pub const MOAT_NOTE: &str = "Zelda's Escape, Not Required: the Ocarina of Time lies in the castle moat from the start (its logic module no longer waits for the Door of Time quest's Step04, and its map entry is present until HyruleField_DoorOfTime_GetOcarinaOfTime has played), so HF Ocarina of Time Item and Song from Ocarina of Time need neither the two dungeons nor Zelda's escape. Zelda's escape never plays: its area in Hyrule Field is absent (its presence reads Get_StoneOfFire_IsAfter_Ready_Exp, always true, negated) and clearing Dodongo's Cavern and Jabu-Jabu's Belly no longer moves the Door of Time quest.";
-pub const SONGLESS_NOTE: &str = "Door of Time: the door also opens by itself once Zelda's escape has played (the door's logic module reads the quest past Step03 in place of Step06). Experimental and untested in the game.";
+pub const SONGLESS_NOTE: &str = "Door of Time, Song of Time not required: the door opens by itself as soon as the requirement is met (the door's logic module reads the requirement next to its quest step: Get_StoneOfFire_IsCompleted_Exp and Get_StoneOfWater_IsCompleted_Exp for Closed - Vanilla, DoorOfTime_IsAfter_Srep2_1_1_Exp, rewritten to the three Stones, for Closed - Classic).";
 
 const AREA_EL: &str = "ActorLogicAreaActor";
 const OCARINA_EL: &str = "ActorLogicOcarinaTime";
@@ -68,6 +68,8 @@ const WAIT_ACTOR: &str = "EventSystemActor";
 const WAIT: &str = "EventWait";
 const HOLDER: &str = "GameDataActor";
 const IS_EXP: &str = "EventQueryIsGameDataBoolExp";
+const READ_EXP: &str = "HoldGameDataGetBoolExpSimple";
+const EXP_IN: &str = "GameDataNameBoolExp";
 const STR: usize = 3;
 const BOOL: usize = 1;
 const OUT_BOOL: usize = 4;
@@ -126,7 +128,7 @@ impl Opts {
         if self.only {
             out.push((crate::open_world::DOOR, "sot"));
         } else if !self.song {
-            out.push((crate::open_world::DOOR, "stones"));
+            out.push((crate::open_world::DOOR, "req"));
         }
         out
     }
@@ -170,7 +172,7 @@ pub fn settings() -> Vec<Setting> {
             .opt(MOAT_CHOICE, "Not Required", "Zelda's escape never plays. The Ocarina of Time waits in the castle moat from the start, with the Song of Time after it.")
             .dep(SETTING, crate::settings::model::Cond::In(vec![Value::s(OPEN), Value::s(SONG_ONLY)])),
         Setting::toggle(134, SONG, "world", "Additionally requires Song of Time", true)
-            .tip("On, the Song of Time must be played at the altar once the requirement is met. Off, the door also opens by itself once Zelda's escape has played. Off is experimental and untested in the game.")
+            .tip("On, the Song of Time must be played at the altar once the requirement is met. Off, the door opens by itself as soon as the requirement is met.")
             .when_not(SETTING, OPEN)
             .when_not(SETTING, SONG_ONLY),
     ]
@@ -200,10 +202,12 @@ pub fn read(s: &Settings, open: bool, bad: &mut Vec<String>) -> Opts {
     Opts { need, song, only, open, moat }
 }
 
-pub fn legacy(v: &mut crate::settings::state::Vals) {
+pub fn legacy(v: &mut crate::settings::state::Vals, chosen: bool) {
     if v.get(crate::open_world::DOOR) == Some(&Value::Bool(true)) {
         v.insert(crate::open_world::DOOR.to_string(), Value::Bool(false));
-        v.insert(SETTING.to_string(), Value::s(OPEN));
+        if !chosen {
+            v.insert(SETTING.to_string(), Value::s(OPEN));
+        }
     }
 }
 
@@ -259,11 +263,55 @@ pub fn patch_module(a: &mut Ainb) -> Res<()> {
     Ok(())
 }
 
-pub fn patch_door(a: &mut Ainb) -> Res<()> {
-    let i: usize = step_check(a, crate::door_open::STEP)?;
-    let g: usize = a.find_in(i, STR, STEP_IN).ok_or(Error::Format("door gate: the door's step check has no step input"))?;
-    let o: u32 = a.pool.add(OPEN_STEP);
-    a.set_in_val(STR, g, &o.to_le_bytes())
+fn exp_node(a: &mut Ainb, exp: &str, seed: &str) -> Res<usize> {
+    let name: Vec<u8> = a.pool.add(exp).to_le_bytes().to_vec();
+    let mut s: Spec = Spec::node(READ_EXP, seed).constant(STR, EXP_IN, name).out(BOOL, "Bool");
+    s.role = QUERY;
+    a.add_node(&s)
+}
+
+fn door_gate(a: &Ainb) -> Res<(usize, usize, usize)> {
+    let door: usize = crate::door_open::door_element(a).ok_or(Error::Format("door gate: the module has no Temple of Time door"))?;
+    let g: usize = a.find_in(door, BOOL, "isOpen").ok_or(Error::Format("door gate: the door has no isOpen input"))?;
+    let x = a.input(BOOL, g).ok_or(Error::Format("door gate: input out of range"))?;
+    if x.src < 0 {
+        return Err(Error::Format("door gate: the door's isOpen is not linked to a gate"));
+    }
+    let gate: usize = x.src as usize;
+    let g2: usize = a.find_in(gate, BOOL, "BoolMulti").ok_or(Error::Format("door gate: the door's gate has no multi input"))?;
+    let m = a.input(BOOL, g2).ok_or(Error::Format("door gate: input out of range"))?;
+    if m.src > -100 || m.plug < 1 {
+        return Err(Error::Format("door gate: the door's gate input is not a multi link"));
+    }
+    Ok((gate, (-100 - i32::from(m.src)) as usize, m.plug as usize))
+}
+
+pub fn patch_requirement(a: &mut Ainb, need: Need) -> Res<()> {
+    let (gate, start, n): (usize, usize, usize) = door_gate(a)?;
+    let is_step = |a: &Ainb, e: usize| e < a.els.len() && a.el_name(e) == crate::door_open::STEP_CHECK && a.in_str(e, CHALLENGE_IN) == Some(crate::door_open::CHALLENGE);
+    let j: usize = one((start..start + n).filter(|&j| crate::door_open::multi_entry(a, j).is_some_and(|(e, _)| is_step(a, e as usize))).collect(), "quest step read in the door's gate")?;
+    let (step, out): (u16, u16) = crate::door_open::multi_entry(a, j).ok_or(Error::Format("door gate: the multi link table is too short"))?;
+    if out == IS_EQUAL {
+        return Err(Error::Format("door gate: the door's gate still reads the exact step, patch the opened flag first"));
+    }
+    let req: (usize, u16) = match need {
+        Need::Vanilla => {
+            let fire: usize = exp_node(a, FIRE_EXP, "ootrr door gate fire read")?;
+            let water: usize = exp_node(a, WATER_EXP, "ootrr door gate water read")?;
+            (crate::gerudo_card::multi_node(a, crate::gerudo_card::AND, "ootrr door gate dungeons", &[(fire, 0), (water, 0)])?, crate::gerudo_card::TRUE_OUT as u16)
+        }
+        Need::Stones => (exp_node(a, REQ_EXP, "ootrr door gate stones read")?, 0),
+    };
+    let or: usize = crate::gerudo_card::multi_node(a, crate::gerudo_card::OR, "ootrr door gate requirement", &[(step as usize, out), req])?;
+    let e: u16 = u16::try_from(or).map_err(|_| Error::Format("door gate: element index out of range"))?;
+    a.multi[8 * j..8 * j + 2].copy_from_slice(&e.to_le_bytes());
+    a.multi[8 * j + 2..8 * j + 4].copy_from_slice(&(crate::gerudo_card::TRUE_OUT as u16).to_le_bytes());
+    let mut want: Vec<u16> = crate::gerudo_card::queries(a, gate);
+    if want.len() != n {
+        return Err(Error::Format("door gate: the door's gate does not list one query per input"));
+    }
+    want[j - start] = crate::gerudo_card::qpos(a, or)?;
+    crate::gerudo_card::give_queries(a, gate, &want)
 }
 
 pub struct Presence {
@@ -425,25 +473,13 @@ pub fn patch_song(b: &mut Bf, need: &[&str]) -> Res<()> {
 }
 
 pub fn patch_opened(a: &mut Ainb) -> Res<()> {
-    let door: usize = crate::door_open::door_element(a).ok_or(Error::Format("door gate: the module has no Temple of Time door"))?;
-    let g: usize = a.find_in(door, BOOL, "isOpen").ok_or(Error::Format("door gate: the door has no isOpen input"))?;
-    let x = a.input(BOOL, g).ok_or(Error::Format("door gate: input out of range"))?;
-    if x.src < 0 {
-        return Err(Error::Format("door gate: the door's isOpen is not linked to a gate"));
-    }
-    let gate: usize = x.src as usize;
-    let g2: usize = a.find_in(gate, BOOL, "BoolMulti").ok_or(Error::Format("door gate: the door's gate has no multi input"))?;
-    let m = a.input(BOOL, g2).ok_or(Error::Format("door gate: input out of range"))?;
-    if m.src > -100 || m.plug < 1 {
-        return Err(Error::Format("door gate: the door's gate input is not a multi link"));
-    }
-    let start: usize = (-100 - i32::from(m.src)) as usize;
+    let (_, start, n): (usize, usize, usize) = door_gate(a)?;
     let is_step = |a: &Ainb, e: usize| e < a.els.len() && a.el_name(e) == crate::door_open::STEP_CHECK && a.in_str(e, CHALLENGE_IN) == Some(crate::door_open::CHALLENGE);
-    let equal: Vec<usize> = (start..start + m.plug as usize)
+    let equal: Vec<usize> = (start..start + n)
         .filter(|&j| crate::door_open::multi_entry(a, j).is_some_and(|(e, o)| o == IS_EQUAL && is_step(a, e as usize)))
         .collect();
     let j: usize = one(equal, "exact step read in the door's gate")?;
-    let proxied: bool = (start..start + m.plug as usize).any(|j| crate::door_open::multi_entry(a, j).is_some_and(|(e, _)| (e as usize) < a.els.len() && a.el_name(e as usize) == PROXY));
+    let proxied: bool = (start..start + n).any(|j| crate::door_open::multi_entry(a, j).is_some_and(|(e, _)| (e as usize) < a.els.len() && a.el_name(e as usize) == PROXY));
     if !proxied {
         return Err(Error::Format("door gate: the door's gate does not read the event proxy"));
     }
@@ -474,12 +510,13 @@ pub fn stage_river(rf: &mut Romfs) -> Res<Out> {
 pub fn stage_door(rf: &mut Romfs, o: &Opts) -> Res<Vec<Out>> {
     let early: bool = !o.open;
     let late: bool = !o.song;
+    let need: Need = o.need;
     let door: Out = crate::medal_gate::module(rf, crate::door_open::MODULE, |a| {
         if early {
             patch_opened(a)?;
         }
         if late {
-            patch_door(a)?;
+            patch_requirement(a, need)?;
         }
         Ok(())
     })?;
@@ -642,22 +679,41 @@ mod tests {
         s.set(SETTING, Value::s(STONES)).unwrap();
         s.set(SONG, Value::Bool(false)).unwrap();
         assert!(!read(&s, false, &mut bad).song);
-        assert!(read(&s, false, &mut bad).logic().contains(&(crate::open_world::DOOR, "stones")));
+        assert!(read(&s, false, &mut bad).logic().contains(&(crate::open_world::DOOR, "req")));
         assert!(read(&s, true, &mut bad).song);
         assert!(bad.is_empty(), "{bad:?}");
     }
 
     #[test]
     fn an_old_open_door_becomes_the_open_choice() {
-        let mut s: Settings = Settings::default();
-        s.set(crate::open_world::DOOR, Value::Bool(true)).unwrap();
-        s.normalize();
+        let j = crate::json::parse(r#"{"open_door_of_time": true}"#).unwrap();
+        let s: Settings = Settings::from_json(&j).unwrap().settings;
         assert_eq!(s.text(SETTING).unwrap(), OPEN);
         assert!(!s.flag(crate::open_world::DOOR).unwrap());
         let mut bad: Vec<String> = Vec::new();
         assert!(crate::open_world::Gates::read(&s, &mut bad).door);
         assert_eq!(read(&s, true, &mut bad), Opts { open: true, moat: true, ..Opts::default() });
         assert!(bad.is_empty(), "{bad:?}");
+    }
+
+    #[test]
+    fn a_stale_open_door_toggle_does_not_override_the_chosen_door() {
+        for c in [STONES, VANILLA, SONG_ONLY] {
+            let j = crate::json::parse(&format!(r#"{{"open_door_of_time": true, "door_of_time_condition": "{c}"}}"#)).unwrap();
+            let s: Settings = Settings::from_json(&j).unwrap().settings;
+            assert_eq!(s.text(SETTING).unwrap(), c);
+            assert!(!s.flag(crate::open_world::DOOR).unwrap());
+            let mut bad: Vec<String> = Vec::new();
+            assert!(!crate::open_world::Gates::read(&s, &mut bad).door);
+            let back: Settings = Settings::decode(&s.encode().unwrap()).unwrap().settings;
+            assert_eq!(back.text(SETTING).unwrap(), c);
+        }
+        let mut s: Settings = Settings::default();
+        s.set(SETTING, Value::s(STONES)).unwrap();
+        s.set(crate::open_world::DOOR, Value::Bool(true)).unwrap();
+        s.normalize();
+        assert_eq!(s.text(SETTING).unwrap(), STONES);
+        assert!(!s.flag(crate::open_world::DOOR).unwrap());
     }
 
     fn real() -> Option<Romfs> {
@@ -803,13 +859,28 @@ mod tests {
     }
 
     #[test]
-    fn the_songless_door_opens_from_step04() {
+    fn the_songless_door_opens_on_the_requirement() {
         let Some(mut rf) = real() else { return };
-        let mut a: Ainb = Ainb::parse(&rf.read(crate::door_open::MODULE).unwrap()).unwrap();
-        patch_door(&mut a).unwrap();
-        let back: Ainb = Ainb::parse(&a.write().unwrap()).unwrap();
-        assert!(step_check(&back, OPEN_STEP).is_ok());
-        assert!(step_check(&back, crate::door_open::STEP).is_err());
+        let raw: Vec<u8> = rf.read(crate::door_open::MODULE).unwrap();
+        for (need, reads) in [(Need::Vanilla, vec![FIRE_EXP, WATER_EXP]), (Need::Stones, vec![REQ_EXP])] {
+            let mut a: Ainb = Ainb::parse(&raw).unwrap();
+            assert!(patch_requirement(&mut a, need).is_err());
+            patch_opened(&mut a).unwrap();
+            patch_requirement(&mut a, need).unwrap();
+            assert!(patch_requirement(&mut a, need).is_err());
+            let back: Ainb = Ainb::parse(&a.write().unwrap()).unwrap();
+            assert!(crate::ainb::audit(&back).is_empty());
+            let got: Vec<&str> = back.find_els(READ_EXP).into_iter().filter_map(|i| back.in_str(i, EXP_IN)).collect();
+            assert_eq!(got, reads);
+            let (gate, start, n) = door_gate(&back).unwrap();
+            let names: Vec<&str> = (start..start + n).map(|j| back.el_name(crate::door_open::multi_entry(&back, j).unwrap().0 as usize)).collect();
+            assert_eq!(names, vec![PROXY, crate::gerudo_card::OR, FLAG_GET]);
+            let or: usize = crate::door_open::multi_entry(&back, start + 1).unwrap().0 as usize;
+            let q: u16 = back.query_pos(or).unwrap().try_into().unwrap();
+            let step: u16 = back.query_pos(step_check(&back, crate::door_open::STEP).unwrap()).unwrap().try_into().unwrap();
+            assert_eq!(crate::gerudo_card::queries(&back, gate), vec![back.query_pos(4).unwrap() as u16, q, step]);
+            assert!(step_check(&back, crate::door_open::STEP).is_ok());
+        }
         assert_eq!(stage_door(&mut rf, &Opts { song: false, ..Opts::default() }).unwrap().len(), 2);
         assert_eq!(stage_door(&mut rf, &Opts { need: Need::Stones, song: false, only: false, open: false, moat: false }).unwrap().len(), 2);
     }

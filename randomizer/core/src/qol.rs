@@ -1,4 +1,5 @@
 pub mod anju;
+pub mod blocks;
 pub mod chest_anim;
 pub mod bunny;
 pub mod navi_return;
@@ -37,13 +38,14 @@ pub struct Opts {
     pub navi: navi_return::Mode,
     pub bunny: bunny::Mode,
     pub big_chests: bool,
+    pub blocks: bool,
 }
 
 pub type Have<'a> = &'a dyn Fn(&str) -> Option<Vec<u8>>;
 
 impl Opts {
     pub fn any(&self) -> bool {
-        self.skip != Skip::Off || self.anju || self.poe || self.navi != navi_return::Mode::Off || self.bunny != bunny::Mode::Off || self.big_chests
+        self.skip != Skip::Off || self.anju || self.poe || self.navi != navi_return::Mode::Off || self.bunny != bunny::Mode::Off || self.big_chests || self.blocks
     }
 
     pub fn logic(&self) -> Vec<(&'static str, &'static str)> {
@@ -83,6 +85,9 @@ impl Opts {
         if self.big_chests {
             out.push(chest_anim::NOTE.to_string());
         }
+        if self.blocks {
+            out.push(blocks::NOTE.to_string());
+        }
         out
     }
 }
@@ -110,6 +115,7 @@ pub fn read(s: &Settings, bad: &mut Vec<String>) -> Opts {
     let anju: bool = flag(ANJU);
     let poe: bool = flag(POE);
     let big_chests: bool = flag(chest_anim::SETTING);
+    let blocks: bool = flag(blocks::SETTING);
     let navi: navi_return::Mode = match s.text(NAVI) {
         Ok("off") => navi_return::Mode::Off,
         Ok("dungeons") => navi_return::Mode::Dungeons,
@@ -136,7 +142,7 @@ pub fn read(s: &Settings, bad: &mut Vec<String>) -> Opts {
             bunny::Mode::Off
         }
     };
-    Opts { skip, anju, poe, navi, bunny, big_chests }
+    Opts { skip, anju, poe, navi, bunny, big_chests, blocks }
 }
 
 pub fn files() -> Vec<String> {
@@ -150,6 +156,7 @@ pub fn files() -> Vec<String> {
     out.push(bunny::FILE.to_string());
     out.push(bunny::ADULT_FILE.to_string());
     out.extend(chest_anim::files().iter().map(|s| s.to_string()));
+    out.extend(blocks::files());
     out
 }
 
@@ -187,6 +194,9 @@ pub fn stage(rf: &mut Romfs, o: &Opts, have: Have) -> Res<Vec<Out>> {
     outs.extend(bunny::stage(rf, o.bunny, have)?);
     if o.big_chests {
         outs.extend(chest_anim::stage(rf, have)?);
+    }
+    if o.blocks {
+        outs.extend(blocks::stage(rf, have)?);
     }
     Ok(outs)
 }
@@ -242,7 +252,7 @@ mod tests {
         let mut bad: Vec<String> = Vec::new();
         let o: Opts = read(&s, &mut bad);
         assert!(bad.is_empty());
-        assert_eq!(o, Opts { skip: Skip::Story, anju: true, poe: true, navi: navi_return::Mode::Off, bunny: bunny::Mode::Off, big_chests: false });
+        assert_eq!(o, Opts { skip: Skip::Story, anju: true, poe: true, navi: navi_return::Mode::Off, bunny: bunny::Mode::Off, big_chests: false, blocks: false });
         s.set(BUNNY, Value::s("jump")).unwrap();
         assert_eq!(read(&s, &mut bad).bunny, bunny::Mode::Jump);
         assert_eq!(read(&s, &mut bad).notes().len(), 4);
@@ -464,6 +474,7 @@ mod tests {
             (BUNNY, Value::s("jump")),
             ("shuffle_rewards", Value::s("supported")),
             ("faster_chests", Value::Bool(true)),
+            (blocks::SETTING, Value::Bool(true)),
             ("skip_intro", Value::Bool(true)),
         ]);
         let out: std::path::PathBuf = built(&root, &s, "qol all", "OOTRR Qol All Test");
@@ -484,7 +495,7 @@ mod tests {
     #[test]
     fn the_file_list_is_complete_and_unique() {
         let v: Vec<String> = files();
-        assert_eq!(v.len(), 13);
+        assert_eq!(v.len(), 26);
         let mut w: Vec<String> = v.clone();
         w.sort();
         w.dedup();

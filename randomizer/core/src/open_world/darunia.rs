@@ -50,6 +50,11 @@ pub fn guard_bytes(raw: &[u8]) -> Res<Vec<u8>> {
     flow_edit(raw, |b| guard::guard_steps(b, DANCE_FLOW, FIRE, &[STEP], AFTER_SARIA_EXP, Run::WhenFalse, PREFIX).map(|_| ()))
 }
 
+pub fn stage_late(rf: &mut Romfs, late: &mut Vec<Out>, work: &std::path::Path) -> Res<()> {
+    crate::story_skip::stage_late_file(rf, late, work, FIRE_FILE, requery_bytes)?;
+    crate::story_skip::stage_late_file(rf, late, work, DANCE_FILE, guard_bytes)
+}
+
 pub fn stage(rf: &mut Romfs, have: Have) -> Res<Vec<Out>> {
     Ok(vec![edit_zs(rf, have, FIRE_FILE, requery_bytes)?, edit_zs(rf, have, DANCE_FILE, guard_bytes)?])
 }

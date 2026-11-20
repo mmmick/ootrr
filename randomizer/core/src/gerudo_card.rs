@@ -86,7 +86,7 @@ fn set_range(a: &mut Ainb, i: usize, base: usize, n: usize) -> Res<()> {
     Ok(())
 }
 
-fn qpos(a: &Ainb, i: usize) -> Res<u16> {
+pub fn qpos(a: &Ainb, i: usize) -> Res<u16> {
     let p: usize = a.query_pos(i).ok_or(Error::Format("gerudo card: a source is not a query node"))?;
     u16::try_from(p).map_err(|_| Error::Format("gerudo card: too many query nodes"))
 }
@@ -96,7 +96,7 @@ pub fn queries(a: &Ainb, i: usize) -> Vec<u16> {
     (s..s + n).map(|j| u16::from_le_bytes([a.qids[4 * j], a.qids[4 * j + 1]])).collect()
 }
 
-fn give_queries(a: &mut Ainb, i: usize, want: &[u16]) -> Res<()> {
+pub fn give_queries(a: &mut Ainb, i: usize, want: &[u16]) -> Res<()> {
     let base: usize = a.qids.len() / 4;
     for q in want {
         a.qids.extend_from_slice(&q.to_le_bytes());

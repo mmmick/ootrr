@@ -175,6 +175,7 @@ impl Schema {
         let mut w: Vec<String> = Vec::new();
         let mut r: Rd = Rd::new(body);
         let mut last: Option<u64> = None;
+        let mut chosen: bool = false;
         while !r.done() {
             let num: u64 = r.varint()?;
             let len: u64 = r.varint()?;
@@ -192,12 +193,14 @@ impl Schema {
                     None => w.push(format!("unknown setting number {num} ignored")),
                 },
                 Some(s) => {
+                    chosen |= s.id == crate::door_gate::SETTING;
                     if let Some(x) = self.dec(s, p, &mut w)? {
                         v.insert(s.id.clone(), x);
                     }
                 }
             }
         }
+        crate::door_gate::legacy(&mut v, chosen);
         self.normalize(&mut v);
         self.validate(&v)?;
         Ok((v, w))

@@ -142,6 +142,35 @@ mod tests {
     use crate::json;
 
     #[test]
+    fn a_stale_legacy_value_never_changes_what_the_page_sends() {
+        let sch: &Schema = schema();
+        let legacy: Vec<&Setting> = sch.settings.iter().filter(|s| s.legacy).collect();
+        assert!(legacy.iter().any(|s| s.id == crate::open_world::DOOR));
+        let stale = |s: &Setting| -> Json {
+            match (&s.kind, &s.default) {
+                (Kind::Toggle, Value::Bool(b)) => Json::Bool(!b),
+                _ => s.choices.iter().find(|c| Value::s(&c.id) != s.default).map(|c| Json::from(c.id.as_str())).expect("a legacy setting needs a non-default value"),
+            }
+        };
+        let mut checked: usize = 0;
+        for s in sch.settings.iter().filter(|s| !s.legacy && s.kind == Kind::Choice) {
+            for c in &s.choices {
+                let mut v: Vals = sch.defaults();
+                v.insert(s.id.clone(), Value::s(&c.id));
+                let page: Json = sch.to_json(&v);
+                let want: Vals = sch.from_json(&page).unwrap().0;
+                for l in &legacy {
+                    let mut j: Json = page.clone();
+                    j.put(&l.id, stale(l));
+                    assert_eq!(sch.from_json(&j).unwrap().0, want, "{} = {} with a stale {}", s.id, c.id, l.id);
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 0);
+    }
+
+    #[test]
     fn the_shipped_schema_is_consistent() {
         let p: Vec<String> = schema().problems();
         assert!(p.is_empty(), "{p:#?}");

@@ -264,12 +264,21 @@ fn logic_out(rf: &Romfs, have: Have, file: &str) -> Res<Out> {
     edit_plain(rf, have, file, |raw| ainb_edit::edit(raw, &[job]))
 }
 
+pub fn zora_guard(rf: &mut Romfs, have: Have) -> Res<Vec<Out>> {
+    Ok(vec![
+        edit_zs(rf, have, WATER_FILE, |raw| flow_edit(raw, |b| guard::guard_steps(b, WATER_FLOW, WATER, &BACK_STEPS, MOVED_EXP, Run::WhenFalse, ZORA_PREFIX).map(|_| ())))?,
+        edit_zs(rf, have, ARRIVE_FILE, |raw| flow_edit(raw, |b| guard::guard_steps(b, ARRIVE_FLOW, WATER, &BACK_STEPS, MOVED_EXP, Run::WhenFalse, ZORA_PREFIX).map(|_| ())))?,
+    ])
+}
+
+pub fn stage_last(rf: &mut Romfs, late: &mut Vec<Out>, work: &std::path::Path) -> Res<()> {
+    crate::story_skip::stage_late_file(rf, late, work, WATER_FILE, |raw| flow_edit(raw, |b| guard::guard_steps(b, WATER_FLOW, WATER, &BACK_STEPS, MOVED_EXP, Run::WhenFalse, ZORA_PREFIX).map(|_| ())))?;
+    crate::story_skip::stage_late_file(rf, late, work, ARRIVE_FILE, |raw| flow_edit(raw, |b| guard::guard_steps(b, ARRIVE_FLOW, WATER, &BACK_STEPS, MOVED_EXP, Run::WhenFalse, ZORA_PREFIX).map(|_| ())))?;
+    darunia::stage_late(rf, late, work)
+}
+
 pub fn stage(rf: &mut Romfs, o: &Opts, have: Have) -> Res<Vec<Out>> {
     let mut outs: Vec<Out> = Vec::new();
-    if o.zora {
-        outs.push(edit_zs(rf, have, WATER_FILE, |raw| flow_edit(raw, |b| guard::guard_steps(b, WATER_FLOW, WATER, &BACK_STEPS, MOVED_EXP, Run::WhenFalse, ZORA_PREFIX).map(|_| ())))?);
-        outs.push(edit_zs(rf, have, ARRIVE_FILE, |raw| flow_edit(raw, |b| guard::guard_steps(b, ARRIVE_FLOW, WATER, &BACK_STEPS, MOVED_EXP, Run::WhenFalse, ZORA_PREFIX).map(|_| ())))?);
-    }
     if o.jabu {
         outs.push(logic_out(rf, have, FOUNTAIN)?);
     }
@@ -297,7 +306,6 @@ pub fn worked(rf: &mut Romfs, pk: &crate::modpack::Pack, o: &Opts) -> Res<Vec<Ou
     let root: PB = pk.work.join("romfs");
     let have = |p: &str| -> Option<Vec<u8>> { fs::read(p.split('/').fold(root.clone(), |a, s| a.join(s))).ok() };
     let mut outs: Vec<Out> = if o.edits_files() { stage(rf, o, &have)? } else { Vec::new() };
-    outs.extend(darunia::stage(rf, &have)?);
     outs.extend(crate::gerudo_card::stage(rf, &have)?);
     outs.push(crate::malon_song::stage(rf, &have)?);
     Ok(outs)
@@ -467,7 +475,8 @@ mod tests {
         };
         let mut rf: Romfs = Romfs::open(&root).unwrap();
         let all: Opts = Opts { zora: true, jabu: true, time: true, beds: true, ..Opts::default() };
-        let outs: Vec<Out> = stage(&mut rf, &all, &|_: &str| None).unwrap();
+        let mut outs: Vec<Out> = zora_guard(&mut rf, &|_: &str| None).unwrap();
+        outs.extend(stage(&mut rf, &all, &|_: &str| None).unwrap());
         let paths: Vec<&str> = outs.iter().map(|o| o.path.as_str()).collect();
         assert_eq!(paths, vec![WATER_FILE, ARRIVE_FILE, FOUNTAIN, BED_FILE]);
         let mut flows: Vec<(String, Bf)> = Vec::new();
@@ -770,6 +779,16 @@ mod tests {
         let race: Bf = Bf::parse(&rf.zs.decompress(&fs::read(at(skips::EPONA_FILE)).unwrap()).unwrap()).unwrap();
         assert!(skips::epona_bytes(&race.write().unwrap()).is_err());
         assert!(at(skips::OWN_FILE).is_file(), "the Epona event flow is written");
+        assert_eq!(s.text(ZORA).unwrap(), "closed");
+        let water: Bf = Bf::parse(&rf.zs.decompress(&fs::read(at(WATER_FILE)).unwrap()).unwrap()).unwrap();
+        assert_eq!(guarded(flow_of(&water, WATER_FLOW), ZORA_PREFIX).len(), 9, "King Zora stays moved with the fountain closed too");
+        let arrive: Bf = Bf::parse(&rf.zs.decompress(&fs::read(at(ARRIVE_FILE)).unwrap()).unwrap()).unwrap();
+        assert_eq!(guarded(flow_of(&arrive, ARRIVE_FLOW), ZORA_PREFIX).len(), 2);
+        let fire: Bf = Bf::parse(&rf.zs.decompress(&fs::read(at(darunia::FIRE_FILE)).unwrap()).unwrap()).unwrap();
+        for (_, _, prefix) in darunia::LATE {
+            assert!(!guarded(flow_of(&fire, darunia::FIRE_FLOW), prefix).is_empty(), "the Darunia fix survives the story skips ({prefix})");
+        }
+        assert!(crate::story_skip::patch_darunia_song(&mut fire.clone()).is_err(), "the story skip's Darunia edit is there too");
         let beans: Bf = Bf::parse(&rf.zs.decompress(&fs::read(at(skips::BEAN_FILE)).unwrap()).unwrap()).unwrap();
         assert!(skips::bean_bytes(&beans.write().unwrap()).is_err());
         let bridge: crate::ainb::Ainb = crate::ainb::Ainb::parse(&fs::read(at(skips::BRIDGE_MODULE)).unwrap()).unwrap();

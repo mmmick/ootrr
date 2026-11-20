@@ -278,6 +278,7 @@ pub fn build() -> Schema {
     );
     s.push(
         Setting::toggle(5, "open_door_of_time", "world", "Open Door of Time", false)
+            .legacy()
             .tip("Start with the Door of Time already open, so the Ocarina and the Song of Time are not needed to reach the Master Sword. The Door of Time quest is left alone, so Zelda's escape and the Song of Time stay checks. The adult pedestal works before the Forest Sage in every seed, with or without this setting."),
     );
     s.push(
@@ -419,6 +420,10 @@ pub fn build() -> Schema {
     s.push(
         Setting::toggle(30, crate::ganon_trials::SKIP, "goal", "Skip Ganon's Trials", false)
             .tip("The barrier in Ganon's Castle starts dispelled, so the tower is open without clearing any of the six trials. The trial rooms stay open and their chests and pots can still be checked. Experimental, untested in the game."),
+    );
+    s.push(
+        Setting::toggle(crate::first_pickups::NUM, crate::first_pickups::SETTING, "world", "Skip first pickup text", false)
+            .tip("No \"You got X!\" box the first time you pick up a rupee, a heart, a magic jar, arrows or Deku seeds. Chests and real items still show theirs."),
     );
     s.push(
         Setting::number(31, "trials", "goal", "Ganon's Trials", 6, 0, 6)
@@ -605,6 +610,10 @@ pub fn build() -> Schema {
     s.push(
         Setting::toggle(42, "faster_chests", "world", "Faster item pickups", false)
             .tip("Shortens the waiting time in chest openings and item pickup scenes, and big chests open with the short small chest animation instead of the long big chest cutscene, like the OoTR option Fast Chest Cutscenes. The text, the item and the dungeon map, compass and boss key credit are the same."),
+    );
+    s.push(
+        Setting::toggle(141, crate::qol::blocks::SETTING, "world", "Faster sliding blocks", false)
+            .tip("Pushable and pullable blocks slide twice as fast."),
     );
     s.push(
         Setting::toggle(45, crate::chest_size::SETTING, "world", "Chest size matches contents", false)

@@ -112,6 +112,10 @@ impl Drop for Prepared {
 const MARK: &str = ".ootrr-unpack";
 static SEQ: AtomicU64 = AtomicU64::new(0);
 
+fn pid() -> u32 {
+    if cfg!(target_os = "wasi") { 0 } else { std::process::id() }
+}
+
 fn unpack_root(data: &P) -> PB {
     data.join("ootrr").join("unpack")
 }
@@ -124,7 +128,7 @@ fn remove_ours(t: &P) -> io::Result<()> {
 
 /// Removes temporary unpacks that an earlier run of the app left behind.
 fn sweep(root: &P) {
-    let mine: String = format!("{}-", std::process::id());
+    let mine: String = format!("{}-", pid());
     for e in fs::read_dir(root).into_iter().flatten().flatten() {
         let n: String = e.file_name().to_string_lossy().into_owned();
         if !n.starts_with(&mine) {
@@ -176,7 +180,7 @@ pub fn prepare(src: &Source, sound: bool) -> Result<Prepared, String> {
     let root: PB = unpack_root(&data()?);
     fs::create_dir_all(&root).map_err(|e| format!("Game folder: {e}"))?;
     sweep(&root);
-    let dir: PB = root.join(format!("{}-{}", std::process::id(), SEQ.fetch_add(1, Ordering::Relaxed)));
+    let dir: PB = root.join(format!("{}-{}", pid(), SEQ.fetch_add(1, Ordering::Relaxed)));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).and_then(|_| fs::write(dir.join(MARK), b"A temporary unpack of game files for one build. Safe to delete.")).map_err(|e| format!("Game folder: {e}"))?;
     let out: Prepared = Prepared { romfs: dir.join("romfs"), temp: Some(dir) };
@@ -261,4 +265,21 @@ pub fn add_update(src: &Source, root: &P) -> Result<usize, String> {
         }
     }
     Ok(n)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_package_build_unpacks_the_title_logo_and_gerudo_schedule_files() {
+        let u: Unpack = unpack_set(false).unwrap();
+        let logo = ootrr_core::title_logo::patch().unwrap();
+        let mut files: Vec<String> = ootrr_core::title_logo::touched(&logo);
+        assert!(!files.is_empty());
+        files.extend(ootrr_core::gerudo_card::MEMBERS.iter().map(|n| ootrr_core::gerudo_card::schedule_path(n)));
+        for f in files {
+            assert!(u.wants(&f), "{f}");
+        }
+    }
 }

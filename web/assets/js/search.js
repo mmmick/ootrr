@@ -14,6 +14,7 @@ const ALIASES = {
   skip_intro: "cutscene",
   skip_story_scenes: "cutscene",
   faster_chests: "fast chest animation",
+  faster_blocks: "push pull slide block puzzle",
 };
 
 function hay(label, tip, choices, extra) {

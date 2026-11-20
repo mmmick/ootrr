@@ -1,5 +1,8 @@
 import { Host } from "./host.js";
+import { remote_caller, remote_root } from "./remote.js";
 import { zip } from "./zip.js";
+
+const remote = remote_caller((m) => self.postMessage(m));
 
 const reader = typeof FileReaderSync === "function" ? new FileReaderSync() : null;
 let made = null;
@@ -26,6 +29,11 @@ async function run(d) {
     await h.mount_handle(d.at, d.handle);
     return {};
   }
+  if (d.op === "mount_entry") {
+    if (!h.async) throw new Error("this browser cannot read a dropped folder in place");
+    await h.mount_handle(d.at, remote_root(remote.call, d.root, d.name));
+    return {};
+  }
   if (d.op === "mount_files") {
     if (!reader) throw new Error("this browser cannot read files in a worker");
     await h.mount_files(d.at, d.entries);
@@ -42,6 +50,7 @@ async function run(d) {
 
 self.onmessage = (e) => {
   const d = e.data;
+  if (d.fs_reply) return remote.answer(d);
   run(d).then(
     (r) => self.postMessage({ id: d.id, ok: true, ...r }, r.body ? [r.body.buffer] : []),
     (err) => self.postMessage({ id: d.id, ok: false, message: String((err && err.message) || err) }),

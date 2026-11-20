@@ -2,7 +2,7 @@
 
 [![Join the OOTRR Discord](https://img.shields.io/badge/Discord-Join%20the%20OOTRR%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/jJ5V3NA2GM)
 
-A local rando for the Ocarina of Time remaake, in early dev. repo: https://github.com/realazk/ootrr
+A local rando for the Ocarina of Time remaake, in early dev. repo: https://github.com/ootrando/ootrr
 
 ## Community
 
@@ -33,6 +33,7 @@ Everything is optional and off unless noted. All of these are experimental and s
 - Boss heart containers as chests, and songs shuffled among the song teachers or anywhere.
 - Gossip stones that tell you where an important item lies, without the Mask of Truth.
 - Start with one random Spiritual Stone or Medallion.
+- Skip first pickup text (off by default), next to the cutscene options: no "You got X!" box the first time Link picks up a rupee, a recovery heart, a magic jar, arrows or Deku seeds. Chests, quest items and equipment keep theirs. It marks those pickups' get events as already played at new game.
 - Faster chest and item pickup scenes. Big chests also open with the short small chest scene: the big chest flow hands over to a copy of the small chest flow that lifts the big lid, then gives the dungeon map, compass and boss key credit the big chest flow would. `ootrr qol-mod <romfs> <load> <name> big-chest-anim` writes a test mod with only that change.
 - Chest size matches contents (experimental, untested in the game): plain wooden chests holding major items become big chests, the rest become small ones. Major means progression items, songs, stones and medallions, boss keys, small keys / key rings / silver rupees found outside their own dungeon, and shields or capacity upgrades you do not start with. Boss heart chests and summoned chests (Jabu Boomerang, Iron Boots, Ice Arrows, Silver Gauntlets, the Dampé race chests) follow the same rule; the two Dampé rupee chests only change size together. Chests that run another story scene, invisible chests and the treasure chest game keep their model.
 - Skip the opening cutscenes (on by default): a new game goes straight to the first moment you control Link, and the first-visit scenes of eighteen areas that only show the place are marked as played. The arrival scenes that advance a quest step (the Deku Tree, Zora's Domain, the Lost Woods, the Desert Colossus) and the Water Temple's are left alone.
@@ -61,15 +62,15 @@ Everything is optional and off unless noted. All of these are experimental and s
 
 ## Install
 
-Download the file for your system from the [releases page](https://github.com/realazk/ootrr/releases) and check it against `SHA256SUMS.txt`.
+Download the file for your system from the [releases page](https://github.com/ootrando/ootrr/releases) and check it against `SHA256SUMS.txt`.
 
 | System | File | What to do |
 |---|---|---|
-| Windows | `OOTRR-<version>-windows-x64-setup.exe` | Run it and follow the wizard. A portable `.zip` is there too. |
+| Windows | `OOTRR-<version>-windows-x64-setup.exe` | Run it and follow the wizard. Or take `OOTRR-<version>-windows-x64-portable.zip`: unpack it anywhere and double-click `ootrr.exe`. It installs nothing and keeps its data in its own folder. |
 | macOS | `OOTRR-<version>-macos-universal.pkg` | Open it and follow the installer. It runs on Apple silicon and Intel. |
 | Linux | `OOTRR-<version>-linux-amd64.deb` | Install it with your package manager. Or unpack `OOTRR-<version>-linux-x86_64.tar.gz` and run `./install.sh`. |
 
-The installers are not signed. Windows SmartScreen and macOS Gatekeeper warn you the first time, and you can allow it. Start OOTRR from the menu or run `ootrr serve`, then open the link it prints. OOTRR contains no game files. You provide your own extracted copy.
+The files are not code-signed yet. Windows SmartScreen and macOS Gatekeeper warn you the first time, and you can allow it. Each file is built by GitHub Actions from the tagged source and has a build attestation: `gh attestation verify <file> --repo ootrando/ootrr` shows which workflow and commit made it. Start OOTRR from the menu or run `ootrr serve`, then open the link it prints. OOTRR contains no game files. You provide your own extracted copy.
 
 ## Commands
 

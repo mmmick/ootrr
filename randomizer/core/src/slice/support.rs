@@ -100,6 +100,7 @@ pub struct Plan {
     /// The Kokiri Sword chest joins the pool (crate::slice::pick::SWORD).
     pub kokiri_sword: bool,
     pub short: bool,
+    pub first_pickups: bool,
 }
 
 pub use crate::slice::unsupported::not_yet;
@@ -148,6 +149,9 @@ impl Plan {
             out.push((DOOR_OPENED.to_string(), true));
         }
         out.extend(di::start_flags(self));
+        if self.first_pickups {
+            out.extend(crate::first_pickups::start_flags());
+        }
         out
     }
 
@@ -294,6 +298,10 @@ pub fn plan(s: &Settings) -> Res<Plan> {
     let rainbow: Option<u8> = crate::rainbow_bridge::read(s, &mut bad);
     let door: crate::door_gate::Opts = crate::door_gate::read(s, gates.door, &mut bad);
     let short: bool = true;
+    let first_pickups: bool = s.flag(crate::first_pickups::SETTING).unwrap_or_else(|e| {
+        bad.push(e.to_string());
+        false
+    });
     if lacs.is_some() && (!rewards.on || matches!(chests, Mode::Off | Mode::Overworld)) {
         bad.push(crate::lacs_key::NEEDS.to_string());
     }
@@ -401,11 +409,14 @@ pub fn plan(s: &Settings) -> Res<Plan> {
     if short {
         notes.push(crate::short_get::NOTE.to_string());
     }
+    if first_pickups {
+        notes.push(crate::first_pickups::NOTE.to_string());
+    }
     if lacs.is_some() {
         notes.push(crate::lacs_key::NOTE.to_string());
         notes.push(crate::medal_gate::LACS_NOTE.to_string());
     }
-    Ok(Plan { chests, keys, rewards, hearts, world, songs, harp_colors, hints, fast, chest_sizes, intro, start, gates, excluded, notes, drops, skulls, remake, chus, qol, treasure, scarecrow, fishing, day_skulls, kit, open, npc, shops, bridge, silver, lacs, rainbow, trials, door, short, story, endings, ocarinas, kokiri_sword, difficulty })
+    Ok(Plan { chests, keys, rewards, hearts, world, songs, harp_colors, hints, fast, chest_sizes, intro, start, gates, excluded, notes, drops, skulls, remake, chus, qol, treasure, scarecrow, fishing, day_skulls, kit, open, npc, shops, bridge, silver, lacs, rainbow, trials, door, short, first_pickups, story, endings, ocarinas, kokiri_sword, difficulty })
 }
 
 #[cfg(test)]
@@ -434,6 +445,23 @@ mod tests {
         assert!(p.notes.iter().any(|n| n.contains("intro is skipped")));
         assert!(!p.notes.iter().any(|n| n.contains("Door of Time starts open")));
         assert!(!p.notes.iter().any(|n| n.contains("Kakariko gate starts open")));
+    }
+
+    #[test]
+    fn the_first_pickup_setting_is_off_by_default_and_writes_the_start_flags_when_on() {
+        let off: Plan = plan(&Settings::default()).unwrap();
+        assert!(!off.first_pickups);
+        assert!(!off.notes.iter().any(|n| n == crate::first_pickups::NOTE));
+        assert!(!off.start_flags().iter().any(|(n, _)| n.starts_with(crate::first_pickups::PREFIX)));
+        let mut s: Settings = Settings::default();
+        s.set(crate::first_pickups::SETTING, Value::Bool(true)).unwrap();
+        let on: Plan = plan(&s).unwrap();
+        assert!(on.first_pickups && on.notes.iter().any(|n| n == crate::first_pickups::NOTE));
+        let f: Vec<(String, bool)> = on.start_flags();
+        for x in crate::first_pickups::start_flags() {
+            assert!(f.contains(&x), "{x:?}");
+        }
+        assert_eq!(f.len(), off.start_flags().len() + crate::first_pickups::PICKUPS.len());
     }
 
     #[test]

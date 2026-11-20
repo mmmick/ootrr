@@ -150,6 +150,7 @@ pub struct Setting {
     pub deps: Vec<Dep>,
     pub disabled: Option<Value>,
     pub wire: Option<Value>,
+    pub legacy: bool,
 }
 
 impl Setting {
@@ -173,6 +174,7 @@ impl Setting {
             deps: Vec::new(),
             disabled: None,
             wire: None,
+            legacy: false,
         }
     }
 
@@ -253,6 +255,11 @@ impl Setting {
 
     pub fn when_off(self, on: &str) -> Setting {
         self.dep(on, Cond::Is(Value::Bool(false)))
+    }
+
+    pub fn legacy(mut self) -> Setting {
+        self.legacy = true;
+        self
     }
 
     pub fn disabled_as(mut self, v: Value) -> Setting {

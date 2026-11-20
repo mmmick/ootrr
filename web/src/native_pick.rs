@@ -13,73 +13,6 @@ pub enum Pick {
     Unavailable(String),
 }
 
-const WINDOWS_SCRIPT: &str = r#"
-$ErrorActionPreference = 'Stop'
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-using System.Windows.Forms;
-public static class OotrrPick {
-  [ComImport, Guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")] private class FileOpenDialog {}
-  [ComImport, Guid("42f85136-db7e-439c-85f1-e4075d135fc8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-  private interface IFileOpenDialog {
-    [PreserveSig] int Show(IntPtr parent);
-    void SetFileTypes(uint c, IntPtr f);
-    void SetFileTypeIndex(uint i);
-    void GetFileTypeIndex(out uint i);
-    void Advise(IntPtr e, out uint c);
-    void Unadvise(uint c);
-    void SetOptions(uint o);
-    void GetOptions(out uint o);
-    void SetDefaultFolder(IShellItem i);
-    void SetFolder(IShellItem i);
-    void GetFolder(out IShellItem i);
-    void GetCurrentSelection(out IShellItem i);
-    void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string n);
-    void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string n);
-    void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string t);
-    void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string t);
-    void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string t);
-    void GetResult(out IShellItem i);
-  }
-  [ComImport, Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-  private interface IShellItem {
-    void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
-    void GetParent(out IShellItem i);
-    void GetDisplayName(uint sigdn, [MarshalAs(UnmanagedType.LPWStr)] out string name);
-    void GetAttributes(uint mask, out uint attrs);
-    void Compare(IShellItem other, uint hint, out int order);
-  }
-  [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
-  private static extern void SHCreateItemFromParsingName(string path, IntPtr pbc, ref Guid riid, [MarshalAs(UnmanagedType.Interface)] out IShellItem item);
-  public static string Run(string start, string title, bool dry, bool file) {
-    var d = (IFileOpenDialog)new FileOpenDialog();
-    uint o; d.GetOptions(out o);
-    d.SetOptions(file ? (o | 0x40 | 0x800 | 0x1000) : (o | 0x20 | 0x40 | 0x800));
-    if (!string.IsNullOrEmpty(title)) d.SetTitle(title);
-    if (!string.IsNullOrEmpty(start) && System.IO.Directory.Exists(start)) {
-      try { Guid g = typeof(IShellItem).GUID; IShellItem si; SHCreateItemFromParsingName(start, IntPtr.Zero, ref g, out si); d.SetFolder(si); } catch {}
-    }
-    if (dry) return "DRY";
-    int hr;
-    using (var owner = new Form()) {
-      owner.TopMost = true; owner.ShowInTaskbar = false; owner.FormBorderStyle = FormBorderStyle.None;
-      owner.Opacity = 0; owner.StartPosition = FormStartPosition.CenterScreen; owner.Size = new System.Drawing.Size(1, 1);
-      owner.Show(); owner.Activate();
-      hr = d.Show(owner.Handle);
-    }
-    if (hr != 0) return null;
-    IShellItem r; d.GetResult(out r);
-    string p; r.GetDisplayName(0x80058000, out p);
-    return p;
-  }
-}
-'@
-$p = [OotrrPick]::Run($env:OOTRR_PICK_START, $env:OOTRR_PICK_TITLE, $env:OOTRR_PICK_DRY -eq '1', $env:OOTRR_PICK_FILE -eq '1')
-if ($p) { [Console]::Out.Write("OK`t" + $p) } else { [Console]::Out.Write("CANCEL") }
-"#;
-
 fn quiet(c: &mut Command) -> &mut Command {
     #[cfg(windows)]
     {
@@ -89,30 +22,12 @@ fn quiet(c: &mut Command) -> &mut Command {
     c.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
 }
 
-fn encoded(script: &str) -> String {
-    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let bytes: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
-    let mut out: String = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for c in bytes.chunks(3) {
-        let n: u32 = (u32::from(c[0]) << 16) | (u32::from(*c.get(1).unwrap_or(&0)) << 8) | u32::from(*c.get(2).unwrap_or(&0));
-        for (i, shift) in [18u32, 12, 6, 0].into_iter().enumerate() {
-            out.push(if i <= c.len() { A[((n >> shift) & 63) as usize] as char } else { '=' });
-        }
-    }
-    out
-}
-
 fn run_windows(start: &str, title: &str, dry: bool, file: bool) -> Pick {
-    let mut c: Command = Command::new("powershell.exe");
-    c.args(["-NoProfile", "-NonInteractive", "-STA", "-ExecutionPolicy", "Bypass", "-EncodedCommand"])
-        .arg(encoded(WINDOWS_SCRIPT))
-        .env("OOTRR_PICK_START", start)
-        .env("OOTRR_PICK_TITLE", title)
-        .env("OOTRR_PICK_DRY", if dry { "1" } else { "0" })
-        .env("OOTRR_PICK_FILE", if file { "1" } else { "0" });
-    match quiet(&mut c).output() {
-        Ok(o) => parse(&String::from_utf8_lossy(&o.stdout), &String::from_utf8_lossy(&o.stderr)),
-        Err(_) => Pick::Unavailable("PowerShell could not be started.".into()),
+    use ootrr_os::pick::Outcome;
+    match ootrr_os::pick::pick(start, title, file, dry) {
+        Outcome::Chosen(p) => Pick::Chosen(p),
+        Outcome::Cancelled => Pick::Cancelled,
+        Outcome::Failed(why) => Pick::Unavailable(why),
     }
 }
 
@@ -228,13 +143,6 @@ mod tests {
         assert!(matches!(parse("OK\t/Users/me/mods/\n", ""), Pick::Chosen(p) if p == PB::from("/Users/me/mods")));
         assert!(matches!(parse("CANCEL", ""), Pick::Cancelled));
         assert!(matches!(parse("", "boom\nmore"), Pick::Unavailable(w) if w == "boom"));
-    }
-
-    #[test]
-    fn scripts_are_encoded_as_utf16_base64() {
-        assert_eq!(encoded("a"), "YQA=");
-        assert_eq!(encoded("ab"), "YQBiAA==");
-        assert_eq!(encoded("abc"), "YQBiAGMA");
     }
 
     #[test]

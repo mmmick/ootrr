@@ -173,16 +173,17 @@
 
     # Bridge Requirements
     "has_all_stones": "Kokiri_Emerald and Goron_Ruby and Zora_Sapphire",
-    "story_stones": "(
+    "door_of_time_requirement": "(
         (door_of_time_condition == 'vanilla' and 'Defeat King Dodongo' and 'Defeat Barinade') or
-        (door_of_time_condition == 'stones' and has_all_stones)) and
-        at('HC Garden Skippable Locations', is_child)",
+        (door_of_time_condition == 'stones' and has_all_stones))",
+    "story_stones": "door_of_time_requirement and at('HC Garden Skippable Locations', is_child)",
     "has_all_medallions": "Forest_Medallion and Fire_Medallion and Water_Medallion and Shadow_Medallion and Spirit_Medallion and Light_Medallion",
     "can_open_door_of_time": "(
         (open_door_of_time == 'open') or
         (open_door_of_time == 'sot' and can_play(Song_of_Time)) or
         (open_door_of_time == 'oot_sot' and (Ocarina, 2) and can_play(Song_of_Time)) or
         (open_door_of_time == 'stones' and story_stones) or
+        (open_door_of_time == 'req' and door_of_time_requirement) or
         (open_door_of_time == 'stones_sot' and story_stones and can_play(Song_of_Time)) or
         (open_door_of_time == 'stones_oot_sot' and story_stones and (Ocarina, 2) and can_play(Song_of_Time)))",
     "can_build_rainbow_bridge": "(

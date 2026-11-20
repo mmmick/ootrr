@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 ootrr-core = { path = "../randomizer/core" }
 ootrr-mem = { path = "../randomizer/mem" }
+ootrr-os = { path = "../randomizer/os" }
 
 [dev-dependencies]
 ootrr-game = { path = "../randomizer/game", features = ["fixtures"] }

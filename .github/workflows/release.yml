@@ -60,12 +60,23 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\windows\ootrr.iss
+      - name: Check the exe details
+        shell: pwsh
+        run: |
+          $v = (Get-Item target\release\ootrr.exe).VersionInfo
+          if ($v.ProductName -ne "OOTRR" -or $v.ProductVersion -ne $env:OOTRR_VERSION) {
+            throw "ootrr.exe has no version info (ProductName '$($v.ProductName)', ProductVersion '$($v.ProductVersion)'): rc.exe did not run"
+          }
+          $b = [IO.File]::ReadAllText((Resolve-Path target\release\ootrr.exe), [Text.Encoding]::ASCII)
+          foreach ($s in "EncodedCommand", "ExecutionPolicy", "powershell") {
+            if ($b.IndexOf($s, [StringComparison]::OrdinalIgnoreCase) -ge 0) { throw "ootrr.exe contains '$s', which antivirus tools flag" }
+          }
       - name: Portable zip
         shell: pwsh
         run: |
-          $name = "OOTRR-$env:OOTRR_VERSION-windows-x64"
+          $name = "OOTRR-$env:OOTRR_VERSION-windows-x64-portable"
           New-Item -ItemType Directory -Force "release\$name" | Out-Null
-          Copy-Item target\release\ootrr.exe, LICENSE, NOTICE, README.md "release\$name"
+          Copy-Item target\release\ootrr.exe, LICENSE, NOTICE, README.md, packaging\windows\portable.txt "release\$name"
           Compress-Archive -Path "release\$name" -DestinationPath "release\$name.zip" -Force
           Remove-Item -Recurse -Force "release\$name"
       - uses: actions/upload-artifact@v4
@@ -154,6 +165,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # For the build attestations: a signed record, kept by GitHub, that each
+      # file was built by this workflow from this commit.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -165,6 +180,14 @@ jobs:
           cd dist
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.pkg
+            dist/*.deb
+            dist/*.tar.gz
       - name: Notes
         env:
           VERSION: ${{ needs.version.outputs.version }}
@@ -176,7 +199,9 @@ jobs:
             echo
             echo "No game files, keys or dumps are included. You need your own extracted game files."
             echo
-            echo "Windows: run the setup exe. macOS: open the pkg. The installers are not signed, so Windows SmartScreen and macOS Gatekeeper will warn you the first time. Linux: use the deb, or unpack the tar.gz and run install.sh."
+            echo "Windows: run the setup exe, or unpack the portable zip anywhere and double-click ootrr.exe (nothing is installed: delete the folder to remove it). macOS: open the pkg. Linux: use the deb, or unpack the tar.gz and run install.sh."
+            echo
+            echo "The files are not code-signed yet, so Windows SmartScreen and macOS Gatekeeper may warn you the first time. Every file is built by GitHub Actions from the tagged source and has a build attestation. To check that a file came from this repository's release workflow, run: gh attestation verify <file> --repo ${GITHUB_REPOSITORY}"
             echo
             echo "Check SHA256SUMS.txt to verify a download."
           } > "$RUNNER_TEMP/notes.md"

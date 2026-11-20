@@ -1,0 +1,17 @@
+OOTRR portable
+
+This file turns on portable mode. Nothing is installed and nothing is written
+to the registry. OOTRR keeps its caches in the "data" folder next to
+ootrr.exe instead of in %LOCALAPPDATA%\ootrr.
+
+To start: double-click ootrr.exe. A console window opens and OOTRR opens in
+your browser. Keep the window open while you use it, and close it to stop.
+
+To remove OOTRR: delete this folder.
+
+Delete this file if you would rather keep the data in %LOCALAPPDATA%\ootrr.
+Your settings live in the browser, so they are the same either way.
+
+To check your download, compare the zip's hash with SHA256SUMS.txt on the
+release page. In PowerShell:
+  Get-FileHash .\OOTRR-<version>-windows-x64-portable.zip

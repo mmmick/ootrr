@@ -85,6 +85,10 @@ impl Unpack {
 pub fn unpack(d: &Data, sound: bool) -> Unpack {
     let mut files: BS<String> = list(d).into_iter().collect();
     files.extend(crate::colors::files());
+    files.extend(crate::gerudo_card::MEMBERS.iter().map(|n| crate::gerudo_card::schedule_path(n)));
+    if let Ok(p) = crate::title_logo::patch() {
+        files.extend(crate::title_logo::touched(&p));
+    }
     let mut trees: BS<String> = TREES.iter().map(|s| s.to_string()).collect();
     if sound {
         trees.insert(SOUND.to_string());

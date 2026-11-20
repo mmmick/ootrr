@@ -1,13 +1,13 @@
 [workspace]
 resolver = "3"
-members = ["randomizer/game", "randomizer/logic", "randomizer/cosmetics", "randomizer/core", "randomizer/mem", "randomizer/cli", "web"]
+members = ["randomizer/game", "randomizer/logic", "randomizer/cosmetics", "randomizer/core", "randomizer/mem", "randomizer/os", "randomizer/cli", "web"]
 
 [workspace.package]
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
 publish = false
 license = "GPL-3.0-or-later"
-repository = "https://github.com/realazk/ootrr"
+repository = "https://github.com/ootrando/ootrr"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

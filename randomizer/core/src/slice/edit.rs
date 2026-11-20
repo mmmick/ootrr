@@ -455,6 +455,11 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
     if p.short {
         crate::short_get::stage(&mut rf, &mut late, &work)?;
     }
+    crate::open_world::stage_last(&mut rf, &mut late, &work)?;
+    let mut paths: BS<&str> = BS::new();
+    if let Some(o) = late.iter().find(|o| !paths.insert(o.path.as_str())) {
+        return Err(E::Msg(format!("build: {} is edited twice in the late files, and the later edit would drop the earlier one", o.path)));
+    }
     for o in late {
         pk.write_romfs(&o.path, &o.z)?;
         extra += 1;

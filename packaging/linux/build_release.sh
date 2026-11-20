@@ -43,7 +43,7 @@ Priority: optional
 Architecture: amd64
 Installed-Size: $size
 Maintainer: OOTRR contributors <noreply@users.noreply.github.com>
-Homepage: https://github.com/realazk/ootrr
+Homepage: https://github.com/ootrando/ootrr
 Description: Ocarina of Time remake randomizer
  OOTRR generates a seed and builds a mod folder from game files that you
  extracted yourself. It contains no game files. Run ootrr serve and open the

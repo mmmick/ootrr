@@ -15,7 +15,7 @@ OOTRR contains no game files and never changes your game folder. It only reads i
 
 ## 1. Install OOTRR
 
-1. Open the [releases page](https://github.com/realazk/ootrr/releases) and download `OOTRR-<version>-windows-x64-setup.exe`. Use the newest version. If you do not want an installer, the `windows-x64.zip` works too (see "Running it without the installer").
+1. Open the [releases page](https://github.com/ootrando/ootrr/releases) and download `OOTRR-<version>-windows-x64-setup.exe`. Use the newest version. If you do not want an installer, the `windows-x64-portable.zip` works too (see "Running it without the installer").
 2. Optional but wise: check the download against `SHA256SUMS.txt` on the same page. In PowerShell, `Get-FileHash <file>` prints the hash to compare.
 3. Run the setup file. The installers are not signed, so Windows SmartScreen may say "Windows protected your PC". Click **More info**, then **Run anyway**. That is expected for a small open source tool.
 4. Choose **Install for me only**.
@@ -142,7 +142,9 @@ Download the newest setup file and run it, it installs over the old version. If 
 
 ## Running it without the installer
 
-Unpack the zip anywhere. Double click `ootrr.exe` (versions newer than 0.2.1 start the page right away). On older versions open a terminal in that folder and run `ootrr.exe serve`, then open the link it prints.
+Download `OOTRR-<version>-windows-x64-portable.zip` and unpack it anywhere, a USB stick works too. Double click `ootrr.exe` (versions newer than 0.2.1 start the page right away). On older versions open a terminal in that folder and run `ootrr.exe serve`, then open the link it prints.
+
+The portable version installs nothing and writes nothing to the registry. The `portable.txt` file in the folder makes OOTRR keep its caches in a `data` folder beside `ootrr.exe`. To remove OOTRR, delete the folder.
 
 ## Troubleshooting
 
@@ -151,7 +153,7 @@ Unpack the zip anywhere. Double click `ootrr.exe` (versions newer than 0.2.1 sta
 - **Setup says the 1.1.1 files are missing.** The game folder is the base game without the update. Extract again with the update applied.
 - **"Game folder does not exist" or the folder is not accepted.** Pick the folder that directly contains `Pack`, `Banc`, `Event` and `System`. One level too high fails.
 - **My path has quotes around it.** That is fine, OOTRR removes one pair of quotes.
-- **Windows SmartScreen or my antivirus warns.** The installers are not signed. The files are built by GitHub from the public source, and `SHA256SUMS.txt` lets you check your download. You can also upload the file to virustotal.com yourself.
+- **Windows SmartScreen or my antivirus warns.** The files are not code-signed yet. They are built by GitHub from the public source, and `SHA256SUMS.txt` lets you check your download. You can also upload the file to virustotal.com yourself. If Microsoft Defender removes `ootrr.exe`, that is a false positive: you can restore it from Windows Security > Protection history, and report it at https://www.microsoft.com/wdsi/filesubmission.
 - **The mod does nothing in the game.** Check it is ticked in the Add-Ons tab, that you started a new game, and that no other mod edits chests.
 - **A preset is greyed out.** Not available in this build yet.
 - **Something broke, a softlock, a missing item, a crash.** Use **Copy bug report** on the Generate or Result page, then post it with what you did, what you expected and what happened in the bug reports forum on the OOTRR Discord. A screenshot or short clip helps a lot.

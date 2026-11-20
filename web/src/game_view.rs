@@ -192,7 +192,7 @@ pub fn layered(data: &P, base: &P, update: &P) -> io::Result<PB> {
     if stamp_of(&dir).as_deref() == Some(sig.as_str()) && dir.join("romfs").is_dir() {
         return Ok(dir.join("romfs"));
     }
-    let tmp: PB = views.join(format!("{}.tmp-{}", &key[..16], std::process::id()));
+    let tmp: PB = views.join(format!("{}.tmp-{}", &key[..16], if cfg!(target_os = "wasi") { 0 } else { std::process::id() }));
     clear(&views, &tmp)?;
     fs::create_dir_all(&tmp)?;
     let out: PB = tmp.join("romfs");

@@ -677,6 +677,7 @@ const LOCATIONS_TAB: &[PortSection] = &[
         &[
             Entry::Plain("shuffle_treasure_reward"),
             Entry::Plain("shuffle_potion_shop"),
+            Entry::Plain("shuffle_scarecrow_song"),
             Entry::Plain("shuffle_trade_checks"),
             Entry::View(&COWS),
             Entry::Plain("shuffle_frog_songs"),
@@ -750,7 +751,7 @@ pub const MENU: &[Page] = &[
         heading: GAMEPLAY,
         sections: &[
             sec("Cutscenes", &["skip_intro", "skip_cutscenes", "skip_story_scenes", "faster_chests", "skip_first_pickup_text"]),
-            sec("Side quests", &["skip_mask_quest", "anju_one_cucco"]),
+            sec("Side quests", &["skip_mask_quest", "anju_one_cucco", "easy_fishing"]),
             sec("Dungeons", &["deku_bridge_safe"]),
             sec("Puzzles", &["faster_blocks"]),
         ],
@@ -759,7 +760,7 @@ pub const MENU: &[Page] = &[
         id: "tweaks",
         label: "Tweaks",
         heading: GAMEPLAY,
-        sections: &[sec("Time of day", &["time_always_passes", "early_beds"]), sec("Link and Navi", &["navi_return", "bunny_hood"])],
+        sections: &[sec("Time of day", &["time_always_passes", "early_beds", "skulls_by_day"]), sec("Link and Navi", &["navi_return", "bunny_hood"])],
     },
     Page { id: "hints", label: "Hints", heading: GAMEPLAY, sections: &[sec("Hints", &["gossip_hints", "chests_match_contents", "misc_hints", "scrub_hint_text"])] },
     Page {

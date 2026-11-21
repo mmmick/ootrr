@@ -4,7 +4,7 @@ const CSS: &str = "text/css; charset=utf-8";
 const FONT: &str = "font/woff2";
 
 #[cfg(test)]
-pub const JS_FILES: [&str; 38] = [
+pub const JS_FILES: [&str; 39] = [
     "/app.js",
     "/js/dom.js",
     "/js/api.js",
@@ -43,6 +43,7 @@ pub const JS_FILES: [&str; 38] = [
     "/js/tracker_fold.js",
     "/js/tracker_items.js",
     "/js/tracker_app.js",
+    "/js/now_app.js",
 ];
 
 pub fn get_bin(p: &str) -> Option<(&'static str, &'static [u8])> {
@@ -67,6 +68,8 @@ pub fn get(p: &str) -> Option<(&'static str, &'static str)> {
         "/menu.css" => (CSS, include_str!("../assets/menu.css")),
         "/tracker" => (HTML, include_str!("../assets/tracker.html")),
         "/tracker.css" => (CSS, include_str!("../assets/tracker.css")),
+        "/now" => (HTML, include_str!("../assets/now.html")),
+        "/now.css" => (CSS, include_str!("../assets/now.css")),
         "/tracker_items.css" => (CSS, include_str!("../assets/tracker_items.css")),
         "/app.js" => (JS, include_str!("../assets/app.js")),
         "/js/dom.js" => (JS, include_str!("../assets/js/dom.js")),
@@ -106,6 +109,7 @@ pub fn get(p: &str) -> Option<(&'static str, &'static str)> {
         "/js/tracker_fold.js" => (JS, include_str!("../assets/js/tracker_fold.js")),
         "/js/tracker_items.js" => (JS, include_str!("../assets/js/tracker_items.js")),
         "/js/tracker_app.js" => (JS, include_str!("../assets/js/tracker_app.js")),
+        "/js/now_app.js" => (JS, include_str!("../assets/js/now_app.js")),
         _ => return None,
     };
     Some(r)

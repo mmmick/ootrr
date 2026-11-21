@@ -7,11 +7,12 @@ struct Args {
     lan: bool,
     open: bool,
     updates: bool,
+    now: bool,
     stdio: bool,
 }
 
 fn parse(a: &[String]) -> Res<Args> {
-    let mut o: Args = Args { port: DEFAULT_PORT, explicit: false, lan: false, open: true, updates: true, stdio: false };
+    let mut o: Args = Args { port: DEFAULT_PORT, explicit: false, lan: false, open: true, updates: true, now: false, stdio: false };
     let mut i: usize = 0;
     while i < a.len() {
         match a[i].as_str() {
@@ -24,6 +25,7 @@ fn parse(a: &[String]) -> Res<Args> {
             "--lan" => o.lan = true,
             "--no-open" => o.open = false,
             "--no-update-check" => o.updates = false,
+            "--now" => o.now = true,
             "--stdio" => o.stdio = true,
             other => return Err(Error::Msg(format!("unknown option {other}"))),
         }
@@ -38,8 +40,11 @@ pub fn run(a: &[String]) -> Res<()> {
         return ootrr_web::stdio::serve();
     }
     let mut h: Handle = start(&Opts { port: o.port, lan: o.lan, fallback: !o.explicit, updates: o.updates })?;
-    let url: String = h.url();
+    let base: String = h.url();
+    let now_url: String = base.replacen("/#", "/now#", 1);
+    let url: String = if o.now { now_url.clone() } else { base };
     println!("OOTRR is running at {url}");
+    println!("Available now (live): {now_url}");
     println!("Keep this window open. Press Ctrl+C to stop.");
     if o.lan {
         println!();

@@ -26,10 +26,11 @@ pub struct Ctx<'a> {
 
 pub type Stage = fn(&mut Romfs, &Ctx, &mut Vec<Out>) -> Res<()>;
 
-pub const STAGES: [(&str, Stage); 26] = [
+pub const STAGES: [(&str, Stage); 28] = [
     ("boss heart chests", boss_hearts),
     ("songs", songs),
     ("song models", song_models),
+    ("scarecrow song model", scarecrow_model),
     ("hints", hints),
     ("dungeon item text", dungeon_text),
     ("scrub hint text", scrub_hints),
@@ -48,6 +49,7 @@ pub const STAGES: [(&str, Stage); 26] = [
     ("fire temple gorons", fire_gorons),
     ("start reward and flags", start_reward),
     ("starting items", start_items),
+    ("pierre at every scarecrow spot", pierre),
     ("dpad items", dpad),
     ("pot rows", pot_rows),
     ("start defaults", start_defaults),
@@ -79,6 +81,13 @@ fn songs(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
 fn song_models(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
     if c.p.songs == Songs::Anywhere {
         more.extend(crate::song_models::stage(rf, c.p.harp_colors)?);
+    }
+    Ok(())
+}
+
+fn scarecrow_model(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
+    if crate::slice::scarecrow::pooled(c.p) {
+        crate::slice::scarecrow_model::stage(rf, more, Some(c.work))?;
     }
     Ok(())
 }
@@ -198,6 +207,13 @@ fn start_reward(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
 
 fn start_items(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
     crate::start_items::stage::stage(rf, more, &c.p.kit)
+}
+
+fn pierre(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {
+    if c.p.scarecrow || c.p.kit.logic().iter().any(|(n, _)| *n == crate::slice::scarecrow::ITEM) {
+        crate::pierre::stage(rf, more, Some(c.work))?;
+    }
+    Ok(())
 }
 
 fn dpad(rf: &mut Romfs, c: &Ctx, more: &mut Vec<Out>) -> Res<()> {

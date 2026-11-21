@@ -248,8 +248,13 @@ impl<'a> Search<'a> {
     }
 
     pub fn loc_access(&self, l: LocId) -> bool {
+        Age::BOTH.iter().any(|a| self.loc_access_as(l, *a))
+    }
+
+    pub fn loc_access_as(&self, l: LocId, age: Age) -> bool {
         let lc: &Loc = &self.w.locs[l];
-        (0..2).any(|a| self.reached[a][lc.region] && self.test(&lc.rule, a, lc.region))
+        let a: usize = age.idx();
+        self.reached[a][lc.region] && self.test(&lc.rule, a, lc.region)
     }
 
     pub fn expand_tod(&self, goal: RegionId, a: usize, flag: u8) -> bool {

@@ -18,6 +18,7 @@ pub enum Recipe {
     Ocarina,
     Bottles,
     Count(&'static str, i32),
+    Scarecrow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,6 +126,8 @@ pub const GROUPS: &[Group] = &[
     Group { id: "gerudo_card", logic: "Gerudo Membership Card", offset: 0, strip: Strip::Unique, recipe: Recipe::Grant(&["Item_Token_Gerudo"]) },
     Group { id: "magic_beans", logic: "Magic Bean", offset: 0, strip: Strip::Keep, recipe: Recipe::Count("Item_MagicBean", 10) },
     Group { id: "bombchus", logic: "Bombchus", offset: 0, strip: Strip::Keep, recipe: Recipe::Count("Item_Bombchu", 20) },
+    Group { id: "bunny_hood", logic: "Bunny Hood", offset: 0, strip: Strip::Keep, recipe: Recipe::Grant(&["Armor_Child_Mask_Bunny"]) },
+    Group { id: "scarecrow_song", logic: "Scarecrow Song", offset: 0, strip: Strip::Keep, recipe: Recipe::Scarecrow },
 ];
 
 pub const OPTS: &[Opt] = &[
@@ -181,6 +184,8 @@ pub const OPTS: &[Opt] = &[
     Opt { id: "gerudo_card", group: "gerudo_card", tier: 1 },
     Opt { id: "magic_beans", group: "magic_beans", tier: 1 },
     Opt { id: "bombchus", group: "bombchus", tier: 1 },
+    Opt { id: "bunny_hood", group: "bunny_hood", tier: 1 },
+    Opt { id: "scarecrow_song", group: "scarecrow_song", tier: 1 },
 ];
 
 pub const REFUSED: &[(&str, &str)] = &[(

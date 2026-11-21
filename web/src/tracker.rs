@@ -1,17 +1,22 @@
+pub mod area;
 pub mod cond;
 pub mod drops;
 pub mod grid;
 pub mod icon_map;
 pub mod index;
+pub mod now;
 pub mod npc_flags;
 pub mod peek;
 pub mod project;
+pub mod reach;
 pub mod rules;
 pub mod seed;
+pub mod seedlog;
 pub mod state;
 pub mod targets;
 
 use std::collections::BTreeMap as BM;
+use std::collections::BTreeSet as BS;
 use std::fs;
 use std::path::{Path as P, PathBuf as PB};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -23,6 +28,7 @@ use index::Index;
 use crate::tracker::peek::{Peek, Place};
 use crate::tracker::rules::Rule;
 use crate::tracker::state::{By, S, Track};
+use crate::tracker::now::Now;
 use ootrr_core::items::load;
 use ootrr_core::settings::seed::SeedFile;
 use targets::{KINDS, OFF_BY_DEFAULT, Target};
@@ -31,7 +37,9 @@ use crate::datadir;
 use crate::events::{Ev, Events, MAX_WAIT};
 use crate::icon_store::{self, Icons};
 use crate::live;
+use crate::now_state::NowState;
 use crate::pathsafe;
+use crate::spoiler_find;
 use crate::watch::{self, Out, Watcher};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +123,7 @@ pub struct Inner {
     pub place: Option<Place>,
     pub loaded: bool,
     pub items: Option<Vec<grid::St>>,
+    pub now: NowState,
     pub placed: Option<BM<String, String>>,
 }
 
@@ -124,6 +133,7 @@ pub struct Tracker {
     pub data: Option<PB>,
     watch: Mutex<Option<watch::Handle>>,
     live: Mutex<Option<watch::Handle>>,
+    pub auto_live: bool,
     boot: Mutex<()>,
     pub poll: Duration,
     pub icons: Icons,
@@ -171,12 +181,14 @@ impl Tracker {
                 place: None,
                 loaded: false,
                 items: None,
+                now: NowState::default(),
                 placed: None,
             }),
             events: Events::new(),
             data: data.map(|d| datadir::cache_root(&d)),
             watch: Mutex::new(None),
             live: Mutex::new(None),
+            auto_live: false,
             boot: Mutex::new(()),
             poll: MAX_WAIT,
             icons: Icons::new(icon_store::disk_on()),
@@ -193,6 +205,10 @@ impl Tracker {
 
     fn settings_file(&self) -> Option<PB> {
         self.data.as_ref().map(|d| d.join("settings.json"))
+    }
+
+    fn manual_file(&self) -> Option<PB> {
+        self.data.as_ref().map(|d| d.join("now-manual.json"))
     }
 
     fn marks_file(&self) -> Option<PB> {
@@ -217,7 +233,8 @@ impl Tracker {
             .with("mode", g.opts.mode.name().into())
             .with("kinds", Json::strs(g.opts.kinds.iter().map(|k| k.as_str())))
             .with("dream", g.opts.dream.into())
-            .with("live", g.opts.live.into());
+            .with("live", g.opts.live.into())
+            .with("spoiler", s(&g.now.pin));
         let _ = write_atomic(&p, &j.pretty());
     }
 
@@ -256,6 +273,7 @@ impl Tracker {
         if let Some(l) = j.get("live").and_then(|x| x.as_bool()) {
             g.opts.live = l;
         }
+        g.now.pin = path_of(&j, "spoiler");
         let slot: Option<String> = j.get("slot").and_then(|x| x.as_str()).map(|s| s.to_string());
         (path_of(&j, "game_dir"), path_of(&j, "update_dir"), path_of(&j, "save_dir"), slot)
     }
@@ -315,6 +333,7 @@ impl Tracker {
         g.place = Some(p.place.clone());
         g.items = Some(grid::read(p));
         g.peek = Some(p.clone());
+        refresh_now(&mut g);
         let mut evs: Vec<Ev> = changed
             .iter()
             .map(|i| {
@@ -344,6 +363,7 @@ impl Tracker {
         if let Some(p) = g.peek.clone() {
             g.track.apply(&p, base);
         }
+        refresh_now(&mut g);
         self.save_marks(&g);
         let out: Option<Seeded> = g.seeded.clone();
         drop(g);
@@ -372,6 +392,7 @@ impl Tracker {
         if !g.track.user(i, on, seq) {
             return Ok(false);
         }
+        refresh_now(&mut g);
         self.save_marks(&g);
         drop(g);
         self.events.push(&[Ev::Loc { i, fresh: false }, Ev::Source]);
@@ -414,7 +435,7 @@ impl Tracker {
 
 impl Tracker {
     pub fn start_live(self: &Arc<Self>) {
-        if !self.lock().opts.live {
+        if !self.auto_live && !self.lock().opts.live {
             return;
         }
         let mut l: MutexGuard<'_, Option<watch::Handle>> = self.live.lock().unwrap_or_else(|e| e.into_inner());
@@ -459,13 +480,15 @@ impl Tracker {
         g.src.live = Some(pid);
         g.src.live_msg = None;
         g.src.reads += 1;
+        g.src.slot = Some("live".to_string());
         g.src.read_at = Some(now_secs());
         g.src.keys = p.keys.len();
         g.src.error = None;
         g.place = Some(p.place.clone());
         g.items = Some(items);
         g.peek = Some(p.clone());
-        if changed.is_empty() && !moved && !first {
+        let now_moved: bool = refresh_now(&mut g);
+        if changed.is_empty() && !moved && !now_moved && !first {
             return;
         }
         let mut evs: Vec<Ev> = changed
@@ -490,6 +513,105 @@ impl Tracker {
         drop(g);
         self.events.push(&[Ev::Source]);
     }
+
+    fn manual_of(&self, key: &str) -> BS<String> {
+        let Some(t) = self.manual_file().and_then(|p| fs::read_to_string(p).ok()) else {
+            return BS::new();
+        };
+        let Ok(j) = json::parse(&t) else {
+            return BS::new();
+        };
+        j.get(key).and_then(|x| x.as_arr()).map(|a| a.iter().filter_map(|x| x.as_str()).map(|x| x.to_string()).collect()).unwrap_or_default()
+    }
+
+    fn save_manual(&self, g: &Inner) {
+        let (Some(p), Some(k)) = (self.manual_file(), g.now.key()) else {
+            return;
+        };
+        let mut j: Json = fs::read_to_string(&p).ok().and_then(|t| json::parse(&t).ok()).filter(|j| matches!(j, Json::Obj(_))).unwrap_or_else(Json::obj);
+        j.put(&k, Json::strs(g.now.manual.iter().map(|x| x.as_str())));
+        let _ = write_atomic(&p, &j.to_string());
+    }
+
+    pub fn spoiler_check(&self, exe: Option<&P>) {
+        let (pin, cur, stamp, tried): (Option<PB>, Option<PB>, Option<SystemTime>, Option<(PB, Option<SystemTime>)>) = {
+            let g: MutexGuard<'_, Inner> = self.lock();
+            (g.now.pin.clone(), g.now.path.clone(), g.now.stamp, g.now.tried.clone())
+        };
+        let Some(path) = spoiler_find::find(pin.as_deref(), exe) else {
+            return;
+        };
+        let st: Option<SystemTime> = spoiler_find::stamp(&path);
+        if cur.as_ref() == Some(&path) && st == stamp {
+            return;
+        }
+        if tried.as_ref() == Some(&(path.clone(), st)) {
+            return;
+        }
+        let res: Res<Now> = fs::read_to_string(&path).map_err(Error::from).and_then(|t| Now::load(&t));
+        match res {
+            Ok(n) => {
+                let n: Arc<Now> = Arc::new(n);
+                let key: String = format!("{} {}", n.log.seed, n.log.checksum);
+                let manual: BS<String> = self.manual_of(&key);
+                {
+                    let mut g: MutexGuard<'_, Inner> = self.lock();
+                    g.now.now = Some(Arc::clone(&n));
+                    g.now.path = Some(path.clone());
+                    g.now.stamp = st;
+                    g.now.tried = Some((path, st));
+                    g.now.error = None;
+                    g.now.manual = manual;
+                    g.now.checked.clear();
+                }
+                if let Err(e) = self.set_seed(Some(&n.seed_file())) {
+                    self.lock().now.error = Some(e.to_string());
+                }
+                let mut g: MutexGuard<'_, Inner> = self.lock();
+                refresh_now(&mut g);
+                drop(g);
+                self.events.push(&[Ev::Source]);
+            }
+            Err(e) => {
+                let mut g: MutexGuard<'_, Inner> = self.lock();
+                g.now.error = Some(format!("{}: {e}", pathsafe::text(&path)));
+                g.now.tried = Some((path, st));
+                drop(g);
+                self.events.push(&[Ev::Source]);
+            }
+        }
+    }
+
+    pub fn now_mark(&self, name: &str, on: bool) -> Res<bool> {
+        let mut g: MutexGuard<'_, Inner> = self.lock();
+        if !g.now.has(name) {
+            return Err(Error::Msg("no such location in the spoiler".to_string()));
+        }
+        if !g.now.toggle(name, on) {
+            return Ok(false);
+        }
+        self.save_manual(&g);
+        refresh_now(&mut g);
+        drop(g);
+        self.events.push(&[Ev::Source]);
+        Ok(true)
+    }
+
+    pub fn set_pin(&self, pin: Option<PB>) {
+        let mut g: MutexGuard<'_, Inner> = self.lock();
+        g.now.pin = pin;
+        g.now.path = None;
+        g.now.tried = None;
+        g.now.error = None;
+        self.save_settings(&g);
+        drop(g);
+        self.events.push(&[Ev::Source]);
+    }
+}
+
+pub fn refresh_now(g: &mut Inner) -> bool {
+    let Inner { now, track, peek, .. } = g;
+    now.refresh(track, peek.as_ref())
 }
 
 impl Drop for Tracker {

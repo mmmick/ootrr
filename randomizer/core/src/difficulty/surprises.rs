@@ -47,7 +47,7 @@ pub const POTS: [(&str, &str); 8] = [
 pub const POT_KEYS: [&str; 8] = ["Dynamic", "Gyaml", "Hash", "IsPhysicsStable", "Phive", "Rotate", "SRTHash", "Translate"];
 pub const RESETTER: &str = "SupplyItemResetSystemActor";
 pub const GROUPS: [&str; 2] = ["FarDeleteGroups", "SimultaneousGroups"];
-pub const NOTE: &str = "A surprise: when grass is cut or an ordinary pot is broken, 1 time in 100 an enemy appears instead of the usual drop: a Poe or a small crawling hand from a pot, a Skulltula or a small hand from grass. Also about 1 in 10 of the plain pots in the maps (never those that hold a key, a fairy, a shuffled item or a chosen drop, nor the first room of a dungeon) are flying pots in disguise, which fly at you when you come near. Experimental, untested in the game.";
+pub const NOTE: &str = "Now and then, about one time in 25, cutting grass or breaking an ordinary pot lets out an enemy instead of the usual drop: a Poe or a small crawling hand from a pot, a Skulltula or a small hand from grass. About 1 in 10 plain pots are flying pots in disguise (never pots that hold a key, a fairy, an item or a set drop, nor any in the first room of a dungeon). Experimental, untested in the game.";
 
 pub fn chance() -> i32 {
     std::env::var(CHANCE_VAR).ok().and_then(|v| v.parse::<i32>().ok()).filter(|v| (1..=20).contains(v)).unwrap_or(CHANCE)

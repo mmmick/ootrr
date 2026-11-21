@@ -187,7 +187,7 @@
     },
     {
       "name": "Fire Temple Big Lava Room Lower Open Door Chest",
-      "state": "pooled"
+      "state": "eligible"
     },
     {
       "name": "Fire Temple Boss Key Chest",
@@ -195,11 +195,15 @@
     },
     {
       "name": "Fire Temple Boulder Maze Lower Chest",
-      "state": "pooled"
+      "state": "eligible"
     },
     {
       "name": "Fire Temple Boulder Maze Shortcut Chest",
       "state": "eligible"
+    },
+    {
+      "name": "Fire Temple Boulder Maze Side Room Chest",
+      "state": "event"
     },
     {
       "name": "Fire Temple Boulder Maze Upper Chest",
@@ -207,7 +211,7 @@
     },
     {
       "name": "Fire Temple Compass Chest",
-      "state": "mismatch"
+      "state": "eligible"
     },
     {
       "name": "Fire Temple Flare Dancer Chest",
@@ -227,7 +231,7 @@
     },
     {
       "name": "Fire Temple Near Boss Chest",
-      "state": "pooled"
+      "state": "eligible"
     },
     {
       "name": "Fire Temple Scarecrow Chest",
@@ -259,6 +263,10 @@
     },
     {
       "name": "Forest Temple Eye Switch Chest",
+      "state": "eligible"
+    },
+    {
+      "name": "Forest Temple Falling Ceiling Room Chest",
       "state": "eligible"
     },
     {
@@ -746,6 +754,10 @@
       "state": "event"
     },
     {
+      "name": "Water Temple Central Bow Target Chest",
+      "state": "eligible"
+    },
+    {
       "name": "Water Temple Central Pillar Chest",
       "state": "eligible"
     },
@@ -755,6 +767,10 @@
     },
     {
       "name": "Water Temple Compass Room Chest",
+      "state": "eligible"
+    },
+    {
+      "name": "Water Temple Dragon Chest",
       "state": "eligible"
     },
     {

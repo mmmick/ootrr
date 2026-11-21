@@ -1,44 +1,46 @@
 # Volvagia roams Hyrule Field
 
-Setting `volvagia_field` (number 130): **not built**. Nothing safe could be shown from the game files. Branch `feature/volvagia-field` is unchanged (`5d5b4f6`); no code was written.
+Setting `volvagia_roams` (number 133, default off). Branch `feature/volvagia-field2` in `worktree volvagia`.
+**Built in the files (Route A, custom actor), not yet run in the game.** Test plan: `<playtest folder>\volvagia\PLAN.md`.
+(The first attempt, `volvagia_field` on `feature/volvagia-field`, built nothing; its findings are kept below under "First investigation".)
 
 ## Request
-"let volvagia roam above hyrule field as an adult."
+"let volvagia roam above hyrule field as an adult." On the earlier "not possible" verdict (20 Nov): "yes, try a few things. What's the limitation here? Can't we just make our own logic if we need to?"
 
 ## Interpretation
-In the adult Hyrule Field map, a Volvagia flies about in the sky as a roaming threat. Best case it attacks; fallback a harmless-ish dragon circling overhead. It must not block anything, must not make a seed unbeatable, must not crash the field and must have no story effect.
+In adult Hyrule Field a Volvagia flies about and attacks. It must not block anything, must not make a seed unbeatable, must not crash the field and must have no story effect. Killing it gives nothing.
 
-## Investigation
-**What Volvagia is.** `Enemy_DungeonBoss_Volvagia` is a normal enemy actor with a 211-file pack. `Dm_Enemy_DungeonBoss_Volvagia` is the same pack with only a different model file and an `ActorParam` that inherits from the enemy. Same brain, same AI graphs. It is not a lighter animation-only actor. No map places the `Dm_` actor; it is used only by the boss intro/outro events (`Dm_FireTemple_BossIn`, `Dm_FireTemple_BossOut`). There is no scenery version.
+## How it works (Route A: our own actor class)
+**Vanilla precedent.** The game already clones Volvagia once: `Dm_Enemy_DungeonBoss_Volvagia` is the Volvagia pack plus one ActorParam whose `$parent` is `Work/Actor/Enemy_DungeonBoss_Volvagia...ActorParam.gyml` and which overrides one reference (its model). Its ActorInfo row is a copy of Volvagia's with `ActorName`, model, ELink/SLink user names still `Enemy_DungeonBoss_Volvagia`. The randomizer's `cow_clone` module registers new actor classes the same way (new pack, ActorInfo, GameActorInfo and Tag rows, size table entries). We follow both.
 
-**How the boss room drives it** (`Banc/FireTemple/FireTemple_Static` and the identical-shape `Banc/DreamWorld/VolvagiaStage_Static`):
-- The actor carries named links: `Zero` to `Eight` (nine `DestinationAnchor` points, the holes), `RoomCenter`, `Five`, and three more references including the lava plane. Dynamic parameter `IsIntendedForEventAppear: true`.
-- Its AI asks native queries `QueryVolvagiaGetHolePos`, `QueryVolvagiaGetHolePosNearOrderByInputNumber`, `QueryVolvagiaGetRoomCenterPos` and `QueryVolvagiaCalcCircleMoveTargetPos` (7 uses of the room-centre query across the graphs). These read the links above. What they return with the links missing is not visible from the data.
-- The room's logic module `Enemy_DungeonBoss_Volvagia_Main_e0cf` only creates and deletes it (`ActorLogicEnemyDungeonBossVolvagia`: create and delete inputs; outputs Dead, IsBattle, FallRockActivate). It also drives a falling-rock manager, lava floor, env palette and warp prefab. Dropping the logic binding would stop room control but not the actor's own behaviour.
-- `DungeonBossVolvagia.action.flymove.module` is not a path follower. It only picks a left or right 180 turn animation from the target direction. Flight positions come from the anchor queries, not from a rail or a point list.
+**The clone `Enemy_Volvagia_Roam`** (`difficulty/volvagia.rs`): new pack = the whole Volvagia pack (211 files, unchanged) + four files of its own:
+- ActorParam: `$parent` Volvagia's; overrides `GameParameterTableRef` (own table) and `BattlePresentationRef` → `EnemyCommon` (normal enemy battle music `BGM_EnemyBattle` instead of `EnemyDungeonBoss`, which carries `BGM_DungeonBoss` and the boss presentation class).
+- GameParameterTable: Volvagia's, with `DungeonBossCommonParam` and `DungeonBossVolvagiaParam` pointed at own copies.
+- DungeonBossCommonParam: no `Appear` entry; `Die` kept with an empty event name and the start condition the game uses for Appear. Why this is safe: `BossCommon.StartEvent.module` switches on the condition: case 0 never, case 1 "AI condition met" (an input), case 2 "is dead". Volvagia's brain calls it for `Die` with that input fixed to false. Die's own value must be "is dead"; Appear's (a different valid value) is case 0 or 1, so the Die request can never fire, and even if it did it names no event. Nothing in the actor's graphs asks for "Appear"; the vanilla intro is started by the boss room.
+- DungeonBossVolvagiaParam: Volvagia's, the seven circle/leave distances times the scale switch (default 1).
+- Rows in `RSDB/ActorInfo` (heap grown by the pack growth), `RSDB/GameActorInfo`, `RSDB/Tag` copied from Volvagia's; size table entries for the pack and the four files (learned from their Volvagia peers, as cow clones do). Done in its own step after the late files and cow clones (`slice/edit.rs`), because the generic late path cannot size a pack that does not exist in the game.
 
-**Story hooks live on the actor, not only in the room.** `DungeonBossCommonParam` for Volvagia starts `Dm_FireTemple_BossIn` on Appear and `SageOfFire_DefeatBoss` on Die, and its death procedures table is `DungeonBossVolvagia_game__death__DeathReasonProcedures`. `OneShotDeathBossOnProcedures` and `BossCommon.StartEvent.module` ("Die") are in its brain. So a field Volvagia that is killed would start the Sage of Fire defeat event whether or not the boss room's logic is attached. Those parameters sit in the shared actor pack, so editing them for the field would also change the real fight.
+**Placement.** The 8 holes (`Zero`..`Eight`, there is no `Four`) and `RoomCenter` are read at build time from the dream world Volvagia stage (same layout as the Fire Temple room: a test checks this) and placed around the arena point with the same links, plus the actor, in one far-delete and one simultaneous group. No `IsIntendedForEventAppear`, no room logic, no lava plane link, no falling rock manager, no heart container. Holes are 5 to 14 units from the centre; the AI's circle moves use the room centre and the distances in its own parameters.
 
-**Hyrule Field's own flyers.** The adult field has no rails for flyers. Its only rails (24 entries in `HyruleField_Adult_Static`) are `Guide` rails. Guay flocks are `Enemy_FlockGuayManager` plus `GuaySpawnPosAnchor` points, native behaviour; Guay_Fixed are placed individually. Peahats are not placed (`Land_HrlField_PeahatGround` is scenery). There is no vanilla pattern of a map actor flying a patrol path that Volvagia could reuse.
+**Two stages** (env var `OOTRR_VOLVAGIA_STAGE`): `1` = ruined Market plaza `Market_Adult` (-1.9, 100.07, 12.4), a throwaway test map; otherwise adult Hyrule Field at the open mid-field spot (123.7, 154.2, 159.0). `OOTRR_VOLVAGIA_LIFT` (0 to 60) raises the whole ring; `OOTRR_VOLVAGIA_SCALE` (0.5 to 4) spreads holes and circle distances.
 
-**Flags.** `Enemy_DungeonBoss_Volvagia_BossAppear`, `HaveDefeatedEnemy_Enemy_DungeonBoss_Volvagia` and `Volvagia_TemporaryDelete` exist. The enemy museum and boss rush only place `Enemy_DungeonBoss_Volvagia_Dictionary`, a display actor, not the live boss.
+**"Attacks".** It keeps all of Volvagia's AI: jump out of a hole, fly arcs and circle the centre, fire breath (with its fire field), air dive, dive back into a hole, chance time on the ground. Falling rocks need the room's rock manager, which is not placed, so that attack should do nothing.
 
-## Why nothing was built
-1. The only way to give the AI its holes and room centre is to copy the actor with its nine anchors and centre into the field. The result would be a full boss fight with its Appear event and no falling rocks, in an open map.
-2. A kill cannot be made story-free with data edits to the map: the Die event comes from shared actor parameters.
-3. A scenery-only fallback does not exist: the `Dm_` actor has the same AI and was never placed in a map; the loose flymove graph does not move it along anything.
-4. The Dodongo's Cavern black screen is still unexplained; adding a 211-file boss actor with native, unseen queries to the most visited map is the wrong place to guess. A crash there blocks the whole game.
+## What is certain from the files and what is not
+Certain: the clone pack, rows and sizes are built and parse back; the clone's boss parameters contain no Sage of Fire or BossIn event; the real Volvagia's files are untouched (its pack, its rows); the Fire Temple and dream world maps are untouched; the hole layout matches vanilla; the map gets exactly 10 new actors with unique hashes.
+Unknown until the game runs: whether a Volvagia without its room logic appears at all (its hidden start may wait for the room), what the native hole queries do outside the boss room, whether the empty Die event name is harmless if the death path asks for it anyway, whether the body is removed after death, how it behaves on uneven field ground, and the heap/crash risk in the field. Also: killing it may count toward `HaveDefeatedEnemy_Enemy_DungeonBoss_Volvagia` / `DefeatedEnemyNum.Enemy_DungeonBoss_Volvagia` (enemy dictionary), because it keeps Volvagia's enemy parameters and `ActorName`.
 
-## Most promising route, if you still want it
-- Test the reachable question first in a throwaway map, not the field: add one live Volvagia with its nine anchors and centre to a small adult map, with no boss logic, and see whether it loads, whether the Appear event fires, and where it flies. Longshot's control bridge (see `00-making-new-features.md`) can teleport and take screenshots, so this can be checked without playing.
-- If the Appear event is gated by `IsIntendedForEventAppear` (omit it) and the Die event cannot be removed, the remaining route is a custom actor pack: a copy of the Volvagia pack with its own `DeathProcedures` and `EventStartParameters` pointing at no events, registered as a new actor name. That is a bigger change and needs the actor name tables understood first.
+## Route B (our own AI) and Route C
+Route B not built: it is only needed if stage 1 shows the native hole queries do not work outside the boss room. The mechanism is ready: the clone has its own ActorParam, so it can point `BSARef` at its own `BSAParam` whose `BrainAinPath`, `ActionSlotMainAin` and `UtilityAinPath` name our own graphs (the ainb module already grafts nodes into graphs for regen and backup). Writing a whole brain plus action graph from scratch is a larger job than this time box; it should start from the result of stage 1. Route C (a re-skinned ordinary flyer) was not built, as asked: A is not proven impossible.
 
 ## How it was tested
-Read-only inspection of the actor packs, AI graphs, Fire Temple and Dream World boss maps, the boss logic graph and the adult field maps. `cargo build -p ootrr` builds clean. Nothing was run in the game.
+Unit and game-file tests in `difficulty/volvagia.rs` (5): switches; the clone pack keeps every Volvagia file byte for byte and adds four with the right references, no story events, scaled distances; the ring matches both the dream world and Fire Temple rooms; rows and tags copy Volvagia and refuse a second insert; both stages place one actor with 9 linked anchors at the right height and spread, groups grown by one, sizes for every new file. `cargo test -p ootrr-core difficulty`, `settings`, release build. Nothing run in the game.
 
 ## In the game
-Nothing to test.
+See `<playtest folder>\volvagia\PLAN.md`: stage 1 Market load test, appearance, events, music, kill and flag reads; lift/scale variants; stage 2 field with travel and kill tests.
 
-## Notes
-- Anchors, not rails, are the way Volvagia moves. Any future attempt has to supply the anchors.
-- A shared parameter file is the reason a field-only change to its events is impossible without a new actor pack.
+## First investigation (19 Nov, kept)
+- `Enemy_DungeonBoss_Volvagia` is a normal enemy actor with a 211-file pack; flight comes from native queries `QueryVolvagiaGetHolePos`, `...NearOrderByInputNumber`, `...GetRoomCenterPos`, `...CalcCircleMoveTargetPos` that read the named links. `flymove` only picks a turn animation.
+- The room logic `Enemy_DungeonBoss_Volvagia_Main_e0cf` creates/deletes it and drives rocks, lava, palette and warp.
+- The story hooks are in the shared `DungeonBossCommonParam` (Appear `Dm_FireTemple_BossIn`, Die `SageOfFire_DefeatBoss`), which is why a field copy needs its own actor class: done above.
+- The adult field has no flyer rails; Guay flocks are native.

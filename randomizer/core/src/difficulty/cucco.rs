@@ -15,7 +15,7 @@ pub const PREFIX: &str = "Animal_Cucco";
 pub const SUPER: &str = "Animal_SuperCucco";
 pub const QUEST: [&str; 1] = ["Animal_Cucco_FindOutCucco"];
 pub const GRAPHS: &str = ".interruptseq.root.ainb";
-pub const NOTE: &str = "Hurting a Cucco even once makes the whole flock of Cuccos come at you, where the game normally wants a few hits first. Picking a Cucco up, carrying it and throwing it do not count as hurting it. The Cuccos you catch for Anju in Kakariko Village and the ones the game has you find are left as they were. Experimental, untested in the game.";
+pub const NOTE: &str = "Hit a Cucco even once and the whole flock comes after you, instead of after a few hits. Picking one up and throwing it doesn't count. Anju's Cuccos and the ones the game has you find keep their usual temper.";
 
 pub fn covered(pack: &str) -> bool {
     let Some(name) = pack.strip_prefix(DIR).and_then(|p| p.strip_suffix(".pack.zs")) else {

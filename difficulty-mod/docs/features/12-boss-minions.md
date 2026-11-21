@@ -53,3 +53,20 @@ Never played. To test:
 - Change for Gohma: the three Keese are no longer placed in the dynamic map. They are added to the static map in the same logic group as the boss and the room graph gets one node per Keese whose create input is the module output `End_TrapEvent` (the end of the door-shutting scene, as Gohma's introduction starts; see feature 11 for why this is the closest signal). They are not deleted when the boss dies, as before. Because the signal does not fire again once the boss is beaten, they should not come back on a later visit.
 - Other rooms (Barinade, Phantom Ganon, Volvagia, Morpha, Bongo Bongo, Twinrova): unchanged. Their room graphs expose no fight-started signal (see feature 11), so the minions are still placed in the dynamic map.
 - Testing the Gohma room: walk through the boss door. Warping into the room skips the door scene, so the Keese never appear.
+
+## Fight start, 20 Nov (feature/boss-adds-start)
+Same requirement and mechanism as feature 11 (see its "Fight start" section for what the data says). Changes:
+- **Every room** now uses it, not only Gohma: the minions of Barinade, Phantom Ganon, Volvagia, Morpha, Bongo Bongo and Twinrova moved from the `_Dynamic` map to the `_Static` map, in the boss room's logic group, each with a room-graph node created by `HavePlayedEvent.<boss intro>`. All seven room graphs took the edit in the game-file tests (the boss sits in one logic group with one heart container in each).
+- The minions now **leave when the boss is beaten** (delete on the heart container's flag, as the miniboss), so they are not at the warp and not there on a later visit.
+- New in the load list: the Fire, Water and Shadow Temples now carry new `_Static` actors (Fire Keese, Keese, Keese). Load-test them first; if one goes black, put that room's minions back in `_Dynamic`.
+
+Not played. Plan: `<playtest folder>\boss-adds-start\PLAN.md`.
+
+How to test in the game: as feature 11. In the rooms where the intro starts on entry, the Keese should show up as the intro ends and fly at you; none before.
+
+## Release (rc 16, 20 Nov)
+In rc 16, with the Shadow Temple fix from `test/handson2`: the scripted round 3 found the Shadow Temple loading to a black screen with this setting on (it loads without mods), caused by Bongo Bongo's Keese moved into `ShadowTemple_Static`. They now stay in `ShadowTemple_Dynamic` with no start condition, so in that room they are there from the start, not from the intro (unit test `the_shadow_temple_static_map_is_not_edited_by_minions`). The temple has not been loaded in the game with the fix yet. Menu text: "Bosses bring a few Keese or Biri, and King Dodongo calls more Baby Dodongos. They appear when the fight starts (Bongo Bongo's are there from the start) and leave when the boss is beaten. Ganondorf and Ganon are unchanged. Played with Gohma and Phantom Ganon; the other bosses are untested."
+
+- **Played by hand:** Gohma and Phantom Ganon.
+- **Played by script:** Phantom Ganon and Twinrova (see feature 11).
+- **Not played:** Barinade, Volvagia, Morpha, Bongo Bongo, and the Shadow Temple load with the fix.

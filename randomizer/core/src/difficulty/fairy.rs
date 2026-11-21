@@ -2,6 +2,7 @@ use std::collections::BTreeSet as Set;
 
 use crate::ainb::build::{Spec, QUERY};
 use crate::ainb::Ainb;
+use crate::difficulty::fx;
 use crate::difficulty::hook::{self, both, flag, switch, Hook};
 use crate::error::Res;
 use crate::qol::Have;
@@ -22,7 +23,7 @@ pub const IDLE: &str = "ExecuteGenericDummyAction";
 pub const FRAMES: f32 = 30.0;
 pub const TO_MAX: i32 = 1;
 pub const HEAP_EXTRA: i32 = 0x8000;
-pub const ADDED: usize = 14;
+pub const ADDED: usize = 14 + 1 + fx::HURT_ADDED;
 pub const LABEL: &str = "fairy helps enemies";
 
 pub const HOOK: Hook = Hook { label: LABEL, taken, build };
@@ -46,14 +47,11 @@ pub fn build(a: &mut Ainb, tag: &str) -> Res<usize> {
     let used: usize = a.add_node(&get)?;
     let has: usize = a.add_node(&Spec::query(HAS_LIFE, &s("has life")).out(1, "Bool"))?;
     let dead: usize = a.add_node(&Spec::query(IS_DEAD, &s("is dead")).spare(0, "DeathReason").spare(0, "SubDeathReason").out(1, "IsDead"))?;
-    let heal: usize = a.add_node(
-        &Spec::node(HEAL, &s("heal"))
-            .prop(1, "ExecuteEveryFrame", flag(false))
-            .constant(0, "SetType", TO_MAX.to_le_bytes().to_vec())
-            .constant(0, "SetValue", 0i32.to_le_bytes().to_vec()),
-    )?;
+    let heal: usize = a.add_node(&heal_spec(&s("heal")))?;
+    let topped: usize = a.add_node(&heal_spec(&s("heal at full")))?;
+    let shown: usize = fx::when_hurt(a, &s("heal"), topped, heal)?;
     let gone: usize = a.add_node(&Spec::node(IDLE, &s("idle dead")))?;
-    let alive: usize = a.add_node(&switch(&s("alive"), dead, gone, heal))?;
+    let alive: usize = a.add_node(&switch(&s("alive"), dead, gone, shown))?;
     let bare: usize = a.add_node(&Spec::node(IDLE, &s("idle no life")))?;
     let gate: usize = a.add_node(&switch(&s("gate"), has, alive, bare))?;
     let clear: usize = a.add_node(
@@ -80,6 +78,13 @@ pub fn build(a: &mut Ainb, tag: &str) -> Res<usize> {
     let work: usize = a.add_node(&both(&s("work"), gate, timer))?;
     let calm: usize = a.add_node(&Spec::node(IDLE, &s("idle calm")))?;
     a.add_node(&switch(&s("poll"), used, work, calm))
+}
+
+fn heal_spec(seed: &str) -> Spec<'_> {
+    Spec::node(HEAL, seed)
+        .prop(1, "ExecuteEveryFrame", flag(false))
+        .constant(0, "SetType", TO_MAX.to_le_bytes().to_vec())
+        .constant(0, "SetValue", 0i32.to_le_bytes().to_vec())
 }
 
 pub fn stage(rf: &mut Romfs, have: Have, dir: &str) -> Res<(Set<String>, Vec<Out>)> {

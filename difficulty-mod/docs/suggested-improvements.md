@@ -125,3 +125,11 @@ Options, cheapest first:
 - **Old settings strings.** A string from an earlier build with More enemies at Half again or Double reads as 1x with a warning (the setting changed from a choice to a slider).
 - **Ledges.** The in-bounds rule (actors nearby) still lets an enemy onto a roof or cliff top that has props. If the game test finds some, a reachability check from the map's arrival points over the mesh would remove them.
 
+
+## Resolved: gates and weaponless children (20 Nov, branch feature/gate-sword, not merged)
+You decided: the gates do not spawn until the player has the sword. Child gates (1 to 6, 9) now create their guards and barrier only while the saved flag `IsGet.Weapon_Sword_Kokiri` is set; adult gates (11 to 13) are unchanged. The earlier item-logic requirement (branch feature/gate-logic) was reverted, since a swordless player is never blocked. Details in `features/20-enemies-block-the-way.md`, "Sword condition".
+Open for you: (1) a sword given through Starting items may not set the flag, in which case that player never meets the gates (safe, but to be checked in the game); (2) a gate may appear mid-map when the sword is picked up, or on the next load: to be seen; (3) the Dodongo (gate 2) and the Mad Scrub (gate 1) are assumed killable by the child's sword from the logic's enemy rules, not yet checked in the game.
+
+## From the enemy randomizer v2 (20 Nov, branch feature/enemy-randomizer, not played)
+- **More enemies could change, if you allow it.** v2 draws from every map and changes about four in five of the enemies it may touch, but with your v1 safety rules only 117 enemies in the whole game may change (91 do with seed "game"). Unreferenced enemies blocked only by an extra placement key: `Presence` (a spawn condition such as night or a story flag; 22 enemies) and `IsPhysicsStable` (9). Allowing both keeps the "nothing refers to it" rule and adds about 30. Not done: your call. The other 102 blocked enemies are named by an AI group (room logic), so they stay.
+- **Skulltulas in child maps never change** (18): the only other ceiling kind is the Wallmaster, which the Kokiri Sword alone cannot beat. A Keese hanging from the same ceiling would be the only option, untested. Not done.

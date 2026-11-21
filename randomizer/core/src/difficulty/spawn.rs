@@ -46,7 +46,7 @@ pub const BB_HEAD: usize = BB_TYPES * 8;
 pub const BB_SIZES: [usize; BB_TYPES] = [4, 4, 4, 4, 4, 12, 0];
 pub const BB_PLAIN: u32 = 0x0080_0000;
 
-pub const NOTE: &str = "Hold both sticks pressed in (left stick click and right stick click) and press the D-pad Down to spawn a random ordinary enemy a few steps in front of Link. Press the D-pad Up with both sticks held in to spawn the same kind again. The pool has 43 kinds, from Stalfos and Lizalfos to Poes, Gibdos, Freezards and the silver Iron Knuckle. An enemy whose data the current area has not loaded will not appear, and at most twelve spawned enemies are kept at once. Experimental.";
+pub const NOTE: &str = "Hold both sticks pressed in and press D-pad Down to spawn a random enemy in front of Link, or D-pad Up to spawn the same kind again. Up to twelve at a time. An enemy the area hasn't loaded won't appear.";
 
 fn vec3(x: f32, y: f32, z: f32) -> Vec<u8> {
     [x, y, z].iter().flat_map(|v| v.to_le_bytes()).collect()

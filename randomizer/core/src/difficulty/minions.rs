@@ -3,7 +3,7 @@ use std::f32::consts::{PI, TAU};
 
 use crate::ainb::Ainb;
 use crate::byml::{Byml, Node};
-use crate::difficulty::minibosses::{self, Start, GOHMA_START};
+use crate::difficulty::minibosses::{self, Start, BARINADE_START, GOHMA_START, MORPHA_START, PHANTOM_START, TWINROVA_START, VOLVAGIA_START};
 use crate::flow_locations::dict_id;
 use crate::error::{Error, Res};
 use crate::murmur::murmur3_32;
@@ -28,7 +28,7 @@ pub const DODONGO_PARAM: &str = "GameParameter/DungeonBossDodongoParam/Enemy_Dun
 pub const STAGES: &str = "SpawnBabyDodongoParams";
 pub const AFTER_ROLL: &str = "RollingAfterSpawnNum";
 pub const FIRST_BABIES: i32 = 2;
-pub const NOTE: &str = "Bosses have a few weak enemies with them. Keese fly around the rooms of Gohma, Phantom Ganon, Morpha and Bongo Bongo, Fire Keese around Volvagia, Fire and Ice Keese around Twinrova and Biri around Barinade. King Dodongo calls Baby Dodongos from the start of his fight and calls more of them. The Keese in Gohma's room appear when the door has shut behind you, as the boss introduction starts, and the others are there whenever you are in the boss room. They stay after the boss is beaten. Ganondorf, Ganon and the dream world boss stages are unchanged. Experimental, untested in the game.";
+pub const NOTE: &str = "Bosses bring a few weak enemies: Keese with Gohma, Phantom Ganon, Morpha and Bongo Bongo, Fire Keese with Volvagia, Fire and Ice Keese with Twinrova and Biri with Barinade. King Dodongo calls Baby Dodongos from the start and calls more of them. They appear when the fight starts (Bongo Bongo's are there from the start) and leave when the boss is beaten. Ganondorf and Ganon are unchanged. Played with Gohma and Phantom Ganon; the other bosses are untested.";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Room {
@@ -61,7 +61,7 @@ pub const ROOMS: [Room; 7] = [
         mid: [42.3, 103.5, -112.1],
         ring: 8.0,
         foes: &[BIRI, BIRI, BIRI],
-        start: None,
+        start: Some(BARINADE_START),
     },
     Room {
         boss: "Enemy_DungeonBoss_PhantomGanon",
@@ -71,7 +71,7 @@ pub const ROOMS: [Room; 7] = [
         mid: [0.0, 78.2, -62.5],
         ring: 5.0,
         foes: &[KEESE, KEESE, KEESE],
-        start: None,
+        start: Some(PHANTOM_START),
     },
     Room {
         boss: "Enemy_DungeonBoss_Volvagia",
@@ -81,7 +81,7 @@ pub const ROOMS: [Room; 7] = [
         mid: [-80.2, 106.0, 0.0],
         ring: 6.0,
         foes: &[FIRE, FIRE, FIRE],
-        start: None,
+        start: Some(VOLVAGIA_START),
     },
     Room {
         boss: "Enemy_DungeonBoss_Morpha",
@@ -91,7 +91,7 @@ pub const ROOMS: [Room; 7] = [
         mid: [-4.5, 133.5, -91.8],
         ring: 6.0,
         foes: &[KEESE, KEESE, KEESE],
-        start: None,
+        start: Some(MORPHA_START),
     },
     Room {
         boss: "Enemy_DungeonBoss_BongoBongo",
@@ -111,7 +111,7 @@ pub const ROOMS: [Room; 7] = [
         mid: [0.0, 146.0, -157.9],
         ring: 6.0,
         foes: &[FIRE, ICE, FIRE, ICE],
-        start: None,
+        start: Some(TWINROVA_START),
     },
 ];
 
@@ -247,7 +247,7 @@ pub fn signalled(rf: &mut Romfs, have: Have, r: &Room, start: &Start) -> Res<Vec
     let was: Vec<u8> = source(rf, have, &logic)?;
     let mut a: Ainb = Ainb::parse(&was)?;
     for p in &plans {
-        minibosses::wire_with(&mut a, None, &p.id, Some(start))?;
+        minibosses::wire_with(&mut a, Some(&p.heart), &p.id, Some(start))?;
     }
     let g: Vec<u8> = a.write()?;
     Ok(vec![banc, Out { path: logic, old: was.len(), new: g.len(), z: g }])
@@ -357,11 +357,24 @@ mod tests {
     }
 
     #[test]
-    fn only_gohmas_minions_wait_for_a_start_signal() {
-        for r in ROOMS.iter() {
-            assert_eq!(r.start.is_some(), r.boss.ends_with("Gohma"), "{}", r.boss);
+    fn every_room_waits_for_the_introduction_of_its_boss() {
+        for r in ROOMS.iter().filter(|r| !r.boss.ends_with("BongoBongo")) {
+            let st: Start = r.start.unwrap();
+            assert!(st.intro.ends_with("_BossIn") && !st.intro.contains("Dodongo"), "{}", r.boss);
         }
         assert_eq!(ROOMS[0].start, Some(GOHMA_START));
+        for s in minibosses::SPOTS.iter() {
+            let r: &Room = ROOMS.iter().find(|r| r.boss == s.actor).unwrap();
+            assert_eq!(r.start, s.start, "{}: the miniboss and the minions come together", s.boss);
+            assert_eq!(r.fixed, s.file);
+        }
+    }
+
+    #[test]
+    fn the_shadow_temple_static_map_is_not_edited_by_minions() {
+        let r: &Room = ROOMS.iter().find(|r| r.boss.ends_with("BongoBongo")).unwrap();
+        assert_eq!(r.start, None);
+        assert!(r.fixed.contains("ShadowTemple_Static") && r.free.contains("ShadowTemple_Dynamic"));
     }
 
     #[test]

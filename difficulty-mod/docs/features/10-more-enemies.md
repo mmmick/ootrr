@@ -31,6 +31,8 @@ How good it is: every placed vanilla ground enemy sits on the mesh within half a
 Things the mesh alone gets wrong, and the extra rules:
 - Some maps have huge flat planes under or around the world. **In bounds** = the face is no larger than 20,000 square units, its patch is at least 150 in area, at least 3 non-scenery actors of the map stand on that patch, and some actor of the map (grass, rock, pot, enemy, NPC...) is within 24 units horizontally and 12 vertically of the spot. Actors at the map origin are ignored (managers sit there).
 - **Water**: the mesh has no water. Water spots are 3 to 15 units from a vanilla Octorok, at the Octorok's height, where there is no floor within 3 units up or down. So Octoroks spread through Lake Hylia (child), Zora's River and Fountain, Gerudo Valley; depth is not known.
+  - **Fix after the rc 15 report (Jabu-Jabu, 19 Nov).** At 10x, Octoroks in the business scrub room were under a ceiling and one was inside a wall: "no floor within 3" is also true of rock, walls and the void beside a pool, and the 3 to 15 ring reaches past a small pool. A water spot (and each group member) now also needs (1) a walkable floor within 4.5 units horizontally in a dungeon, 9 outdoors (every vanilla Octorok stands at the shore, 0.5 from the mesh; the Lake Hylia ones are up to 7.5 out), and (2) no walkable floor within 10 units above it (`Ground::shore`, `Ground::roof`, `WATER_SHORE_ROOFED`, `WATER_SHORE_OPEN`, `WATER_ROOF`). Neither rule can see a ceiling that has no walkable floor, because the game's collision is not read. Ground spawns were not changed: they already sit on the mesh and keep the class clearance from its open edges (1 to 4 units), and none were found in that room.
+  - Seed "game", all maps: at 10x Jabu-Jabu 34 to 16 added (water 32 to 15), Zora's River adult 69 to 61, Gerudo Valley adult 55 to 54, Gerudo Valley child water 3 to 0 (all three were far from any shore), Zora's River child 24 to 24 (water 9 to 8); Forest Temple 61 to 65 (the random stream moves). Total 1548 to 1524. At 5x: Jabu-Jabu 31 to 19, Hyrule Field child 143 to 133, Gerudo Valley adult 16 to 14, child 10 to 9, Zora's River child 15 to 14; total 1033 to 1007.
 - **Ceilings**: not in the mesh. Dungeons (maps whose actors carry a dungeon room index) count as roofed; Skulltulas and Wallmasters only go there, and fliers are kept 2.5 above the floor indoors.
 - **Sand**: by map: Haunted Wasteland and Desert Colossus.
 
@@ -113,6 +115,9 @@ Boss rooms and dream world stages; `Market_Child` (town and minigames), `HyruleC
 - With every difficulty setting on at 10x (`difficulty.rs`): no file staged twice, the wake pack once, more than 1,000 actors added, no actor id used twice except where vanilla already does.
 - `cargo test -p ootrr-core difficulty` 181 passed, `settings` 106 passed; `python tools\audit.py randomizer` FAIL 0, no new WARN. Release build copied to `<playtest folder>\horde\ootrr.exe`.
 
+## Jabu-Jabu water spots (19 Nov, game check)
+Own shadow game, 10x, Jabu-Jabu loaded and ran; the scrub room held 139 actors and 20 or so Octoroks around the pool, positions read with `enemies`. NOT confirmed in the game: that none is under a ceiling or in a wall. Positions alone cannot show that (the game's collision is not read), so a person has to look at the pool; if one is still wrong, send its position.
+
 ## NOT TESTED in the game: everything
 Nothing was run in the game. Unknown: whether 240 enemies in Hyrule Field load and run at a usable frame rate; whether new kinds load in every map (Like Likes, Dead Hand and Iron Knuckle did in Hyrule Field); whether dungeon room indices from the nearest actor are right; whether enemies stay on the ground they were given (especially Tektites and Wolfos at the edge of a ledge); whether fliers outdoors behave; whether doors that open on "all enemies beaten" still open; whether Guays copied from the night-only child-field ones appear by day (they carry the night key); whether the silver knights wake.
 
@@ -171,3 +176,9 @@ Totals at 10x now (seed text "game", copies included): 1,802 added over 39 maps 
 
 10x now (seed text "game", copies included, special encounters not in the CSV): 1,710 added; child Hyrule Field 240, Dodongo's Cavern 145.
 Left: the rule is per map, not per room, for bombable obstacles; lava is excluded through reachability, not a lava attribute (the mesh has none).
+
+## Release (rc 16, 20 Nov)
+In rc 16: the Jabu-Jabu water rule above (water spots need a shore within reach and no floor overhead).
+
+- **By script** (checks-1120, 10x): 19 Octoroks added in Jabu-Jabu, 10 of them at water level in the business scrub room pool; screenshots show none sunk in a wall.
+- **Not checked by eye:** whether any sits under a ceiling (still in the capture playbook).

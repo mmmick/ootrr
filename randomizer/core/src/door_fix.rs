@@ -185,7 +185,7 @@ pub fn patch_flow(b: &mut Bf) -> Res<Report> {
         *next = idx(head)?;
     }
     let t5: Event = step_event(&f.events[s6], format!("{PREFIX}3"), "Step05")?;
-    let t4: Event = step_event(&f.events[s6], format!("{PREFIX}4"), "Step04")?;
+    let t4: Event = step_event(&f.events[s6], format!("{PREFIX}4"), crate::story_skip::ESCAPE_STEP)?;
     let opened: Vec<(String, Val)> = vec![item("GameDataName", OPENED), ("Index".to_string(), Val::Int(-1))];
     f.events.push(ask(format!("{PREFIX}0"), (ga, qb), opened, s6i, l2));
     f.events.push(ask(format!("{PREFIX}1"), (ga, qp), vec![item("EventName", SONG)], a5, l3));
@@ -400,7 +400,7 @@ mod tests {
         let l2: Vec<(u32, String)> = cases(f, &format!("{PREFIX}2"));
         assert_eq!(l2, vec![(0, format!("{PREFIX}4")), (1, STEP03.to_string())]);
         assert_eq!(text(&ev(f, &format!("{PREFIX}3")).kind, STEP), Some("Step05"));
-        assert_eq!(text(&ev(f, &format!("{PREFIX}4")).kind, STEP), Some("Step04"));
+        assert_eq!(text(&ev(f, &format!("{PREFIX}4")).kind, STEP), Some("Step05"));
         assert_eq!(text(&ev(f, &format!("{PREFIX}3")).kind, CHALLENGE), Some("DoorOfTime"));
         let Kind::Switch { params, .. } = &ev(f, &format!("{PREFIX}0")).kind else { panic!() };
         assert_eq!(params.as_ref().and_then(|c| c.get("GameDataName")), Some(&Val::Str(OPENED.to_string())));

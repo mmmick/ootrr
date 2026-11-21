@@ -92,7 +92,7 @@ mod tests {
         let v: World = world_with(&d, &q.logic()).unwrap();
         let pq: Pick = pick(&d, &v, &q);
         assert!(!pq.free.iter().any(|l| only(&q, &v.locs[*l].name)));
-        assert_eq!(pq.left.get(SHORT).copied(), Some(23), "{:?}", pq.left);
+        assert_eq!(pq.left.get(SHORT).copied(), Some(18), "{:?}", pq.left);
     }
 
     #[test]
@@ -109,7 +109,7 @@ mod tests {
                     assert!(is_junk(&d, item), "{loc} holds {item}");
                 }
             }
-            assert_eq!(seen, 23);
+            assert_eq!(seen, 18);
             assert_eq!(g.seed_file.placements.values().filter(|i| i.as_str() == TOKEN).count(), 100);
         }
     }

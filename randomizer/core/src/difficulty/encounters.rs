@@ -21,7 +21,7 @@ pub const SEED: &str = "ootrr special encounters";
 pub const GROUPS: [&str; 2] = ["FarDeleteGroups", "SimultaneousGroups"];
 pub const RING: f32 = 3.0;
 pub const APPEAR: f32 = 3.5;
-pub const NOTE: &str = "Special encounters: a Dead Hand waits in the dark hole in east Hyrule Field (next to the ReDead and the chest) and in the foggy hole at the foot of the Death Mountain trail (with the Baby Dodongos), and an Iron Knuckle (it gets up when you come within about 9 units) stands in the open fields of Hyrule Field between Kakariko, Lon Lon Ranch and the Kokiri Forest. Nine Like Likes wait around Lake Hylia: the grassy corner and the shore north of the lake, the island where the two rope bridges meet, the small islands, the big central island and the west shore strip. They are in the child and the adult map and come back when the area is loaded again. Child Hyrule Field also gets 24 more Guays in six loose flocks over the open grass, a few units above the ground, out at night like the Guays already there. Experimental, untested in the game.";
+pub const NOTE: &str = "Special encounters: a Dead Hand waits in the dark hole in east Hyrule Field (by the ReDead and the chest) and in the foggy hole at the foot of the Death Mountain Trail (with the Baby Dodongos), and an Iron Knuckle stands in the open field between Kakariko, Lon Lon Ranch and Kokiri Forest and gets up when you come close. Nine Like Likes wait around Lake Hylia, child and adult. Child Hyrule Field gets 24 more Guays in six loose flocks over the open grass. They come back whenever the area reloads.";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum What {

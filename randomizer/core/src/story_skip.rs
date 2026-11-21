@@ -886,6 +886,7 @@ pub struct SceneGive {
     pub actor: String,
     pub family: Option<&'static str>,
     pub key: Option<(crate::gift_keys::Item, &'static str)>,
+    pub line: Option<String>,
 }
 
 /// The checks whose scenes are dropped for the standard item get.
@@ -902,6 +903,15 @@ fn item_get(f: &mut Flow, name: &str, g: &SceneGive, then: u16, entries: &[&str]
     if f.events.iter().any(|e| e.name == name) {
         return Err(Error::Msg(format!("story skip: the item get {name} is already in {}", f.name)));
     }
+    let then: u16 = match &g.line {
+        Some(id) => {
+            let (t, say): (u16, u16) = crate::dungeon_credit::action_slot(f, crate::dungeon_credit::TALKER, crate::dungeon_credit::TALK)?;
+            let n: u16 = idx(f.events.len())?;
+            f.events.push(Event { name: format!("{name}Dbg"), kind: Kind::Action { next: then, actor: t, act: say, params: Some(crate::dungeon_credit::talk(id.clone())) } });
+            n
+        }
+        None => then,
+    };
     let at: u16 = idx(f.events.len())?;
     // A small key is held up as the minigame key through the key copy, whose window names the
     // dungeon key (crate::gift_keys::SMALL_KEY_SHOWN).
@@ -1484,7 +1494,7 @@ pub const SONG_TRIGGERS: [SongTrigger; 11] = [
     },
     // The Ocarina of Time scene also hands over the Ocarina.
     SongTrigger { loc: "Song from Ocarina of Time", flow: "DoorOfTime", cut: &[], give: "Dm_MelodyGet_Time", also: &["HF Ocarina of Time Item"], calls: &[] },
-    SongTrigger { loc: "Song from Windmill", flow: "Npc_Hylia_009_Adult", cut: &[], give: "Dm_MelodyGet_Storm", also: &[], calls: &[] },
+    SongTrigger { loc: "Song from Windmill", flow: "Npc_Hylia_009_Adult", cut: &[], give: "Dm_MelodyGet_Storm", also: &[], calls: &[("Npc_Hylia_009_Adult", "After_GetStormSong")] },
     // Sheik's songs, played from the sage quest flows. Running the item get inside Sheik's own scene
     // stalled (the scene's Link uses its own animation set), so like the others the scene is
     // dropped from the flow that plays it. Requiem is started by its map and keeps its cut scene.
@@ -1495,6 +1505,49 @@ pub const SONG_TRIGGERS: [SongTrigger; 11] = [
     SongTrigger { loc: "Sheik at Temple", flow: "AllSage", cut: &[], give: "Dm_MelodyGet_Shine", also: &[], calls: &[] },
 ];
 const SONG_PREFIX: &str = "OOTRRSong";
+pub const BOOT_LESSONS: [(&str, &str); 1] = [("Sheik in Kakariko", "Event329")];
+const LOADING_WAIT: (&str, &str) = ("UISystemActor", "EventWaitCloseLoadingFade");
+
+fn fade_in(f: &mut Flow) -> Res<Kind> {
+    let (a, x): (u16, u16) = crate::dungeon_credit::action_slot(f, FADE_IN.0, FADE_IN.1)?;
+    Ok(Kind::Action {
+        next: NONE,
+        actor: a,
+        act: x,
+        params: Some(Cont {
+            items: vec![
+                ("Color".to_string(), Val::Int(0)),
+                ("IsNoPlayAnime".to_string(), Val::Bool(0)),
+                ("Length".to_string(), Val::Int(1)),
+                ("IsWaitEnd".to_string(), Val::Bool(1)),
+            ],
+        }),
+    })
+}
+
+fn give_before(f: &mut Flow, ev: &str, prefix: &str, gives: &[SceneGive]) -> Res<()> {
+    let c: usize = find(f, ev)?;
+    let ci: u16 = idx(c)?;
+    let before: Vec<usize> = (0..f.events.len()).filter(|&j| matches!(&f.events[j].kind, Kind::Action { next, .. } | Kind::Sub { next, .. } | Kind::Join { next } if *next == ci)).collect();
+    if before.is_empty() {
+        return Err(Error::Msg(format!("story skip: nothing leads to {ev} in {}, the game files differ", f.name)));
+    }
+    let entries: Vec<String> = entries_reaching(f, c);
+    let names: Vec<&str> = entries.iter().map(|s| s.as_str()).collect();
+    let mut then: u16 = ci;
+    for (k, g) in gives.iter().enumerate().rev() {
+        then = item_get(f, &format!("{prefix}_{k}"), g, then, &names)?;
+    }
+    for j in before {
+        set_next(&mut f.events[j].kind, then)?;
+    }
+    Ok(())
+}
+
+fn loading_wait(f: &mut Flow) -> Res<Kind> {
+    let (a, x): (u16, u16) = crate::dungeon_credit::action_slot(f, LOADING_WAIT.0, LOADING_WAIT.1)?;
+    Ok(Kind::Action { next: NONE, actor: a, act: x, params: Some(Cont { items: vec![("IsWaitEnd".to_string(), Val::Bool(1))] }) })
+}
 
 /// A write a scene makes of its own (a flag, a counter, a quest step), to run in place of it.
 #[derive(Debug, Clone, PartialEq)]
@@ -1553,10 +1606,20 @@ pub fn patch_song_trigger(b: &mut Bf, t: &SongTrigger, writes: &[Write], gives: 
         let entries: Vec<String> = entries_reaching(f, i);
         let names: Vec<&str> = entries.iter().map(|s| s.as_str()).collect();
         let mut then: u16 = next;
-        for (k, g) in gives.iter().enumerate().rev() {
-            then = item_get(f, &format!("{SONG_PREFIX}{}_{i}_{k}", t.give), g, then, &names)?;
+        let boot: Option<&str> = BOOT_LESSONS.iter().find(|b| b.0 == t.loc).map(|b| b.1);
+        match boot {
+            None => {
+                for (k, g) in gives.iter().enumerate().rev() {
+                    then = item_get(f, &format!("{SONG_PREFIX}{}_{i}_{k}", t.give), g, then, &names)?;
+                }
+            }
+            Some(ev) => give_before(f, ev, &format!("{SONG_PREFIX}{}_{i}", t.give), gives)?,
         }
         let mut kinds: Vec<Kind> = Vec::new();
+        if boot.is_some() {
+            kinds.push(loading_wait(f)?);
+            kinds.push(fade_in(f)?);
+        }
         if let Some(m) = given_mark(t.loc) {
             kinds.push(set_bool(f, m, true)?);
         }
@@ -1797,10 +1860,18 @@ const ESCAPE_EVENT: &str = "Event13";
 const ESCAPE_SCENE: &str = "Dm_HrlField_0060";
 pub const ESCAPE_PREFIX: &str = "OOTRREscape";
 
+const ESCAPE_STEP_EVENT: &str = "Event12";
+pub const ESCAPE_STEP: &str = "Step05";
+
 pub fn patch_escape(b: &mut Bf) -> Res<()> {
     let f: &mut Flow = flow_mut(b, DOOR_FLOW)?;
     guard(f, ESCAPE_PREFIX)?;
     transition_to_flag(f, ESCAPE_PREFIX, ESCAPE_EVENT, ESCAPE_SCENE, None)?;
+    let i: usize = find_action(f, (ESCAPE_STEP_EVENT, "ChallengeSystemActor.EventExecuteProgressChallengeStep"))?;
+    if text(&f.events[i], "ChallengeName") != Some("DoorOfTime") || text(&f.events[i], "StepName") != Some("Step04") {
+        return Err(Error::Msg(format!("story skip: {ESCAPE_STEP_EVENT} in {} is not the DoorOfTime Step04 request, the game files differ", f.name)));
+    }
+    set_param(&mut f.events[i].kind, "StepName", Val::Str(ESCAPE_STEP.to_string()))?;
     Ok(())
 }
 
@@ -2132,7 +2203,7 @@ mod tests {
         let mut rf: Romfs = Romfs::open(&root).unwrap();
         for t in &SONG_TRIGGERS {
             let writes: Vec<Write> = scene_writes(&mut rf, t.give).unwrap();
-            let gives: Vec<SceneGive> = std::iter::once(t.loc).chain(t.also.iter().copied()).map(|_| SceneGive { actor: "Item_Bottle".to_string(), family: None, key: None }).collect();
+            let gives: Vec<SceneGive> = std::iter::once(t.loc).chain(t.also.iter().copied()).map(|_| SceneGive { actor: "Item_Bottle".to_string(), family: None, key: None, line: None }).collect();
             let mut b: Bf = Bf::parse(&rf.read_zs(&format!("Event/EventFlow/{}.bfevfl.zs", t.flow)).unwrap()).unwrap();
             patch_song_trigger(&mut b, t, &writes, &gives).unwrap();
             let f: &Flow = b.flows.iter().find(|x| x.name == t.flow).unwrap();
@@ -2147,6 +2218,64 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn every_story_call_of_a_dropped_song_scene_still_runs() {
+        let Some(root) = dump() else { return };
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        let helpers: [&str; 7] = ["", "Dm_SY_Ocarina", "GetPouchContent", "NaviEventCommon", "NaviChat", "Common", "Common_Camera_Pln"];
+        let talk_only: [(&str, &str); 3] = [("SageOfWater", "Dm_MelodyGet_WaterAfter"), ("AllSage", "MelodyOfShine"), ("DoorOfTime", "Dm_MelodyGet_Time_After")];
+        for t in &SONG_TRIGGERS {
+            let b: Bf = Bf::parse(&rf.read_zs(&format!("Event/EventFlow/{}.bfevfl.zs", t.give)).unwrap()).unwrap();
+            for e in b.flows.iter().flat_map(|f| f.events.iter()) {
+                let Kind::Sub { flow, entry, .. } = &e.kind else { continue };
+                if helpers.contains(&flow.as_str()) || talk_only.contains(&(flow.as_str(), entry.as_str())) {
+                    continue;
+                }
+                assert!(t.calls.contains(&(flow.as_str(), entry.as_str())), "{}: the scene calls {flow}:{entry}, which no longer runs", t.loc);
+            }
+        }
+    }
+
+    #[test]
+    fn the_skipped_escape_moves_the_quest_past_the_moat_step() {
+        let Some(root) = dump() else { return };
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        let mut b: Bf = Bf::parse(&rf.read_zs(DOOR_FILE).unwrap()).unwrap();
+        patch_escape(&mut b).unwrap();
+        let f: &Flow = b.flows.iter().find(|x| x.name == DOOR_FLOW).unwrap();
+        let steps: Vec<&str> = f.events.iter().filter(|e| text(e, "ChallengeName") == Some("DoorOfTime")).filter_map(|e| text(e, "StepName")).collect();
+        assert!(!steps.contains(&"Step04"), "{steps:?}");
+        let e: &Event = f.events.iter().find(|e| e.name == ESCAPE_STEP_EVENT).unwrap();
+        assert_eq!(text(e, "StepName"), Some(ESCAPE_STEP));
+        assert!(patch_escape(&mut b).is_err());
+    }
+
+    #[test]
+    fn the_nocturne_is_given_before_the_burned_village_loads() {
+        let Some(root) = dump() else { return };
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        let t: &SongTrigger = SONG_TRIGGERS.iter().find(|t| t.loc == "Sheik in Kakariko").unwrap();
+        let writes: Vec<Write> = scene_writes(&mut rf, t.give).unwrap();
+        let gives: Vec<SceneGive> = vec![SceneGive { actor: "Item_Bottle".to_string(), family: None, key: None, line: None }];
+        let mut b: Bf = Bf::parse(&rf.read_zs(&format!("Event/EventFlow/{}.bfevfl.zs", t.flow)).unwrap()).unwrap();
+        patch_burning(&mut b).unwrap();
+        patch_song_trigger(&mut b, t, &writes, &gives).unwrap();
+        let f: &Flow = b.flows.iter().find(|x| x.name == t.flow).unwrap();
+        let boot = f.entries.iter().find(|e| e.name == "KakarikoVillage_MelodyGet_Shadow").unwrap();
+        let w: Vec<String> = walk(f, boot.main, 16);
+        assert!(!w.iter().any(|x| x.contains("GetInEvent")), "{w:?}");
+        let wait: usize = w.iter().position(|x| x.starts_with("UISystemActor.EventWaitCloseLoadingFade")).expect(&format!("{w:?}"));
+        let fade: usize = w.iter().position(|x| x.starts_with("UISystemActor.EventEventFadeIn")).expect(&format!("{w:?}"));
+        assert!(wait < fade, "{w:?}");
+        let unequip: usize = f.events.iter().position(|e| e.name == "Event496").unwrap();
+        let a: Vec<String> = walk(f, next_of(&f.events[unequip].kind).unwrap(), 12);
+        let get: usize = a.iter().position(|x| x.contains("GetInEvent")).expect(&format!("{a:?}"));
+        let change: usize = a.iter().position(|x| x.starts_with("GameSystemActor.EventReserveBancChange")).expect(&format!("{a:?}"));
+        assert!(get < change, "{a:?}");
+        assert!(entries_reaching(f, f.events.iter().position(|e| e.name == "Event329").unwrap()).contains(&"KakarikoVillage_Arrive".to_string()));
+        Bf::parse(&b.write().unwrap()).unwrap();
     }
 
     /// Follows single nexts from `start`, collecting each event's summary.
@@ -2301,7 +2430,7 @@ mod tests {
         patch_endings(&mut b).unwrap();
         patch_fire_ending(&mut b).unwrap();
         let gives: Vec<(&str, &[&str], SceneGive)> =
-            REWARD_SCENES.iter().map(|(_, scene, extra)| (*scene, *extra, SceneGive { actor: "Item_Bottle".to_string(), family: None, key: None })).collect();
+            REWARD_SCENES.iter().map(|(_, scene, extra)| (*scene, *extra, SceneGive { actor: "Item_Bottle".to_string(), family: None, key: None, line: None })).collect();
         patch_reward_gives(&mut b, &gives).unwrap();
         let f: &Flow = b.flows.iter().find(|f| f.name == ENDING_FLOW).unwrap();
         for (_, boss) in BOSS_WARPS {
@@ -2437,7 +2566,7 @@ mod tests {
     }
 
     #[test]
-    fn the_real_zelda_escape_keeps_the_step_and_the_fade() {
+    fn the_real_zelda_escape_moves_the_step_past_the_moat_and_keeps_the_fade() {
         let Some(root) = dump() else {
             return;
         };
@@ -2450,7 +2579,7 @@ mod tests {
         let w: Vec<String> = walk_joins(f, e.main, 80);
         assert!(w.contains(&"GameDataActor.EventTriggerSetGameDataBool(HavePlayedEvent.Dm_HrlField_0060)".to_string()), "{w:?}");
         assert!(!w.iter().any(|x| x.starts_with("EventSystemActor.EventTransition")), "{w:?}");
-        assert!(w.contains(&"ChallengeSystemActor.EventExecuteProgressChallengeStep(DoorOfTime,Step04)".to_string()), "{w:?}");
+        assert!(w.contains(&"ChallengeSystemActor.EventExecuteProgressChallengeStep(DoorOfTime,Step05)".to_string()), "{w:?}");
         Bf::parse(&b.write().unwrap()).unwrap();
     }
 

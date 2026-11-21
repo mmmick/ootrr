@@ -69,12 +69,16 @@ impl Default for Cosmetics {
 
 impl Cosmetics {
     pub fn any(&self) -> bool {
-        self.music != Music::Off || self.sfx != Sfx::Off || matches!(self.colors, Colors::Random | Colors::Shared) || (self.colors == Colors::Custom && !self.parts.is_empty())
+        self.music != Music::Off || self.sfx != Sfx::Off || !colors::plan(self.colors, "", &self.parts).is_empty()
     }
 
     /// Whether anything in these cosmetics is drawn at random, so the cosmetic seed matters.
     pub fn rolls(&self) -> bool {
-        self.music != Music::Off || self.sfx != Sfx::Off || matches!(self.colors, Colors::Random | Colors::Shared) || (self.colors == Colors::Custom && self.parts.values().any(|p| *p == colors::Pick::Random))
+        let drawn = |i: &colors::Item| match self.parts.get(i.id) {
+            None => matches!(self.colors, Colors::Random | Colors::Shared),
+            Some(p) => *p == colors::Pick::Random && self.colors != Colors::Off,
+        };
+        self.music != Music::Off || self.sfx != Sfx::Off || colors::ITEMS.iter().any(drawn)
     }
 }
 

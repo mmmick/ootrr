@@ -847,7 +847,7 @@ mod tests {
 
     #[test]
     fn the_ladder_keeps_later_phases_and_never_goes_backwards() {
-        for (flag, want) in [(door_fix::OPENED, "Step06"), ("HavePlayedEvent.Dm_MelodyGet_Time", "Step05"), ("HavePlayedEvent.HyruleField_DoorOfTime_Escape", "Step04")] {
+        for (flag, want) in [(door_fix::OPENED, "Step06"), ("HavePlayedEvent.Dm_MelodyGet_Time", "Step05"), ("HavePlayedEvent.HyruleField_DoorOfTime_Escape", "Step05")] {
             let mut pre: Vec<(&str, &str)> = DONE.to_vec();
             pre.push((flag, "true"));
             let (s, c) = run_flow(patched(), door_db(), "SendOff", &pre);

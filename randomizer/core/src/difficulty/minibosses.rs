@@ -3,6 +3,7 @@ use crate::ainb::{audit, Ainb, Input};
 use crate::byml::{Byml, Node};
 use crate::error::{Error as E, Res};
 use crate::flow_locations::dict_id;
+use crate::gerudo_card::{bool_node, GET_BOOL};
 use crate::murmur::murmur3_32;
 use crate::placement::hash_of;
 use crate::qol::Have;
@@ -17,6 +18,7 @@ pub const CREATE: &str = "Logic_Create";
 pub const DELETE: &str = "Logic_Delete";
 pub const RESPAWN: &str = "RespawnTrigger";
 pub const ROOM: &str = "DefaultDungeonRoomIndex";
+pub const FLAG_NAME: &str = "GameDataNameBool";
 pub const BOOL: usize = 1;
 pub const STR: usize = 3;
 pub const IN: usize = 16;
@@ -27,11 +29,24 @@ pub const SEED: &str = "ootrr boss miniboss";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Start {
-    pub module: &'static str,
-    pub out: &'static str,
+    pub flow: &'static str,
+    pub intro: &'static str,
 }
 
-pub const GOHMA_START: Start = Start { module: "Enemy_DungeonBoss_Gohma_Prefab_b75b.logic.module", out: "End_TrapEvent" };
+impl Start {
+    pub fn flag(&self) -> String {
+        format!("{PLAYED}{}", self.intro)
+    }
+}
+
+pub const PLAYED: &str = "HavePlayedEvent.";
+pub const GOHMA_START: Start = Start { flow: "Get_StoneOfForest", intro: "Dm_Deku_BossIn" };
+pub const BARINADE_START: Start = Start { flow: "Get_StoneOfWater", intro: "Dm_InsideJabu_Jabu_BossIn" };
+pub const PHANTOM_START: Start = Start { flow: "SageOfForest", intro: "Dm_ForestTemple_BossIn" };
+pub const VOLVAGIA_START: Start = Start { flow: "SageOfFire", intro: "Dm_FireTemple_BossIn" };
+pub const MORPHA_START: Start = Start { flow: "SageOfWater", intro: "Dm_WaterTemple_BossIn" };
+pub const BONGO_START: Start = Start { flow: "SageOfShadow", intro: "Dm_ShadowTemple_BossIn" };
+pub const TWINROVA_START: Start = Start { flow: "SageOfSpirit", intro: "Dm_SpiritTemple_BossIn" };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Spot {
@@ -61,16 +76,16 @@ pub const SPOTS: [Spot; 4] = [
         mini: "Enemy_Stalfos_ForChild",
         label: "Stalfos",
         at: [51.5, 102.25, -112.1],
-        start: None,
+        start: Some(BARINADE_START),
     },
     Spot {
         boss: "Phantom Ganon",
         file: "Banc/ForestTemple/ForestTemple_Static.bcett.byml.zs",
         actor: "Enemy_DungeonBoss_PhantomGanon",
         mini: "Enemy_Stalfos_Weak",
-        label: "Stalfos",
+        label: "weak Stalfos",
         at: [5.5, 74.95, -62.5],
-        start: None,
+        start: Some(PHANTOM_START),
     },
     Spot {
         boss: "Twinrova",
@@ -79,7 +94,7 @@ pub const SPOTS: [Spot; 4] = [
         mini: "Enemy_Dinolfos",
         label: "Dinolfos",
         at: [6.0, 142.4, -157.9],
-        start: None,
+        start: Some(TWINROVA_START),
     },
 ];
 
@@ -206,20 +221,20 @@ pub fn wire(a: &mut Ainb, heart: &str, id: &str) -> Res<usize> {
     wire_with(a, Some(heart), id, None)
 }
 
-pub fn signal(a: &Ainb, s: &Start) -> Res<(usize, i16)> {
-    let ms: Vec<usize> = a.find_els(s.module);
-    let [m] = ms.as_slice() else {
-        return Err(E::Msg(format!("the room graph has {} nodes of {} and not one, the game files differ", ms.len(), s.module)));
+pub fn reader(a: &Ainb, s: &Start) -> Option<usize> {
+    let flag: String = s.flag();
+    a.find_els(GET_BOOL).into_iter().find(|&i| a.in_str(i, FLAG_NAME) == Some(flag.as_str()))
+}
+
+pub fn signal(a: &mut Ainb, s: &Start) -> Res<(usize, i16)> {
+    let i: usize = match reader(a, s) {
+        Some(i) => i,
+        None => bool_node(a, &s.flag(), &format!("{SEED} {}", s.intro))?,
     };
-    let (b, n): (usize, usize) = (a.params[*m].ioe[BOOL][2] as usize, a.params[*m].ioe[BOOL][3] as usize);
-    for k in b..b + n {
-        let e: &[u8] = a.outs[BOOL].get(k * OUT..k * OUT + 4).ok_or(E::Format("boss minibosses: output out of range"))?;
-        let w: u32 = u32::from_le_bytes([e[0], e[1], e[2], e[3]]);
-        if a.s(w & 0x3fff_ffff) == s.out {
-            return Ok((*m, (k - b) as i16));
-        }
+    match a.params[i].ioe[BOOL][3] {
+        0 => Err(E::Msg(format!("the reader of {} has no output, the game files differ", s.flag()))),
+        _ => Ok((i, 0)),
     }
-    Err(E::Msg(format!("{} has no output {}, the game files differ", s.module, s.out)))
 }
 
 pub fn wire_with(a: &mut Ainb, heart: Option<&str>, id: &str, start: Option<&Start>) -> Res<usize> {
@@ -426,65 +441,68 @@ mod tests {
         assert!(wire(&mut a, "Obj_Heart_Container_ffff", "Enemy_Stalfos_00ab").is_err());
     }
 
-    const MODULE: Start = Start { module: "Boss_Prefab_1234.logic.module", out: "End_TrapEvent" };
+    const INTRO: Start = Start { flow: "Boss_Flow", intro: "Dm_X_BossIn" };
 
-    fn graph_with_module() -> (Ainb, usize, usize) {
+    fn boss_graph() -> (Ainb, usize, Input) {
         let (mut a, _flag, heart): (Ainb, usize, usize) = graph();
         name_it(&mut a, heart, "Obj_Heart_Container_c072");
-        let m: usize = a.add_node(&Spec::query(MODULE.module, "t#3").out(BOOL, MODULE.out).out(BOOL, "Other")).unwrap();
-        (a, heart, m)
+        let h: Input = a.input(BOOL, a.find_in(heart, BOOL, CREATE).unwrap()).unwrap();
+        (a, heart, h)
     }
 
     #[test]
-    fn a_new_node_with_a_start_signal_is_not_created_at_load() {
-        let (mut a, heart, m): (Ainb, usize, usize) = graph_with_module();
-        assert_eq!(signal(&a, &MODULE).unwrap(), (m, 0));
-        let h: Input = a.input(BOOL, a.find_in(heart, BOOL, CREATE).unwrap()).unwrap();
-        let i: usize = wire_with(&mut a, Some("Obj_Heart_Container_c072"), "Enemy_Stalfos_00aa", Some(&MODULE)).unwrap();
+    fn a_new_node_waits_for_the_intro_and_reuses_the_reader_the_room_has() {
+        let (mut a, _heart, h): (Ainb, usize, Input) = boss_graph();
+        let r: usize = bool_node(&mut a, &INTRO.flag(), "t#4").unwrap();
+        assert_eq!(INTRO.flag(), "HavePlayedEvent.Dm_X_BossIn");
+        assert_eq!(reader(&a, &INTRO), Some(r));
+        let n: usize = a.els.len();
+        let i: usize = wire_with(&mut a, Some("Obj_Heart_Container_c072"), "Enemy_Stalfos_00aa", Some(&INTRO)).unwrap();
+        assert_eq!(a.els.len(), n + 1);
         let c: Ainb = Ainb::parse(&a.write().unwrap()).unwrap();
         let made: Input = c.input(BOOL, c.find_in(i, BOOL, CREATE).unwrap()).unwrap();
-        assert_eq!((made.src, made.plug), (m as i16, 0));
+        assert_eq!((made.src, made.plug), (r as i16, 0));
         assert_eq!(made.flags & UNSET, 0);
         let gone: Input = c.input(BOOL, c.find_in(i, BOOL, DELETE).unwrap()).unwrap();
         assert_eq!((gone.src, gone.plug), (h.src, h.plug));
+        let again: Input = c.input(BOOL, c.find_in(i, BOOL, RESPAWN).unwrap()).unwrap();
+        assert_eq!((again.src, again.flags, again.val), (-1, UNSET, vec![0; 4]));
         assert!(audit(&c).is_empty());
     }
 
     #[test]
-    fn minions_have_a_start_signal_and_never_a_delete() {
-        let (mut a, _heart, m): (Ainb, usize, usize) = graph_with_module();
-        let i: usize = wire_with(&mut a, None, "Enemy_Keese_00aa", Some(&MODULE)).unwrap();
-        let j: usize = wire_with(&mut a, None, "Enemy_Keese_00ab", Some(&MODULE)).unwrap();
+    fn a_room_without_a_reader_gets_one_shared_by_every_new_node() {
+        let (mut a, _heart, h): (Ainb, usize, Input) = boss_graph();
+        assert_eq!(reader(&a, &INTRO), None);
+        let n: usize = a.els.len();
+        let i: usize = wire_with(&mut a, Some("Obj_Heart_Container_c072"), "Enemy_Keese_00aa", Some(&INTRO)).unwrap();
+        let j: usize = wire_with(&mut a, Some("Obj_Heart_Container_c072"), "Enemy_Keese_00ab", Some(&INTRO)).unwrap();
+        assert_eq!(a.els.len(), n + 3);
         let c: Ainb = Ainb::parse(&a.write().unwrap()).unwrap();
+        let r: usize = reader(&c, &INTRO).unwrap();
+        assert_eq!(c.find_els(GET_BOOL).into_iter().filter(|&k| c.in_str(k, FLAG_NAME) == Some("HavePlayedEvent.Dm_X_BossIn")).count(), 1);
         for k in [i, j] {
             let made: Input = c.input(BOOL, c.find_in(k, BOOL, CREATE).unwrap()).unwrap();
-            assert_eq!((made.src, made.plug), (m as i16, 0));
+            assert_eq!((made.src, made.plug), (r as i16, 0));
             let gone: Input = c.input(BOOL, c.find_in(k, BOOL, DELETE).unwrap()).unwrap();
-            assert_eq!((gone.src, gone.flags, gone.val), (-1, UNSET, vec![0; 4]));
-            let again: Input = c.input(BOOL, c.find_in(k, BOOL, RESPAWN).unwrap()).unwrap();
-            assert_eq!((again.src, again.flags, again.val), (-1, UNSET, vec![0; 4]));
+            assert_eq!((gone.src, gone.plug), (h.src, h.plug), "the minions leave when the boss is beaten");
         }
         assert!(audit(&c).is_empty());
-        assert!(wire_with(&mut a, None, "Enemy_Keese_00ab", Some(&MODULE)).is_err());
+        assert!(wire_with(&mut a, Some("Obj_Heart_Container_c072"), "Enemy_Keese_00ab", Some(&INTRO)).is_err());
     }
 
     #[test]
-    fn a_missing_start_signal_is_refused() {
-        let (mut a, _heart, _m): (Ainb, usize, usize) = graph_with_module();
-        let none: Start = Start { module: "Boss_Prefab_1234.logic.module", out: "Nope" };
-        let other: Start = Start { module: "Other.logic.module", out: "End_TrapEvent" };
-        let n: usize = a.els.len();
-        assert!(signal(&a, &none).is_err() && signal(&a, &other).is_err());
-        assert!(wire_with(&mut a, None, "Enemy_Keese_00aa", Some(&none)).is_err());
-        assert_eq!(a.els.len(), n);
-    }
-
-    #[test]
-    fn only_gohma_has_a_start_signal() {
+    fn every_covered_boss_waits_for_its_own_introduction() {
+        let mut seen: Vec<&str> = Vec::new();
         for s in &SPOTS {
-            assert_eq!(s.start.is_some(), s.actor.ends_with("Gohma"), "{}", s.boss);
+            let st: Start = s.start.unwrap();
+            assert!(st.intro.starts_with("Dm_") && st.intro.ends_with("_BossIn"), "{}", s.boss);
+            seen.push(st.intro);
         }
-        assert_eq!(GOHMA_START.out, "End_TrapEvent");
+        assert_eq!(GOHMA_START.flag(), "HavePlayedEvent.Dm_Deku_BossIn");
+        seen.dedup();
+        assert_eq!(seen.len(), SPOTS.len());
+        assert!(!seen.iter().any(|i| i.contains("Dodongo")));
     }
 
     #[test]

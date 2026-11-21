@@ -1,9 +1,10 @@
 pub mod ambush;
+pub mod fireballs;
 pub mod gates;
 pub mod hook;
 pub mod backup;
 pub mod battle_bgm;
-pub mod bean;
+pub mod bowling;
 pub mod cucco;
 pub mod drops;
 pub mod dupes;
@@ -13,6 +14,8 @@ pub mod ground;
 pub mod horde;
 pub mod fairy;
 pub mod flows;
+pub mod elink;
+pub mod fx;
 pub mod lottery;
 pub mod minibosses;
 pub mod minions;
@@ -60,6 +63,8 @@ pub const FOREST: &str = "open_forest";
 pub const ENTRANCES: &str = "shuffle_entrances";
 pub const SPAWN_COMBO: &str = "enemy_spawn_combo";
 pub const KAKARIKO: &str = "open_kakariko";
+pub const BOWLING: &str = "unbreakable_bowling_grass";
+pub const FIREBALLS: &str = "fireball_storms";
 
 pub const HEALTH_NUM: u16 = 110;
 pub const DAMAGE_NUM: u16 = 111;
@@ -84,6 +89,8 @@ pub const GATES_NUM: u16 = 129;
 pub const ENCOUNTERS_NUM: u16 = 130;
 pub const CUCCO_NUM: u16 = 131;
 pub const SPAWN_COMBO_NUM: u16 = 132;
+pub const BOWLING_NUM: u16 = 139;
+pub const FIREBALLS_NUM: u16 = 140;
 
 pub const NORMAL: i64 = 100;
 pub const STAT_RANGE: (i64, i64) = (50, 500);
@@ -111,23 +118,23 @@ pub struct Opts {
     pub minibosses: bool,
     pub regen: bool,
     pub minions: bool,
-    pub bean_pitch: bool,
-    pub zora_ambush: bool,
     pub fairy_helps: bool,
     pub backup: bool,
     pub gates: bool,
     pub encounters: bool,
     pub cucco: bool,
+    pub bowling: bool,
+    pub fireballs: bool,
     pub spawn_combo: bool,
     pub forest_open: bool,
     pub shops: bool,
     pub mido_gone: bool,
-    pub entrances: bool,
+    pub entrances: gates::Shuffle,
 }
 
 impl Default for Opts {
     fn default() -> Opts {
-        Opts { health: NORMAL, damage: NORMAL, speed: NORMAL, no_hearts: false, no_fairies: false, no_ammo: false, lose_heart: false, no_bottles: false, no_target: false, no_dupes: false, extra: 0, respawn: false, minibosses: false, regen: false, minions: false, bean_pitch: false, zora_ambush: false, fairy_helps: false, backup: false, gates: false, encounters: false, cucco: false, spawn_combo: false, forest_open: false, shops: false, mido_gone: false, entrances: false }
+        Opts { health: NORMAL, damage: NORMAL, speed: NORMAL, no_hearts: false, no_fairies: false, no_ammo: false, lose_heart: false, no_bottles: false, no_target: false, no_dupes: false, extra: 0, respawn: false, minibosses: false, regen: false, minions: false, fairy_helps: false, backup: false, gates: false, encounters: false, cucco: false, bowling: false, fireballs: false, spawn_combo: false, forest_open: false, shops: false, mido_gone: false, entrances: gates::Shuffle::Off }
     }
 }
 
@@ -157,94 +164,95 @@ impl Opts {
     }
 
     pub fn any(&self) -> bool {
-        self.packs() || self.no_fairies || self.lose_heart || self.no_bottles || self.no_dupes || self.extra > 0 || self.respawn || self.minibosses || self.regen || self.minions || self.bean_pitch || self.zora_ambush || self.fairy_helps || self.backup || self.encounters || self.cucco || self.spawn_combo || self.gates()
+        self.packs() || self.no_fairies || self.lose_heart || self.no_bottles || self.no_dupes || self.extra > 0 || self.respawn || self.minibosses || self.regen || self.minions || self.fairy_helps || self.backup || self.encounters || self.cucco || self.bowling || self.fireballs || self.spawn_combo || self.gates()
     }
 
     pub fn notes(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         if self.health != NORMAL {
-            out.push(format!("Enemies and bosses have {} times their usual health. Enemies that are beaten by a scripted hit, such as Deku Scrubs, are unchanged. Experimental, untested in the game.", times(self.health)));
+            out.push(format!("Enemies and bosses have {} times their usual health, up to 99. Enemies that always go down to one scripted hit, like Deku Scrubs, are not changed.", times(self.health)));
         }
         if self.damage != NORMAL {
-            out.push(format!("Enemy attacks and enemy projectiles deal {} times their usual damage. Grabs and traps that are not enemies are unchanged. Experimental, untested in the game.", times(self.damage)));
+            out.push(format!("Enemies and their projectiles hit {} times as hard. Grabs, traps, lava and falls do their usual damage.", times(self.damage)));
         }
         if self.speed != NORMAL {
-            out.push(format!("Enemies move {} times as fast and wait that much less between attacks. Enemies that only move through their animations keep their pace. Experimental, untested in the game.", times(self.speed)));
+            out.push(format!("Enemies are set to move and attack {} times as fast. Experimental: most enemies ignore it, and in our tests only Lizalfos clearly sped up.", times(self.speed)));
         }
         if self.regen {
-            out.push("Enemies and bosses that are still alive win back one point of health about every five seconds, up to their usual health. Experimental, untested in the game.".to_string());
+            out.push("Enemies and bosses you leave alone heal. About 15 seconds after the last hit they get back one point of health every 5 seconds, up to their usual health.".to_string());
         }
         if self.backup {
-            out.push("An ordinary enemy that has had Link as its target for about 25 seconds without a break calls one helper to its side, once in its life. The helper is a Leever (the small creature that pops out of the desert sand), except for enemies native to Jabu-Jabu's Belly (a Shabom) and to the Ice Cavern and the Shadow and Spirit Temples (a flying pot). Helpers never call anything themselves. Bosses, minibosses, Iron Knuckles, Dead Hand, Dark Link, Phantom Ganon and Leevers never call. Experimental, untested in the game.".to_string());
+            out.push("An ordinary enemy that fights you for 10 to 25 seconds calls in one weaker enemy at its side, once. Helpers never call anyone. Bosses, minibosses and Iron Knuckles never call.".to_string());
         }
         if self.no_hearts {
-            out.push("Enemies, pots, grass and other random drops never give recovery hearts, also when your health is low. Where the game would hand out a heart because you need one, a green rupee drops. Experimental, untested in the game.".to_string());
+            out.push("Enemies, pots, grass and other random drops never give recovery hearts. Where the game would hand you a heart because you're low, you get a green rupee.".to_string());
         }
         if self.no_ammo {
-            let shops: &str = if self.shops { " Shopsanity is on: a special deal can take the place of a shelf that sold arrows, bombs or seeds, and the logic does not check that any ammo can still be bought, so you may find a seed where the only arrows are in the shops you cannot afford or cannot reach." } else { "" };
-            out.push(format!("Enemies, pots, grass and other random drops never give arrows, seeds, bombs, Deku Nuts or Deku Sticks.{shops} Experimental, untested in the game."));
+            let shops: &str = if self.shops { " Shopsanity is on: a special deal can take the place of a shelf that sold ammo, and the logic doesn't check that ammo can still be bought, so the only arrows may be in a shop you can't afford or reach yet." } else { "" };
+            out.push(format!("Enemies, pots, grass and other random drops never give arrows, seeds, bombs, Deku Nuts or Deku Sticks.{shops} Seen working on grass; pots and enemy drops are untested."));
         }
         if self.no_fairies {
-            out.push("Playing a song to a gossip stone no longer calls a fairy that heals you. Experimental, untested in the game.".to_string());
+            out.push("Playing a song at a gossip stone no longer brings out a fairy.".to_string());
         }
         if self.lose_heart {
             out.push(match flows::KEEP {
-                flows::Keep::CountSave => "Each game over that you continue from takes away one heart container, down to three hearts. The heart is taken right after the game reloads, and the game is saved at that moment so the loss stays. A fairy in a bottle that revives you costs nothing. Experimental, untested in the game.".to_string(),
-                flows::Keep::Count => "Each game over that you continue from takes away one heart container, down to three hearts. The heart is taken right after the game reloads, and the game remembers it until you quit to the title, even if you die again before saving. A fairy in a bottle that revives you costs nothing. Experimental, untested in the game.".to_string(),
+                flows::Keep::CountSave => "Each game over you continue from costs a heart container, down to three hearts. The game saves right after, so the loss stays. A bottled fairy that revives you costs nothing.".to_string(),
+                flows::Keep::Count => "Each game over you continue from costs a heart container, down to three hearts. The loss lasts until you quit to the title screen. A bottled fairy that revives you costs nothing.".to_string(),
             });
         }
         if self.no_bottles {
-            out.push("While the enemy battle music plays or during a boss battle, Link shakes his head and puts the bottle away without drinking or letting out its contents. Leevers and Moblins, which normally fight without battle music, now start it, because the music is how the game is read as in combat. Experimental, untested in the game.".to_string());
+            out.push("While the battle music plays or during a boss fight, Link shakes his head and puts the bottle away. A bottled fairy still revives you. Leevers and Moblins now start the battle music.".to_string());
         }
         if self.no_target {
-            out.push("Enemies and bosses cannot be locked on to. Aim assist, talking to people, reading signs and locking on to things that are not enemies are unchanged. Experimental, untested in the game.".to_string());
+            out.push("Enemies and bosses can't be locked on to. Aim assist, people, signs and everything else still work as usual.".to_string());
         }
         if self.no_dupes {
-            out.push("A bottle is not filled with something that another of your bottles already holds. This covers catching things with a bottle, shop shelves, Deku Scrub sellers, cows, Talon and the potion shops. A refused catch may still use up what you swung at. Bottle contents from chests and other shuffled items are not covered. Experimental, untested in the game.".to_string());
+            out.push("A bottle won't take something another bottle already holds. This covers catching things, shops, Deku Scrubs, cows, Talon and the potion shops. A refused catch can still use up what you swung at. Bottle contents from chests and other items in the seed are not blocked.".to_string());
         }
         if self.extra > 0 {
-            out.push(format!("About {} in 100 of the ordinary enemies that no door, chest, counter or event is tied to have one extra copy standing next to them. Experimental, untested in the game.", self.extra.min(extras::FULL)));
+            out.push(format!("About {} in 100 of the ordinary enemies that no door, chest or event depends on get a twin next to them.", self.extra.min(extras::FULL)));
         }
         if self.extra > horde::FROM {
-            out.push(format!("More enemies at {}x: each area is filled toward that many times its usual number of enemies (at most {} in one map), on walkable ground read from the game's navigation mesh, with fliers, water enemies and, from 5x, kinds that never live there, groups and the odd miniboss. Experimental, untested in the game.", (self.extra + 100) as f32 / 100.0, horde::MAP_CAP));
+            out.push(format!("More enemies at {}x: each area fills up toward that many times its usual enemies (at most {} per map), with fliers, water enemies and, from 5x, new kinds, small groups and the odd miniboss.", (self.extra + 100) as f32 / 100.0, horde::MAP_CAP));
         }
         if self.respawn {
-            out.push("Most ordinary enemies come back when you leave their room or area and return, not only when you leave the whole dungeon or region. Bosses, minibosses, Gold Skulltulas, Poes, Deku Scrubs and a few enemies that share their data with a boss are unchanged. Experimental, untested in the game.".to_string());
+            out.push("Most ordinary enemies come back when you leave their room or area and return. Bosses, minibosses, Gold Skulltulas, Poes and Deku Scrubs stay beaten. Experimental, untested in the game.".to_string());
         }
         if self.minibosses {
-            out.push(format!(
-                "A strong enemy waits in the boss room of these bosses and leaves when the boss is beaten, in Gohma's room it appears as the boss introduction starts: {}. The other bosses and the dream world fights are unchanged. Experimental, untested in the game.",
-                minibosses::covered()
-            ));
+            out.push(format!("A strong enemy joins these boss fights when the boss appears and leaves when the boss is beaten: {}. Played with Gohma and Phantom Ganon; the other bosses are untested.", minibosses::covered()));
         }
         if self.minions {
             out.push(minions::NOTE.to_string());
         }
-        if self.bean_pitch {
-            out.push("One talk in five, the Bean Seller by Zora's River offers you some Difficulty Mods between bites before he gets to his usual business. The line is in English in every language. Experimental, untested in the game.".to_string());
-        }
-        if self.zora_ambush {
-            out.push("The empty hole in Zora's Domain has a wall Skulltula on the far wall of each of its three side caves, and a Skulltula appears at the mouth of a side cave once you have walked into it. They come back when the area is loaded again. Experimental, untested in the game.".to_string());
-        }
         if self.encounters {
             out.push(encounters::NOTE.to_string());
+            out.push(ambush::NOTE.to_string());
             out.push(surprises::NOTE.to_string());
         }
         if self.cucco {
             out.push(cucco::NOTE.to_string());
         }
+        if self.bowling {
+            out.push(bowling::NOTE.to_string());
+        }
+        if self.fireballs {
+            out.push(fireballs::NOTE.to_string());
+        }
         if self.spawn_combo {
             out.push(spawn::NOTE.to_string());
         }
         if self.fairy_helps {
-            out.push("When you let a fairy out of a bottle, or a bottled fairy revives you, every enemy and boss that is awake at that moment is healed to full health too. Bringing back the enemy you beat last is not possible with file edits and is not done. Experimental, untested in the game.".to_string());
+            out.push("When you use a bottled fairy, or one revives you, every enemy and boss that is awake heals to full health too.".to_string());
         }
         if self.gates {
             let names: Vec<&str> = self.gate_list().iter().map(|g| g.name).collect();
             if names.is_empty() {
-                out.push("Enemies block the way is on, but no gate applies to these settings (shuffled entrances would make it add a requirement), so nothing is gated.".to_string());
+                out.push("Enemies block the way is on, but no gate fits these entrance and forest settings, so nothing is blocked.".to_string());
             } else {
-                out.push(format!("A purple barrier, the one that locks the Wolfos fight in the Sacred Forest Meadow, stands in the way at {} while the enemies guarding it are alive and goes away when they are beaten. At Zora's River the guards are Lizalfos that this setting adds. Nothing is saved: when the area loads again and the guards are back, so is the barrier. Experimental, untested by hand.", names.join(", ")));
+                out.push(format!("A barrier blocks the way at {} while its guards are alive, and drops when they are beaten. At Zora's River the guards are Lizalfos added for this. The barrier and guards come back whenever the area reloads.", names.join(", ")));
+            }
+            if let Some(n) = gates::shuffle_note(self.entrances) {
+                out.push(n);
             }
         }
         out
@@ -285,9 +293,9 @@ pub fn read(s: &Settings, bad: &mut Vec<String>) -> Opts {
             false
         })
     };
-    let o: Opts = Opts { health, damage, speed, no_hearts: flag(NO_HEARTS), no_fairies: flag(NO_FAIRIES), no_ammo: flag(NO_AMMO), lose_heart: flag(LOSE_HEART), no_bottles: flag(NO_BOTTLES), no_target: flag(NO_TARGET), no_dupes: flag(NO_DUPES), extra: 0, respawn: flag(RESPAWN), minibosses: flag(MINIBOSSES), regen: flag(REGEN), minions: flag(MINIONS), bean_pitch: flag(BEAN_PITCH), zora_ambush: flag(ZORA_AMBUSH), fairy_helps: flag(FAIRY_HELPS), backup: flag(BACKUP), gates: flag(GATES), encounters: false, cucco: flag(CUCCO), spawn_combo: flag(SPAWN_COMBO), forest_open: false, shops: false, mido_gone: false, entrances: false };
+    let o: Opts = Opts { health, damage, speed, no_hearts: flag(NO_HEARTS), no_fairies: flag(NO_FAIRIES), no_ammo: flag(NO_AMMO), lose_heart: flag(LOSE_HEART), no_bottles: flag(NO_BOTTLES), no_target: flag(NO_TARGET), no_dupes: flag(NO_DUPES), extra: 0, respawn: flag(RESPAWN), minibosses: flag(MINIBOSSES), regen: flag(REGEN), minions: flag(MINIONS), fairy_helps: flag(FAIRY_HELPS), backup: flag(BACKUP), gates: flag(GATES), encounters: false, cucco: flag(CUCCO), bowling: flag(BOWLING), fireballs: flag(FIREBALLS), spawn_combo: flag(SPAWN_COMBO), forest_open: false, shops: false, mido_gone: false, entrances: gates::Shuffle::Off };
     let forest_open: bool = chosen(s.text(FOREST), bad).map(|t| t == "open").unwrap_or(true);
-    let entrances: bool = chosen(s.text(ENTRANCES), bad).map(|t| t != "off").unwrap_or(true);
+    let entrances: gates::Shuffle = chosen(s.text(ENTRANCES), bad).map(|t| gates::Shuffle::from_setting(t)).unwrap_or(gates::Shuffle::Wide);
     let shops: bool = chosen(s.text(crate::shops::plan::SETTING), bad).map(|t| t != "off").unwrap_or(false);
     let closed: bool = s.text(FOREST).map(|t| t == "closed").unwrap_or(true);
     let mido_gone: bool = !closed && s.text(KAKARIKO).map(|t| t == "open").unwrap_or(false);
@@ -422,6 +430,9 @@ pub fn stage(rf: &mut Romfs, o: &Opts, have: Have, seed: &str) -> Res<Vec<Out>> 
     if o.fairy_helps {
         step(rf, &mut outs, have, |rf, have| Ok(fairy::stage(rf, have, ACTOR_PACKS)?.1))?;
     }
+    if o.regen || o.fairy_helps {
+        step(rf, &mut outs, have, fx::link_stage)?;
+    }
     if o.backup {
         step(rf, &mut outs, have, |rf, have| Ok(backup::stage(rf, have, ACTOR_PACKS)?.1))?;
     }
@@ -449,12 +460,6 @@ pub fn stage(rf: &mut Romfs, o: &Opts, have: Have, seed: &str) -> Res<Vec<Out>> 
             step(rf, &mut outs, have, |rf, have| Ok(vec![edit_zs(rf, have, file, |raw| dupes::fronts(raw, name, &[(None, item)]))?]))?;
         }
     }
-    if o.bean_pitch {
-        step(rf, &mut outs, have, |rf, have| Ok(vec![edit_zs(rf, have, bean::FILE, bean::pitch)?]))?;
-        for l in crate::hints::languages(rf)? {
-            step(rf, &mut outs, have, |rf, have| Ok(vec![edit_zs(rf, have, &l, bean::text)?]))?;
-        }
-    }
     if o.respawn {
         for f in respawn::files() {
             step(rf, &mut outs, have, |rf, have| Ok(vec![edit_plain(rf, have, &f, respawn::always)?]))?;
@@ -471,15 +476,19 @@ pub fn stage(rf: &mut Romfs, o: &Opts, have: Have, seed: &str) -> Res<Vec<Out>> 
     if o.minions {
         step(rf, &mut outs, have, minions::stage)?;
     }
-    if o.zora_ambush {
-        step(rf, &mut outs, have, ambush::stage)?;
-    }
     if o.encounters {
+        step(rf, &mut outs, have, ambush::stage)?;
         step(rf, &mut outs, have, encounters::stage)?;
         step(rf, &mut outs, have, |rf, have| surprises::stage(rf, have, seed))?;
     }
     if o.cucco {
         step(rf, &mut outs, have, cucco::stage)?;
+    }
+    if o.bowling {
+        step(rf, &mut outs, have, bowling::stage)?;
+    }
+    if o.fireballs {
+        step(rf, &mut outs, have, fireballs::stage)?;
     }
     if o.spawn_combo {
         step(rf, &mut outs, have, spawn::stage)?;
@@ -529,8 +538,6 @@ mod tests {
         s.set(MINIBOSSES, Value::Bool(false)).unwrap();
         s.set(REGEN, Value::Bool(false)).unwrap();
         s.set(MINIONS, Value::Bool(false)).unwrap();
-        s.set(BEAN_PITCH, Value::Bool(false)).unwrap();
-        s.set(ZORA_AMBUSH, Value::Bool(false)).unwrap();
         s.set(FAIRY_HELPS, Value::Bool(false)).unwrap();
         s.set(BACKUP, Value::Bool(false)).unwrap();
         s.set(GATES, Value::Bool(false)).unwrap();
@@ -555,7 +562,12 @@ mod tests {
         s.set(KAKARIKO, Value::s("closed")).unwrap();
         s.set(ENTRANCES, Value::s("dungeons")).unwrap();
         let o: Opts = read(&s, &mut bad);
-        assert!(o.entrances && !o.gates());
+        assert!(o.entrances == gates::Shuffle::Dungeons && o.gates());
+        assert_eq!(o.gate_list().iter().map(|g| g.id).collect::<Vec<u8>>(), vec![3, 4, 5, 9, 11, 12, 13]);
+        assert!(o.notes().iter().any(|n| n.contains("dungeon entrances are shuffled")));
+        s.set(ENTRANCES, Value::s("everything")).unwrap();
+        let o: Opts = read(&s, &mut bad);
+        assert!(o.entrances == gates::Shuffle::Wide && !o.gates());
         let off: Opts = Opts { gates: false, ..Opts::default() };
         assert!(off.gate_list().is_empty() && !off.any() && off.notes().is_empty());
     }
@@ -582,7 +594,7 @@ mod tests {
         s.set(HEALTH, Value::Int(250)).unwrap();
         s.set(DAMAGE, Value::Int(50)).unwrap();
         s.set(SPEED, Value::Int(200)).unwrap();
-        for id in [NO_HEARTS, NO_FAIRIES, NO_AMMO, LOSE_HEART, NO_BOTTLES, NO_TARGET, NO_DUPES, RESPAWN, MINIBOSSES, REGEN, MINIONS, BEAN_PITCH, ZORA_AMBUSH, FAIRY_HELPS, BACKUP, GATES, CUCCO, SPAWN_COMBO] {
+        for id in [NO_HEARTS, NO_FAIRIES, NO_AMMO, LOSE_HEART, NO_BOTTLES, NO_TARGET, NO_DUPES, RESPAWN, MINIBOSSES, REGEN, MINIONS, FAIRY_HELPS, BACKUP, GATES, CUCCO, SPAWN_COMBO, FIREBALLS, BOWLING] {
             s.set(id, Value::Bool(true)).unwrap();
         }
         s.set(MORE, Value::Int(150)).unwrap();
@@ -590,17 +602,16 @@ mod tests {
         let mut bad: Vec<String> = Vec::new();
         let o: Opts = read(&back, &mut bad);
         assert!(bad.is_empty());
-        assert_eq!(o, Opts { health: 250, damage: 50, speed: 200, no_hearts: true, no_fairies: true, no_ammo: true, lose_heart: true, no_bottles: true, no_target: true, no_dupes: true, extra: 50, respawn: true, minibosses: true, regen: true, minions: true, bean_pitch: true, zora_ambush: true, fairy_helps: true, backup: true, gates: true, encounters: true, cucco: true, spawn_combo: true, ..Opts::default() });
+        assert_eq!(o, Opts { health: 250, damage: 50, speed: 200, no_hearts: true, no_fairies: true, no_ammo: true, lose_heart: true, no_bottles: true, no_target: true, no_dupes: true, extra: 50, respawn: true, minibosses: true, regen: true, minions: true, fairy_helps: true, backup: true, gates: true, encounters: true, cucco: true, bowling: true, fireballs: true, spawn_combo: true, ..Opts::default() });
         assert!(o.any() && o.packs());
-        assert_eq!(o.notes().len(), 24);
+        assert_eq!(o.notes().len(), 25);
         assert_eq!(o.notes().iter().collect::<std::collections::BTreeSet<&String>>().len(), o.notes().len());
         assert!(o.notes().iter().any(|n| n.contains("About 50 in 100")));
         assert!(Opts { extra: 100, ..Opts::default() }.any() && !Opts { extra: 100, ..Opts::default() }.packs());
         assert!(s.set(MORE, Value::Int(1050)).is_err() || s.clone().finish().is_err());
-        assert!(o.notes().iter().any(|n| n.contains("Queen Gohma (Stalfos)") && n.contains("untested in the game")));
+        assert!(o.notes().iter().any(|n| n.contains("Queen Gohma (Stalfos)") && n.contains("Phantom Ganon (weak Stalfos)") && n.contains("Played with")));
         assert!(o.notes().iter().any(|n| n == minions::NOTE));
-        let fun: Opts = Opts { bean_pitch: true, ..Opts::default() };
-        assert!(fun.any() && !fun.packs() && fun.notes().len() == 1);
+        assert!(o.notes().iter().any(|n| n == ambush::NOTE));
         assert!(o.notes()[0].contains("2.5 times"));
         assert!(o.notes()[1].contains("0.5 times"));
         assert!(o.notes()[2].contains("2 times"));
@@ -700,16 +711,31 @@ mod tests {
     }
 
     #[test]
+    fn the_bowling_option_stages_one_pack_and_off_stages_nothing() {
+        let Some(root) = dump() else {
+            eprintln!("skipped: set OOTRR_ROMFS");
+            return;
+        };
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        assert!(stage(&mut rf, &Opts::default(), &none, "seed").unwrap().is_empty());
+        let only: Vec<Out> = stage(&mut rf, &Opts { bowling: true, ..Opts::default() }, &none, "seed").unwrap();
+        assert_eq!(only.len(), 1);
+        assert_eq!(only[0].path, bowling::PACK);
+        assert!(Opts { bowling: true, ..Opts::default() }.any());
+        assert_eq!(Opts { bowling: true, ..Opts::default() }.notes(), vec![bowling::NOTE.to_string()]);
+    }
+
+    #[test]
     fn the_game_files_take_every_option() {
         let Some(root) = dump() else {
             eprintln!("skipped: set OOTRR_ROMFS");
             return;
         };
         let mut rf: Romfs = Romfs::open(&root).unwrap();
-        let o: Opts = Opts { health: 200, damage: 150, speed: 150, no_hearts: true, no_fairies: true, no_ammo: true, lose_heart: true, no_bottles: true, no_target: true, no_dupes: true, extra: 100, respawn: true, minibosses: true, regen: true, minions: true, bean_pitch: true, zora_ambush: true, fairy_helps: true, backup: true, gates: true, encounters: true, cucco: true, ..Opts::default() };
+        let o: Opts = Opts { health: 200, damage: 150, speed: 150, no_hearts: true, no_fairies: true, no_ammo: true, lose_heart: true, no_bottles: true, no_target: true, no_dupes: true, extra: 100, respawn: true, minibosses: true, regen: true, minions: true, fairy_helps: true, backup: true, gates: true, encounters: true, cucco: true, bowling: true, ..Opts::default() };
         let outs: Vec<Out> = stage(&mut rf, &o, &none, "seed").unwrap();
         let at = |p: &str| -> &Out { outs.iter().find(|x| x.path == p).unwrap_or_else(|| panic!("{p} was not staged")) };
-        for f in [fairy::ACTOR_INFO, fairy::GLOBAL, bean::FILE, flows::GOSSIP_FILE, flows::OVER_FILE, flows::BOOT_FILE, drops::FOLIAGE, lottery::FILE, regen::GLOBAL, regen::ACTOR_INFO, "Pack/Actor/Enemy_Stalfos.pack.zs", "Pack/Actor/Enemy_Keese.pack.zs"] {
+        for f in [fairy::ACTOR_INFO, fairy::GLOBAL, flows::GOSSIP_FILE, flows::OVER_FILE, flows::BOOT_FILE, drops::FOLIAGE, lottery::FILE, regen::GLOBAL, regen::ACTOR_INFO, "Pack/Actor/Enemy_Stalfos.pack.zs", "Pack/Actor/Enemy_Keese.pack.zs"] {
             at(f);
         }
         for (f, _) in flows::BOTTLE_FLOWS {
@@ -744,6 +770,7 @@ mod tests {
         for f in cucco::packs(&rf).unwrap() {
             at(&f);
         }
+        at(bowling::PACK);
         assert!(!outs.iter().any(|x| x.path.contains("Player_")), "the player packs are left alone");
         let plain: Vec<Out> = stage(&mut rf, &Opts { health: 200, damage: 150, speed: 150, no_hearts: true, no_ammo: true, no_target: true, ..Opts::default() }, &none, "seed").unwrap();
         for x in plain.iter().filter(|x| x.path.ends_with(".pack.zs")) {
@@ -794,9 +821,10 @@ mod tests {
         for g in hook::GRAPHS {
             assert_eq!(sarc::get(&shared, g).map(|e| &e.data), sarc::get(&vanilla, g).map(|e| &e.data), "{g} stays vanilla");
         }
+        let vanilla_emits = |n: &str| -> usize { crate::ainb::Ainb::parse(&sarc::get(&vanilla, n).unwrap().data).unwrap().find_els(fx::EMIT).len() };
         for name in ["AI/Enemy_Stalfos.utility.root.ainb", "AI/EnemyBase.utility.root.ainb"] {
             let caller: crate::ainb::Ainb = crate::ainb::Ainb::parse(&sarc::get(&shared, name).unwrap().data).unwrap();
-            assert_eq!((caller.find_els(regen::HEAL).len(), caller.find_els(fairy::CLEAR).len(), caller.find_els(backup::REQUEST).len()), (2, 1, 2), "{name} carries regen, fairy and backup");
+            assert_eq!((caller.find_els(regen::HEAL).len(), caller.find_els(fairy::CLEAR).len(), caller.find_els(backup::REQUEST).len(), caller.find_els(fx::EMIT).len() - vanilla_emits(name)), (4, 1, 2, 7), "{name} carries regen, fairy and backup, each with its flash");
             assert!(crate::ainb::audit(&caller).is_empty());
         }
         assert_eq!(outs.iter().filter(|x| x.path == "Pack/Actor/Enemy_Stalfos.pack.zs").count(), 1);
@@ -985,11 +1013,14 @@ mod tests {
             assert_eq!(g.write().unwrap(), pair[1].z);
             assert!(crate::ainb::audit(&g).is_empty());
             let n: usize = old.els.len();
-            assert_eq!(g.els.len(), n + 1);
+            let st: &minibosses::Start = s.start.as_ref().unwrap();
+            let fresh: usize = if minibosses::reader(&old, st).is_some() { 0 } else { 1 };
+            assert_eq!(g.els.len(), n + 1 + fresh, "{}: one node for the miniboss and at most one reader of the introduction", s.boss);
             let plain = |e: &[u8; crate::ainb::EL]| -> Vec<u8> { e.iter().enumerate().map(|(j, v)| if (0x14..0x18).contains(&j) { 0 } else { *v }).collect() };
             assert!(g.els[..n].iter().zip(old.els.iter()).all(|(x, y)| plain(x) == plain(y)), "{}: the nodes of the game are untouched", pair[1].path);
             assert_eq!(&g.params[..n], &old.params[..], "{}: the inputs of the game are untouched", pair[1].path);
-            let id: &str = g.prop_str(n, minibosses::NAME).unwrap();
+            let k: usize = (n..g.els.len()).find(|&i| g.el_name(i) == minibosses::NODE).unwrap();
+            let id: &str = g.prop_str(k, minibosses::NAME).unwrap();
             let groups: Vec<Node> = now.root.get("AiGroups").and_then(|x| x.as_arr()).unwrap().to_vec();
             let named = |r: &Node| r.get("Id").and_then(|v| v.as_str()) == Some(id) && r.get("Reference") == Some(&Node::U64(h));
             let home: Vec<&Node> = groups.iter().filter(|x| x.get("References").and_then(|r| r.as_arr()).is_some_and(|r| r.iter().any(named))).collect();
@@ -997,17 +1028,14 @@ mod tests {
             assert_eq!(minibosses::logic_file(home[0].get("Logic").and_then(|v| v.as_str()).unwrap()).unwrap(), pair[1].path);
             let hn: usize = (0..n).find(|&i| g.prop_str(i, minibosses::NAME).is_some_and(|x| x.starts_with(minibosses::HEART))).unwrap();
             let made: crate::ainb::Input = g.input(1, g.find_in(hn, 1, minibosses::CREATE).unwrap()).unwrap();
-            let gone: crate::ainb::Input = g.input(1, g.find_in(n, 1, minibosses::DELETE).unwrap()).unwrap();
+            let gone: crate::ainb::Input = g.input(1, g.find_in(k, 1, minibosses::DELETE).unwrap()).unwrap();
             assert!(made.src >= 0 && (gone.src, gone.plug) == (made.src, made.plug), "{}: the miniboss leaves on the flag that brings the heart container", s.boss);
-            let born: crate::ainb::Input = g.input(1, g.find_in(n, 1, minibosses::CREATE).unwrap()).unwrap();
-            match &s.start {
-                Some(st) => {
-                    assert_eq!(g.el_name(born.src as usize), st.module, "{}: the miniboss is created by the start of the fight", s.boss);
-                    assert_eq!(minibosses::signal(&g, st).unwrap(), (born.src as usize, born.plug));
-                    assert_eq!(born.flags & minibosses::UNSET, 0);
-                }
-                None => assert_eq!((born.src, born.val), (-1, 1u32.to_le_bytes().to_vec()), "{}: no start signal is known, the miniboss is there from the start", s.boss),
-            }
+            let born: crate::ainb::Input = g.input(1, g.find_in(k, 1, minibosses::CREATE).unwrap()).unwrap();
+            let r: usize = minibosses::reader(&g, st).unwrap();
+            assert_eq!((born.src, born.plug), (r as i16, 0), "{}: the miniboss is created when the introduction has played", s.boss);
+            assert_eq!(born.flags & minibosses::UNSET, 0);
+            assert_eq!(g.in_str(r, minibosses::FLAG_NAME), Some(st.flag().as_str()));
+            assert!(plays(&mut rf, st), "{}: {} plays {}", s.boss, st.flow, st.intro);
             let twin: Vec<u8> = {
                 let mut t: Ainb = old.clone();
                 minibosses::wire_with(&mut t, Some(g.prop_str(hn, minibosses::NAME).unwrap()), id, s.start.as_ref()).unwrap();
@@ -1021,6 +1049,12 @@ mod tests {
 
     fn list(y: &Byml) -> &[Node] {
         y.root.get("Actors").and_then(|a| a.as_arr()).unwrap_or(&[])
+    }
+
+    fn plays(rf: &mut Romfs, st: &minibosses::Start) -> bool {
+        let b: crate::bfevfl::Bf = crate::bfevfl::Bf::parse(&rf.read_zs(&format!("Event/EventFlow/{}.bfevfl.zs", st.flow)).unwrap()).unwrap();
+        let shown: String = format!("{b:?}");
+        shown.contains(&format!("{:?}", st.intro)) && shown.contains("EventTransition")
     }
 
     #[test]
@@ -1060,12 +1094,18 @@ mod tests {
                     assert!(rf.read(&format!("Pack/Actor/{}.pack.zs", r.foes[i])).is_ok());
                 }
                 let groups: Vec<Node> = now.root.get("AiGroups").and_then(|g| g.as_arr()).unwrap().to_vec();
-                let logic: &Out = outs.iter().find(|x| x.path.starts_with("Logic/")).unwrap();
+                let logic: &Out = &outs[outs.iter().position(|x| x.path == r.fixed).unwrap() + 1];
+                assert!(logic.path.starts_with("Logic/"));
                 let g: Ainb = Ainb::parse(&logic.z).unwrap();
                 assert!(crate::ainb::audit(&g).is_empty());
-                let (module, plug): (usize, i16) = minibosses::signal(&g, st).unwrap();
-                let first: usize = Ainb::parse(&rf.read(&logic.path).unwrap()).unwrap().els.len();
-                assert_eq!(g.els.len(), first + r.foes.len());
+                let old: Ainb = Ainb::parse(&rf.read(&logic.path).unwrap()).unwrap();
+                let first: usize = old.els.len();
+                let fresh: usize = if minibosses::reader(&old, st).is_some() { 0 } else { 1 };
+                assert_eq!(g.els.len(), first + r.foes.len() + fresh);
+                let reader: usize = minibosses::reader(&g, st).unwrap();
+                assert!(plays(&mut rf, st), "{}: {} plays {}", r.boss, st.flow, st.intro);
+                let hn: usize = (0..first).find(|&i| g.prop_str(i, minibosses::NAME).is_some_and(|x| x.starts_with(minibosses::HEART))).unwrap();
+                let end: crate::ainb::Input = g.input(1, g.find_in(hn, 1, minibosses::CREATE).unwrap()).unwrap();
                 for (i, a) in list(&now)[n..].iter().enumerate() {
                     let h: u64 = hash_of(a).unwrap();
                     let home: Vec<&Node> = groups.iter().filter(|x| x.get("References").and_then(|r| r.as_arr()).is_some_and(|rs| rs.iter().any(|q| q.get("Reference") == Some(&Node::U64(h))))).collect();
@@ -1073,10 +1113,10 @@ mod tests {
                     let id: String = home[0].get("References").and_then(|r| r.as_arr()).unwrap().iter().find(|q| q.get("Reference") == Some(&Node::U64(h))).and_then(|q| q.get("Id")).and_then(|v| v.as_str()).unwrap().to_string();
                     let at: usize = (first..g.els.len()).find(|&e| g.prop_str(e, minibosses::NAME) == Some(id.as_str())).unwrap();
                     let born: crate::ainb::Input = g.input(1, g.find_in(at, 1, minibosses::CREATE).unwrap()).unwrap();
-                    assert_eq!((born.src, born.plug), (module as i16, plug), "{}: minion {i} is created by the start signal and not at load", r.boss);
+                    assert_eq!((born.src, born.plug), (reader as i16, 0), "{}: minion {i} is created when the introduction has played and not at load", r.boss);
                     assert_eq!(born.flags & minibosses::UNSET, 0);
                     let gone: crate::ainb::Input = g.input(1, g.find_in(at, 1, minibosses::DELETE).unwrap()).unwrap();
-                    assert_eq!(gone.src, -1);
+                    assert_eq!((gone.src, gone.plug), (end.src, end.plug), "{}: minion {i} leaves when the boss is beaten", r.boss);
                 }
                 continue;
             }
@@ -1117,6 +1157,42 @@ mod tests {
         assert_eq!(rolls(&es), vec![2, 3, 4]);
     }
 
+    #[test]
+    fn the_boss_room_graphs_that_get_the_adds_are_used_by_no_other_map() {
+        let Some(root) = dump() else {
+            eprintln!("skipped: set OOTRR_ROMFS");
+            return;
+        };
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        let o: Opts = Opts { minibosses: true, minions: true, ..Opts::default() };
+        let outs: Vec<Out> = stage(&mut rf, &o, &none, "seed").unwrap();
+        let graphs: Vec<String> = outs.iter().filter(|x| x.path.starts_with("Logic/")).map(|x| x.path.trim_start_matches("Logic/").trim_end_matches('b').to_string()).collect();
+        assert_eq!(graphs.len(), minions::ROOMS.iter().filter(|r| r.start.is_some()).count());
+        let mut users: Vec<(String, String)> = Vec::new();
+        for d in std::fs::read_dir(root.join("Banc")).unwrap() {
+            let d: std::path::PathBuf = d.unwrap().path();
+            for f in std::fs::read_dir(&d).unwrap() {
+                let f: std::path::PathBuf = f.unwrap().path();
+                let n: String = f.file_name().unwrap().to_string_lossy().to_string();
+                if !n.ends_with(".bcett.byml.zs") {
+                    continue;
+                }
+                let rel: String = format!("Banc/{}/{n}", d.file_name().unwrap().to_string_lossy());
+                let raw: Vec<u8> = rf.read_zs(&rel).unwrap();
+                for g in &graphs {
+                    if raw.windows(g.len()).any(|w| w == g.as_bytes()) {
+                        users.push((g.clone(), rel.clone()));
+                    }
+                }
+            }
+        }
+        for g in &graphs {
+            let maps: Vec<&str> = users.iter().filter(|(x, _)| x == g).map(|(_, m)| m.as_str()).collect();
+            assert_eq!(maps.len(), 1, "{g} is used by {maps:?}");
+            assert!(maps[0].ends_with("_Static.bcett.byml.zs"), "{g} is used by {maps:?}");
+        }
+    }
+
     fn out(path: &str, z: &[u8], old: usize, new: usize) -> Out {
         Out { path: path.to_string(), z: z.to_vec(), old, new }
     }
@@ -1127,69 +1203,6 @@ mod tests {
         merge(&mut late, vec![out("a", b"3", 14, 20), out("c", b"4", 7, 9)]);
         let got: Vec<(&str, &[u8], usize, usize)> = late.iter().map(|x| (x.path.as_str(), x.z.as_slice(), x.old, x.new)).collect();
         assert_eq!(got, vec![("a", b"3".as_slice(), 10, 20), ("b", b"2".as_slice(), 5, 5), ("c", b"4".as_slice(), 7, 9)]);
-    }
-
-    #[test]
-    fn the_bean_seller_makes_his_pitch_in_the_game_files_on_top_of_other_edits() {
-        use crate::bfevfl::{Bf, Flow, Kind, Val};
-        let Some(root) = dump() else {
-            eprintln!("skipped: set OOTRR_ROMFS");
-            return;
-        };
-        let mut rf: Romfs = Romfs::open(&root).unwrap();
-        let o: Opts = Opts { bean_pitch: true, ..Opts::default() };
-        let cheap: Vec<u8> = crate::open_world::skips::bean_bytes(&rf.read_zs(bean::FILE).unwrap()).unwrap();
-        let cheap_z: Vec<u8> = zs::compress_raw(&cheap, zs::dict_of(&rf.read(bean::FILE).unwrap())).unwrap();
-        let have = |p: &str| -> Option<Vec<u8>> { if p == bean::FILE { Some(cheap_z.clone()) } else { None } };
-        let outs: Vec<Out> = stage(&mut rf, &o, &have, "seed").unwrap();
-        let langs: Vec<String> = crate::hints::languages(&rf).unwrap();
-        assert!(!langs.is_empty());
-        assert_eq!(outs.len(), 1 + langs.len());
-        assert_eq!(outs[0].path, bean::FILE);
-        assert!(outs[0].new > outs[0].old);
-        let was: Bf = Bf::parse(&cheap).unwrap();
-        let b: Bf = Bf::parse(&rf.zs.decompress(&outs[0].z).unwrap()).unwrap();
-        let f: &Flow = b.flows.iter().find(|x| x.name == bean::FLOW).unwrap();
-        let g: &Flow = was.flows.iter().find(|x| x.name == bean::FLOW).unwrap();
-        let n: usize = g.events.len();
-        assert_eq!(f.events.len(), n + 2);
-        assert_eq!(f.entries, g.entries);
-        let moved: Vec<usize> = (0..n).filter(|&i| f.events[i] != g.events[i]).collect();
-        let [at] = moved.as_slice() else { panic!("one event changes, got {moved:?}") };
-        let Kind::Sub { next: old, entry, .. } = &g.events[*at].kind else { panic!() };
-        assert_eq!(entry, bean::GREET);
-        let Kind::Sub { next: roll, .. } = &f.events[*at].kind else { panic!() };
-        let Kind::Switch { actor, query, cases, .. } = &f.events[*roll as usize].kind else { panic!() };
-        assert_eq!(f.actors[*actor as usize].name, bean::SYSTEM);
-        assert_eq!(f.actors[*actor as usize].queries[*query as usize], bean::RANDOM);
-        assert_eq!(cases.iter().map(|c| c.val).collect::<Vec<u32>>(), vec![0, 1, 2, 3, 4]);
-        assert_eq!(cases.iter().filter(|c| c.ev == *old).count(), 4);
-        let Kind::Action { next, actor, act, params: Some(c) } = &f.events[cases[0].ev as usize].kind else { panic!() };
-        assert_eq!(next, old);
-        assert_eq!(f.actors[*actor as usize].name, bean::SELLER);
-        assert_eq!(f.actors[*actor as usize].actions[*act as usize], bean::TALK);
-        assert_eq!(c.get("MessageId"), Some(&Val::Str(bean::message_id())));
-        assert_eq!(c.get("IsWaitEnd"), Some(&Val::Bool(0x8000_0001)));
-        assert_eq!(c.get("ChoiceNumber"), Some(&Val::Int(0)));
-        let sale = |x: &Flow| x.events.iter().find(|e| e.name == crate::open_world::skips::BEAN_MINUS).and_then(|e| e.kind.params().and_then(|c| c.get("Price").cloned()));
-        assert_eq!(sale(f), Some(Val::Int(crate::open_world::skips::BEAN_PRICE)));
-        for x in &outs[1..] {
-            assert!(langs.contains(&x.path));
-            assert!(x.new > x.old);
-            let es: Vec<Entry> = sarc::parse(&rf.zs.decompress(&x.z).unwrap()).unwrap();
-            let old: Vec<Entry> = sarc::parse(&rf.read_zs(&x.path).unwrap()).unwrap();
-            assert_eq!(es.len(), old.len());
-            assert_eq!(es.iter().zip(old.iter()).filter(|(a, b)| a.data != b.data).map(|(a, _)| a.name.as_str()).collect::<Vec<&str>>(), vec![bean::MSG]);
-            let m: crate::msbt::Msbt = crate::msbt::parse(&sarc::get(&es, bean::MSG).unwrap().data).unwrap();
-            let w: crate::msbt::Msbt = crate::msbt::parse(&sarc::get(&old, bean::MSG).unwrap().data).unwrap();
-            let said: String = crate::msbt::to_markup(&m.text(bean::LABEL).unwrap());
-            assert!(said.ends_with(bean::WORDS), "{} {said}", x.path);
-            assert_eq!(m.names().len(), w.names().len() + 1);
-            for (l, _) in w.names() {
-                assert_eq!(m.raw(l), w.raw(l), "{} {l}", x.path);
-            }
-            assert!(bean::text(&rf.zs.decompress(&x.z).unwrap()).is_err());
-        }
     }
 
     #[test]
@@ -1228,7 +1241,7 @@ mod tests {
             return;
         };
         let mut rf: Romfs = Romfs::open(&root).unwrap();
-        let o: Opts = Opts { no_hearts: true, no_fairies: true, no_ammo: true, lose_heart: true, no_bottles: true, no_target: true, no_dupes: true, extra: 900, respawn: true, minibosses: true, regen: true, minions: true, bean_pitch: true, zora_ambush: true, fairy_helps: true, backup: true, gates: true, encounters: true, cucco: true, spawn_combo: true, ..Opts::default() };
+        let o: Opts = Opts { no_hearts: true, no_fairies: true, no_ammo: true, lose_heart: true, no_bottles: true, no_target: true, no_dupes: true, extra: 900, respawn: true, minibosses: true, regen: true, minions: true, fairy_helps: true, backup: true, gates: true, encounters: true, cucco: true, bowling: true, spawn_combo: true, ..Opts::default() };
         let outs: Vec<Out> = stage(&mut rf, &o, &none, "seed").unwrap();
         let paths: std::collections::BTreeSet<&str> = outs.iter().map(|x| x.path.as_str()).collect();
         assert_eq!(paths.len(), outs.len(), "no file is staged twice");
@@ -1255,6 +1268,29 @@ mod tests {
         assert!(after > before + 1000, "{before} then {after}");
         for (h, n) in &now {
             assert!(*n == 1 || was.get(h) == Some(n), "id {h} is used {n} times");
+        }
+    }
+
+    #[test]
+    fn the_zora_ambush_comes_with_more_enemies_above_1x() {
+        let mut bad: Vec<String> = Vec::new();
+        let off: Opts = read(&Settings::default(), &mut bad);
+        assert!(!off.encounters && !off.notes().iter().any(|n| n == ambush::NOTE));
+        let mut s: Settings = Settings::default();
+        s.set(MORE, Value::Int(150)).unwrap();
+        let o: Opts = read(&s, &mut bad);
+        assert!(bad.is_empty() && o.encounters && o.notes().iter().any(|n| n == ambush::NOTE));
+        let Some(root) = dump() else {
+            eprintln!("skipped: set OOTRR_ROMFS");
+            return;
+        };
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        let outs: Vec<Out> = stage(&mut rf, &o, &none, "seed").unwrap();
+        for m in ambush::MAPS {
+            assert!(outs.iter().any(|x| x.path == ambush::file(m, "Static")), "{m}");
+        }
+        for k in &ambush::NOOKS {
+            assert!(outs.iter().any(|x| x.path == k.plan(true).graph), "the child graph of nook {}", k.name);
         }
     }
 }

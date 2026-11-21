@@ -598,6 +598,24 @@ pub fn stage_moat(rf: &mut Romfs, more: &mut Vec<Out>, from: Option<&PB>) -> Res
     stage_presence(rf, more, from, &MOAT)
 }
 
+pub fn patch_escape_ocarina(a: &mut Ainb) -> Res<()> {
+    let o: usize = one(a.find_els(OCARINA_EL).into_iter().filter(|&i| a.prop_str(i, "InstanceName") == Some(MOAT_OCARINA)).collect(), "moat Ocarina")?;
+    let step: usize = step_check(a, MOAT_STEP)?;
+    let g: usize = a.find_in(o, BOOL, CREATE).ok_or(Error::Format("door gate: the moat Ocarina has no create input"))?;
+    let x = a.input(BOOL, g).ok_or(Error::Format("door gate: input out of range"))?;
+    if x.src < 0 || x.src as usize != step {
+        return Err(Error::Format("door gate: the moat Ocarina is not created from the DoorOfTime Step04 check"));
+    }
+    let read: usize = crate::gerudo_card::bool_node(a, ESCAPED, "ootrr door gate escape played read")?;
+    let name: u32 = a.pool.add(CREATE);
+    crate::gerudo_card::rewire(a, o, g, x.src, name, read, 0)
+}
+
+pub fn stage_escape_ocarina(rf: &mut Romfs, more: &mut Vec<Out>, from: Option<&PB>) -> Res<()> {
+    more.push(crate::medal_gate::module(rf, MOAT_MODULE, patch_escape_ocarina)?);
+    stage_presence(rf, more, from, &MOAT)
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -746,6 +764,21 @@ mod tests {
         assert!(patch_check(&mut b).is_err());
         let out: Vec<u8> = b.write().unwrap();
         assert_eq!(Bf::parse(&out).unwrap(), b);
+    }
+
+    #[test]
+    fn the_moat_ocarina_waits_for_the_escape_not_the_quest_step() {
+        let Some(mut rf) = real() else { return };
+        let mut a: Ainb = Ainb::parse(&rf.read(MOAT_MODULE).unwrap()).unwrap();
+        patch_escape_ocarina(&mut a).unwrap();
+        let b: Ainb = Ainb::parse(&a.write().unwrap()).unwrap();
+        assert!(crate::ainb::audit(&b).is_empty(), "{:?}", crate::ainb::audit(&b));
+        let o: usize = b.find_els(OCARINA_EL).into_iter().find(|&i| b.prop_str(i, "InstanceName") == Some(MOAT_OCARINA)).unwrap();
+        let x = b.input(BOOL, b.find_in(o, BOOL, CREATE).unwrap()).unwrap();
+        assert!(x.src >= 0);
+        assert_eq!(b.el_name(x.src as usize), FLAG_GET);
+        assert_eq!(b.in_str(x.src as usize, FLAG_IN), Some(ESCAPED));
+        assert!(patch_escape_ocarina(&mut a).is_err());
     }
 
     #[test]

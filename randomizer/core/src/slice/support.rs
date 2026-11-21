@@ -88,6 +88,7 @@ pub struct Plan {
     pub endings: bool,
     pub shops: crate::shops::Opts,
     pub bridge: bool,
+    pub debug_names: bool,
     pub silver: bool,
     /// crate::medal_gate: Some(n) when the Light Arrows scene waits for n dungeon rewards.
     pub lacs: Option<u8>,
@@ -95,6 +96,8 @@ pub struct Plan {
     pub rainbow: Option<u8>,
     pub trials: crate::ganon_trials::Trials,
     pub door: crate::door_gate::Opts,
+    pub nocturne: bool,
+    pub prelude: bool,
     /// Saria's Fairy Ocarina joins the pool (crate::slice::pick::OCARINAS).
     pub ocarinas: bool,
     /// The Kokiri Sword chest joins the pool (crate::slice::pick::SWORD).
@@ -193,6 +196,9 @@ impl Plan {
         }
         if self.rewards.dungeon_rewards {
             out.push((crate::medal_gate::LOGIC_KEY, "true"));
+        }
+        if self.prelude {
+            out.push((crate::prelude_gate::LOGIC_KEY, "true"));
         }
         if let Some(n) = self.lacs {
             out.extend(crate::medal_gate::lacs_logic(n));
@@ -293,10 +299,13 @@ pub fn plan(s: &Settings) -> Res<Plan> {
     let endings: bool = true;
     let shops: crate::shops::Opts = crate::shops::plan::read(s, &mut bad);
     let bridge: bool = crate::deku_bridge::mode(s, &mut bad);
+    let debug_names: bool = toggle(s, crate::debug_names::SETTING, &mut bad);
     let silver: bool = crate::slice::silver::mode(s, chests, &mut bad);
     let lacs: Option<u8> = crate::medal_gate::read_lacs(s, keys.ganon, &mut bad);
     let rainbow: Option<u8> = crate::rainbow_bridge::read(s, &mut bad);
     let door: crate::door_gate::Opts = crate::door_gate::read(s, gates.door, &mut bad);
+    let nocturne: bool = crate::nocturne_gate::read(s, &mut bad);
+    let prelude: bool = crate::prelude_gate::read(s, &mut bad);
     let short: bool = true;
     let first_pickups: bool = s.flag(crate::first_pickups::SETTING).unwrap_or_else(|e| {
         bad.push(e.to_string());
@@ -396,6 +405,9 @@ pub fn plan(s: &Settings) -> Res<Plan> {
     if bridge {
         notes.push(crate::deku_bridge::NOTE.to_string());
     }
+    if debug_names {
+        notes.push(crate::debug_names::NOTE.to_string());
+    }
     notes.extend(shops.notes());
     if silver {
         notes.push(crate::slice::silver::NOTE.to_string());
@@ -416,7 +428,7 @@ pub fn plan(s: &Settings) -> Res<Plan> {
         notes.push(crate::lacs_key::NOTE.to_string());
         notes.push(crate::medal_gate::LACS_NOTE.to_string());
     }
-    Ok(Plan { chests, keys, rewards, hearts, world, songs, harp_colors, hints, fast, chest_sizes, intro, start, gates, excluded, notes, drops, skulls, remake, chus, qol, treasure, scarecrow, fishing, day_skulls, kit, open, npc, shops, bridge, silver, lacs, rainbow, trials, door, short, first_pickups, story, endings, ocarinas, kokiri_sword, difficulty })
+    Ok(Plan { chests, keys, rewards, hearts, world, songs, harp_colors, hints, fast, chest_sizes, intro, start, gates, excluded, notes, drops, skulls, remake, chus, qol, treasure, scarecrow, fishing, day_skulls, kit, open, npc, shops, bridge, debug_names, silver, lacs, rainbow, trials, door, nocturne, prelude, short, first_pickups, story, endings, ocarinas, kokiri_sword, difficulty })
 }
 
 #[cfg(test)]

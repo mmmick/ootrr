@@ -478,4 +478,38 @@ mod tests {
         assert_eq!(l.settings.get("shuffle_shops"), Some(&Value::s("deals_2")));
         assert_eq!(l.warnings, vec!["setting shop_deal_gear was removed, its value is ignored".to_string()]);
     }
+
+    #[test]
+    fn an_old_string_with_the_zora_ambush_or_the_bean_pitch_still_imports() {
+        use crate::difficulty::{BEAN_PITCH, BEAN_PITCH_NUM, ZORA_AMBUSH, ZORA_AMBUSH_NUM};
+        let real: &Schema = crate::settings::schema();
+        for (n, id) in [(ZORA_AMBUSH_NUM, ZORA_AMBUSH), (BEAN_PITCH_NUM, BEAN_PITCH)] {
+            assert!(real.by_num(n).is_none() && real.get(id).is_none());
+            assert_eq!(super::super::list::retired_num(n), Some(id));
+        }
+        let v: Vals = real.defaults();
+        let t: String = real.encode(&v).unwrap();
+        let (_, rest) = split_prefix(&t).unwrap();
+        let all: Vec<u8> = b32_decode(rest).unwrap();
+        let mut r: Rd = Rd::new(&all[..all.len() - 2]);
+        let mut es: Vec<(u64, Vec<u8>)> = vec![(u64::from(ZORA_AMBUSH_NUM), vec![1]), (u64::from(BEAN_PITCH_NUM), vec![1])];
+        while !r.done() {
+            let num: u64 = r.varint().unwrap();
+            let len: u64 = r.varint().unwrap();
+            es.push((num, r.take(len as usize).unwrap().to_vec()));
+        }
+        es.sort();
+        let mut body: Vec<u8> = Vec::new();
+        for (num, p) in &es {
+            entry(&mut body, *num, p);
+        }
+        let (got, w) = real.decode(&wrap(body)).unwrap();
+        assert_eq!(got, v);
+        assert_eq!(w, vec![format!("setting number {ZORA_AMBUSH_NUM} ({ZORA_AMBUSH}) was removed, its value is ignored"), format!("setting number {BEAN_PITCH_NUM} ({BEAN_PITCH}) was removed, its value is ignored")]);
+        let j: crate::json::Json = crate::json::parse("{\"zora_ambush\": true, \"bean_pitch\": true}").unwrap();
+        let l: crate::settings::Loaded = crate::settings::Settings::from_json(&j).unwrap();
+        assert_eq!(l.settings.encode().unwrap(), crate::settings::Settings::default().encode().unwrap());
+        assert_eq!(l.warnings.len(), 2);
+        assert!(l.warnings.iter().all(|x| x.ends_with("was removed, its value is ignored")));
+    }
 }

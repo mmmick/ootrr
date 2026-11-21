@@ -4,7 +4,7 @@ use crate::error::{Fail, Hr};
 use crate::req::Req;
 use crate::resp::Resp;
 use crate::state::Shared;
-use crate::{update, api_build, api_fs, api_generate, api_info, api_items, api_now, api_open, api_seed, api_settings, api_tracker, api_validate, assets, body};
+use crate::{update, api_build, api_colors, api_fs, api_generate, api_info, api_items, api_now, api_open, api_seed, api_settings, api_tracker, api_validate, assets, body};
 
 fn need(r: &Req, m: &str) -> Hr<()> {
     if r.method == m {
@@ -69,6 +69,10 @@ fn api(sh: &Shared, r: &Req) -> Hr<Resp> {
         "/api/plando/options" => {
             need(r, "POST")?;
             api_generate::options(&body::json(r)?)?
+        }
+        "/api/colors/roll" => {
+            need(r, "POST")?;
+            api_colors::roll(&body::json(r)?)?
         }
         "/api/seed/read" => {
             need(r, "POST")?;

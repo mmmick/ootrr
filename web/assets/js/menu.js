@@ -200,7 +200,7 @@ function config_page(id, title, sub) {
       gen_draw = g.draw;
       kids.push(g.el);
     }
-    secs.push(section(label, kids));
+    secs.push(section(label, kids, id === "cosmetics" && label === "Colours"));
   }
   return [head(title), h("div", { class: "mgrid" }, secs)];
 }

@@ -24,9 +24,9 @@ pub enum Colors {
     Off,
     /// Only the parts picked by hand change.
     Custom,
-    /// Every part draws its own random colour; part picks are ignored.
+    /// Every part draws its own random colour, except the parts given their own pick.
     Random,
-    /// One random hue, each part in its own shade of it; part picks are ignored.
+    /// One random hue, each part in its own shade of it, except the parts given their own pick.
     Shared,
 }
 
@@ -95,9 +95,7 @@ pub fn parse_picks(pairs: &[(String, String)]) -> Res<Picks> {
             return Err(E::Msg(format!("colours: there is no part named {k}")));
         }
         let p: Pick = Pick::parse(v).ok_or_else(|| E::Msg(format!("colours: {k} takes original, random or a #rrggbb colour, not {v}")))?;
-        if p != Pick::Original {
-            out.insert(k.clone(), p);
-        }
+        out.insert(k.clone(), p);
     }
     Ok(out)
 }
@@ -378,15 +376,11 @@ pub fn plan(c: Colors, seed: &str, picks: &Picks) -> Vec<(&'static Item, [u8; 3]
     let base: [u8; 3] = roll(&mut Rng::from_text(&format!("{seed} colors shared")));
     let mut out: Vec<(&'static Item, [u8; 3])> = Vec::new();
     for it in &ITEMS {
-        let to: Option<[u8; 3]> = match c {
-            Colors::Off => None,
-            Colors::Random => Some(part_roll(seed, it.id)),
-            Colors::Shared => Some(shade_of(base, &mut Rng::from_text(&format!("{seed} colors shade {}", it.id)))),
-            Colors::Custom => match picks.get(it.id).copied().unwrap_or(Pick::Original) {
-                Pick::Original => None,
-                Pick::Rgb(x) => Some(x),
-                Pick::Random => Some(part_roll(seed, it.id)),
-            },
+        let to: Option<[u8; 3]> = match (c, picks.get(it.id).copied()) {
+            (Colors::Off, _) | (_, Some(Pick::Original)) | (Colors::Custom, None) => None,
+            (_, Some(Pick::Rgb(x))) => Some(x),
+            (Colors::Shared, None) => Some(shade_of(base, &mut Rng::from_text(&format!("{seed} colors shade {}", it.id)))),
+            (Colors::Random, _) | (_, Some(Pick::Random)) => Some(part_roll(seed, it.id)),
         };
         if let Some(to) = to {
             out.push((it, to));
@@ -707,7 +701,8 @@ mod tests {
             assert_eq!(Pick::parse(bad), None, "{bad}");
         }
         let ok: Picks = parse_picks(&[("kokiri".into(), "#00ff00".into()), ("boots".into(), "original".into())]).unwrap();
-        assert_eq!(ok.len(), 1);
+        assert_eq!(ok.len(), 2);
+        assert_eq!(ok.get("boots"), Some(&Pick::Original));
         assert!(parse_picks(&[("cape".into(), "random".into())]).is_err());
         assert!(parse_picks(&[("kokiri".into(), "green".into())]).is_err());
     }
@@ -725,18 +720,23 @@ mod tests {
     }
 
     #[test]
-    fn custom_paints_only_the_picked_parts_and_other_modes_ignore_picks() {
+    fn custom_paints_only_the_picked_parts_and_random_modes_keep_the_picks() {
         let picks: Picks = [("kokiri_belt".to_string(), Pick::Rgb([1, 2, 3])), ("kokiri".to_string(), Pick::Original), ("boots".to_string(), Pick::Random)].into_iter().collect();
         let mine: Vec<(&Item, [u8; 3])> = plan(Colors::Custom, "s", &picks);
         assert_eq!(mine.iter().map(|x| x.0.id).collect::<Vec<_>>(), ["kokiri_belt", "boots"]);
         assert_eq!(mine[0].1, [1, 2, 3]);
         assert!(plan(Colors::Custom, "s", &none()).is_empty());
         assert!(plan(Colors::Off, "s", &picks).is_empty());
-        let all: Vec<(&Item, [u8; 3])> = plan(Colors::Random, "s", &picks);
-        assert_eq!(all.len(), ITEMS.len());
-        let of = |p: &[(&Item, [u8; 3])], id: &str| p.iter().find(|x| x.0.id == id).unwrap().1;
-        assert_ne!(of(&all, "kokiri_belt"), [1, 2, 3]);
-        assert_eq!(of(&all, "boots"), of(&mine, "boots"));
+        let of = |p: &[(&Item, [u8; 3])], id: &str| p.iter().find(|x| x.0.id == id).map(|x| x.1);
+        let free: Vec<(&Item, [u8; 3])> = plan(Colors::Random, "s", &none());
+        for c in [Colors::Random, Colors::Shared] {
+            let all: Vec<(&Item, [u8; 3])> = plan(c, "s", &picks);
+            assert_eq!(all.len(), ITEMS.len() - 1);
+            assert_eq!(of(&all, "kokiri_belt"), Some([1, 2, 3]));
+            assert_eq!(of(&all, "kokiri"), None);
+            assert_eq!(of(&all, "boots"), of(&mine, "boots"));
+        }
+        assert_eq!(of(&plan(Colors::Random, "s", &picks), "gloves"), of(&free, "gloves"));
         assert_ne!(of(&mine, "boots"), of(&plan(Colors::Custom, "t", &picks), "boots"));
     }
 

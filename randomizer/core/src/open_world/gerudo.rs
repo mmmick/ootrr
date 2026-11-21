@@ -77,7 +77,9 @@ pub fn patch_open_guard(b: &mut Bf) -> Res<()> {
         Kind::Switch {
             actor: qa,
             query: qi,
-            cases: vec![Case { val: 0, ev: give }, Case { val: 1, ev: old }],
+            // A bool query answers case 0 when true: the scene already played keeps the old talk,
+            // and only a card still owed plays it.
+            cases: vec![Case { val: 0, ev: old }, Case { val: 1, ev: give }],
             params: Some(Cont {
                 items: vec![
                     ("Index".to_string(), Val::Int(-1)),

@@ -41,6 +41,9 @@ pub const GROUP_REACH: (f32, f32) = (1.6, 3.6);
 pub const NEAR_HOME: (f32, f32) = (4.0, 14.0);
 pub const WATER_REACH: (f32, f32) = (3.0, 15.0);
 pub const WATER_DRY: f32 = 3.0;
+pub const WATER_SHORE_ROOFED: f32 = 4.5;
+pub const WATER_SHORE_OPEN: f32 = 9.0;
+pub const WATER_ROOF: f32 = 10.0;
 pub const TRIES: usize = 40;
 pub const MAX_FACE: f32 = 20000.0;
 pub const MIN_PATCH: f32 = 150.0;
@@ -593,10 +596,15 @@ impl Ctx<'_> {
         let d: f32 = WATER_REACH.0 + unit(rng) * (WATER_REACH.1 - WATER_REACH.0);
         let t: f32 = unit(rng) * std::f32::consts::TAU;
         let p: [f32; 3] = [a[0] + d * t.cos(), a[1], a[2] + d * t.sin()];
-        if self.g.floor_near(p[0], p[1], p[2], WATER_DRY, WATER_DRY).is_some() {
+        if self.g.floor_near(p[0], p[1], p[2], WATER_DRY, WATER_DRY).is_some() || !self.open_water(p) {
             return None;
         }
         Some(p)
+    }
+
+    fn open_water(&self, p: [f32; 3]) -> bool {
+        let reach: f32 = if self.dungeon { WATER_SHORE_ROOFED } else { WATER_SHORE_OPEN };
+        self.g.shore(p, reach) <= reach && !self.g.roof(p, WATER_ROOF)
     }
 }
 
@@ -930,7 +938,7 @@ fn plan_map(sc: &Scene, g: &Ground, extra: i64, seed: &str, seen: &mut Map<u64, 
             let t: f32 = unit(&mut rng) * std::f32::consts::TAU;
             let q: [f32; 3] = [at[0] + d * t.cos(), at[1] - k.lift, at[2] + d * t.sin()];
             let got: Option<([f32; 3], Option<i32>, i64)> = if k.class == Class::Water {
-                if g.floor_near(q[0], at[1], q[2], WATER_DRY, WATER_DRY).is_none() { Some(([q[0], at[1], q[2]], r, WATER_KEY)) } else { None }
+                if g.floor_near(q[0], at[1], q[2], WATER_DRY, WATER_DRY).is_none() && ctx.open_water([q[0], at[1], q[2]]) { Some(([q[0], at[1], q[2]], r, WATER_KEY)) } else { None }
             } else {
                 g.floor_near(q[0], q[1], q[2], 1.5, 1.5).and_then(|(y, f)| ctx.settle(k, [q[0], y, q[2]], f))
             };
@@ -1151,7 +1159,12 @@ mod tests {
                     let k: &Kind = kind(&s.gyaml).unwrap();
                     assert!(hashes.insert(s.hash), "a hash repeats");
                     match k.class {
-                        Class::Water => assert!(g.floor_near(s.at[0], s.at[1], s.at[2], WATER_DRY - 0.01, WATER_DRY - 0.01).is_none(), "{} {:?} is on land", s.gyaml, s.at),
+                        Class::Water => {
+                            assert!(g.floor_near(s.at[0], s.at[1], s.at[2], WATER_DRY - 0.01, WATER_DRY - 0.01).is_none(), "{} {:?} is on land", s.gyaml, s.at);
+                            let reach: f32 = if s.room.is_some() { WATER_SHORE_ROOFED } else { WATER_SHORE_OPEN };
+                            assert!(g.shore(s.at, reach) <= reach, "{} {:?} in {} is far from any shore", s.gyaml, s.at, p.map);
+                            assert!(!g.roof(s.at, WATER_ROOF), "{} {:?} in {} has a floor just above", s.gyaml, s.at, p.map);
+                        }
                         c => {
                             let (_, f): (f32, u32) = g.floor_near(s.at[0], s.floor, s.at[2], 0.05, 0.05).unwrap_or_else(|| panic!("{} {:?} in {} has no floor", s.gyaml, s.at, p.map));
                             if percher(&s.gyaml) {

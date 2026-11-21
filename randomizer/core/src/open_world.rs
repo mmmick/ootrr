@@ -1,7 +1,9 @@
 pub mod ainb_edit;
 pub mod darunia;
+pub mod fortress;
 pub mod gerudo;
 pub mod guard;
+pub mod quest_order;
 pub mod skips;
 
 use std::fs;
@@ -274,7 +276,8 @@ pub fn zora_guard(rf: &mut Romfs, have: Have) -> Res<Vec<Out>> {
 pub fn stage_last(rf: &mut Romfs, late: &mut Vec<Out>, work: &std::path::Path) -> Res<()> {
     crate::story_skip::stage_late_file(rf, late, work, WATER_FILE, |raw| flow_edit(raw, |b| guard::guard_steps(b, WATER_FLOW, WATER, &BACK_STEPS, MOVED_EXP, Run::WhenFalse, ZORA_PREFIX).map(|_| ())))?;
     crate::story_skip::stage_late_file(rf, late, work, ARRIVE_FILE, |raw| flow_edit(raw, |b| guard::guard_steps(b, ARRIVE_FLOW, WATER, &BACK_STEPS, MOVED_EXP, Run::WhenFalse, ZORA_PREFIX).map(|_| ())))?;
-    darunia::stage_late(rf, late, work)
+    darunia::stage_late(rf, late, work)?;
+    quest_order::stage_late(rf, late, work)
 }
 
 pub fn stage(rf: &mut Romfs, o: &Opts, have: Have) -> Res<Vec<Out>> {
@@ -307,6 +310,7 @@ pub fn worked(rf: &mut Romfs, pk: &crate::modpack::Pack, o: &Opts) -> Res<Vec<Ou
     let have = |p: &str| -> Option<Vec<u8>> { fs::read(p.split('/').fold(root.clone(), |a, s| a.join(s))).ok() };
     let mut outs: Vec<Out> = if o.edits_files() { stage(rf, o, &have)? } else { Vec::new() };
     outs.extend(crate::gerudo_card::stage(rf, &have)?);
+    fortress::stage(rf, &mut outs, &have)?;
     outs.push(crate::malon_song::stage(rf, &have)?);
     Ok(outs)
 }

@@ -578,7 +578,8 @@ mod tests {
                     let old: Byml = Byml::parse(&rf.read_zs(f).unwrap()).unwrap();
                     let new: Byml = Byml::parse(&rf.zs.decompress(&std::fs::read(out.join(f)).unwrap()).unwrap()).unwrap();
                     let a: &crate::byml::Node = actor(&new, r.hash).unwrap();
-                    let v: &crate::byml::Node = actor(&old, r.hash).unwrap();
+                    // The vanilla chest may have no drop field yet (slice::banc::DEFAULT_DROPS).
+                    let v: &crate::byml::Node = old.root.get("Actors").and_then(|l| l.as_arr()).and_then(|l| l.iter().find(|a| crate::placement::hash_of(a) == Some(r.hash))).unwrap();
                     let size: Size = Size::of_gyaml(a.get("Gyaml").and_then(|x| x.as_str()).unwrap_or(""));
                     assert_eq!(dy(a, crate::dungeon_credit::DROP), k.actor(), "{loc}");
                     assert_eq!(dy(a, "GetEventName"), crate::dungeon_grant::event_name(k, want, size), "{loc}");

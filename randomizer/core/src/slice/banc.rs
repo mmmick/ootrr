@@ -16,6 +16,18 @@ pub struct Found {
     pub sub: bool,
 }
 
+/// Chests whose Dynamic has no Drop__DropActor, so the game gives the default item of the chest
+/// actor. Each default here was seen in game. Reading such a chest reports its default, and
+/// writing one adds the field.
+pub const DEFAULT_DROPS: [(u64, &str); 1] = [
+    // Forest Temple Falling Ceiling Room Chest (room 24): a five pack of bombs in a playthrough.
+    (15117164073907033527, "Item_BombBundle_Small"),
+];
+
+pub fn default_drop(hash: u64) -> Option<&'static str> {
+    DEFAULT_DROPS.iter().find(|(h, _)| *h == hash).map(|(_, d)| *d)
+}
+
 pub fn actors(y: &Byml) -> &[Node] {
     y.root.get("Actors").and_then(|a| a.as_arr()).unwrap_or(&[])
 }
@@ -39,6 +51,7 @@ pub fn describe(file: &str, a: &Node) -> Found {
         drop: dynamic
             .and_then(|d| d.get("Drop__DropActor"))
             .and_then(|v| v.as_str())
+            .or_else(|| dynamic.and(hash_of(a)).and_then(default_drop))
             .map(|s| s.to_string()),
         event: has("GetEventName"),
         check: has("Drop__CheckActor") || has("Drop__DropActor_Substitute"),
@@ -70,10 +83,13 @@ pub fn set_drop_ev(y: &mut Byml, hash: u64, old: &str, new: &str, ev: Option<Ev>
         let Some(d) = a.get_mut("Dynamic") else {
             continue;
         };
-        if d.get("Drop__DropActor").is_none() {
-            continue;
-        }
-        let have: String = d.get("Drop__DropActor").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let have: String = match d.get("Drop__DropActor") {
+            Some(v) => v.as_str().unwrap_or("").to_string(),
+            None => match default_drop(hash) {
+                Some(def) => def.to_string(),
+                None => continue,
+            },
+        };
         if have != old {
             return Err(crate::error::Error::Msg(format!(
                 "actor {hash} holds {have} where {old} was expected, the game files differ from the ones the data was made for"
@@ -155,6 +171,29 @@ mod tests {
         assert!(set_drop(&mut y, 1, "A", "Y").is_err());
         assert!(set_drop(&mut y, 2, "B", "Y").is_err());
         assert_eq!(set_drop(&mut y, 9, "A", "Y").unwrap(), 0);
+    }
+
+    #[test]
+    fn a_chest_on_its_default_drop_reads_the_default_and_gets_the_field_written() {
+        let (h, def): (u64, &str) = DEFAULT_DROPS[0];
+        let bare = |hash: u64| -> Node {
+            Node::Map(vec![
+                ("Dynamic".to_string(), Node::Map(vec![("DefaultDungeonRoomIndex".to_string(), Node::I32(24))])),
+                ("Gyaml".to_string(), Node::Str("Obj_TBox_A_01".to_string())),
+                ("Hash".to_string(), Node::U64(hash)),
+            ])
+        };
+        let mut y: Byml = file(vec![bare(h), bare(7)]);
+        assert_eq!(find(&y, "x", h)[0].drop.as_deref(), Some(def));
+        assert_eq!(find(&y, "x", 7)[0].drop, None);
+        assert!(set_drop(&mut y, h, "Item_Other", "Item_Hookshot").is_err());
+        assert_eq!(set_drop(&mut y, 7, def, "Item_Hookshot").unwrap(), 0);
+        assert_eq!(set_drop(&mut y, h, def, "Item_Hookshot").unwrap(), 1);
+        let back: Byml = Byml::parse(&y.write().unwrap()).unwrap();
+        let d: &Node = actors(&back)[0].get("Dynamic").unwrap();
+        assert_eq!(d.get("Drop__DropActor").and_then(|v| v.as_str()), Some("Item_Hookshot"));
+        assert_eq!(d.get("DefaultDungeonRoomIndex"), Some(&Node::I32(24)));
+        assert!(actors(&back)[1].get("Dynamic").unwrap().get("Drop__DropActor").is_none());
     }
 
     #[test]

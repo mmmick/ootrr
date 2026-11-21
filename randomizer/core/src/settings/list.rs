@@ -5,8 +5,10 @@ pub const SCHEMA_VERSION: u32 = 1;
 /// Setting numbers and ids that are gone. An old settings string or file that carries one
 /// still imports, with a warning that its value is ignored, and no setting may reuse them.
 /// 55 and 92 (remake only chests and pots) now follow Chests, Pots and Crates.
-pub const RETIRED: [(u16, &str); 9] = [
+pub const RETIRED: [(u16, &str); 11] = [
     (crate::difficulty::ENCOUNTERS_NUM, crate::difficulty::ENCOUNTERS),
+    (crate::difficulty::ZORA_AMBUSH_NUM, crate::difficulty::ZORA_AMBUSH),
+    (crate::difficulty::BEAN_PITCH_NUM, crate::difficulty::BEAN_PITCH),
     (55, "shuffle_remake_chests"),
     (63, "shop_deal_gear"),
     (92, "shuffle_remake_pots"),
@@ -197,52 +199,52 @@ fn difficulty() -> Vec<Setting> {
     vec![
         Setting::number(d::HEALTH_NUM, d::HEALTH, "difficulty", "Enemy health", d::NORMAL, d::STAT_RANGE.0, d::STAT_RANGE.1)
             .multiplier(d::STAT_STEP, d::NORMAL)
-            .tip("How much health enemies and bosses have, from half (0.5x) to five times (5x) the usual amount. Health is rounded, never drops below one hit and never goes above 99, so an enemy or boss that starts at 20 or more can get less than the full factor at the top of the range. Enemies that are beaten by a scripted hit, such as Deku Scrubs, are unchanged. The settings string stores this as a percentage. Experimental, untested in the game."),
+            .tip("How much health enemies and bosses have, from 0.5x to 5x. Health tops out at 99."),
         Setting::number(d::DAMAGE_NUM, d::DAMAGE, "difficulty", "Enemy damage", d::NORMAL, d::STAT_RANGE.0, d::STAT_RANGE.1)
             .multiplier(d::STAT_STEP, d::NORMAL)
-            .tip("How hard enemy attacks and enemy projectiles hit, from half (0.5x) to five times (5x) the usual damage. Traps, lava and falls are unchanged. The settings string stores this as a percentage. Experimental, untested in the game."),
+            .tip("How hard enemies and their projectiles hit, from 0.5x to 5x. Traps, lava, falls and grabs do their usual damage."),
         Setting::number(d::SPEED_NUM, d::SPEED, "difficulty", "Enemy speed", d::NORMAL, d::SPEED_RANGE.0, d::SPEED_RANGE.1)
             .multiplier(d::SPEED_STEP, d::NORMAL)
-            .tip("How fast enemies move and how often they attack, from three quarters (0.75x) to twice (2x) the usual speed. Enemies that only move through their animations, such as Octoroks and Skulltulas, keep their pace. The settings string stores this as a percentage. Experimental, untested in the game."),
+            .tip("How fast enemies move and attack, from 0.75x to 2x. Experimental: most enemies ignore it so far, and only Lizalfos clearly speed up."),
         Setting::toggle(d::REGEN_NUM, d::REGEN, "difficulty", "Enemies regen health", false)
-            .tip("Enemies and bosses that are still alive win back health when they are left alone. An enemy that has gone 10 seconds without being hit starts to heal, one point every 5 seconds, never above its usual health. Any new hit starts the 10 seconds again. A Stalfos has 18 points, so a hurt one is whole again a minute and a half after it was last hit. Enemies with one or two points of health hardly notice. Experimental, untested in the game."),
+            .tip("Enemies you leave alone heal. About 15 seconds after your last hit they get back one point every 5 seconds."),
         Setting::toggle(d::BACKUP_NUM, d::BACKUP, "difficulty", "Enemies call for backup", false)
-            .tip("Take too long over an enemy and it calls for help, once. An ordinary enemy that has had Link as its target for a random 10 to 25 seconds without a break calls one helper, which appears where the enemy stands, so it lands on the same ground. Each enemy rolls its own delay, so several enemies do not all call in the same second. An enemy never calls its own kind, always something a little weaker: a Stalfos calls a weak Stalfos, a weak Stalfos and Skull Kids a Stalchild, White Wolfos a Wolfos, Wolfos two Keese, Freezards an ice Keese, Dinolfos a Lizalfos, Gibdos a ReDead, Club Moblins a Guay and spear Moblins two, Tektites a Guay, Mad Scrubs a Deku Baba, Deku Babas, the other scrubs, Skulltulas and Gohma larvae a Skullwalltula, Floormasters, Wallmasters and Like Likes a small Floormaster, a Bari two Biri, Shell Blades, Stingers and Tentacles a Biri, and Stalchildren, Lizalfos, Dodongos, Poes, Armos, bubbles, Torch Slugs, Octoroks, Biri, rolling spikes and anything else a Keese. No enemy calls a Dodongo or a Baby Dodongo, whose blast could open a wall early. A helper that was called can never call in turn. A helper whose kind the current area has not loaded may simply not appear. Never calling: gold Skulltulas, the Poe sisters, ReDeads, Keese, Baby Dodongos, Guay, Skullwalltulas, small Floormasters, flying pots, Shabom, Leevers and Peahats, and bosses, minibosses, Iron Knuckles, Dead Hand, Dark Link and Phantom Ganon. A called helper does not count for doors that open when a room is cleared. Experimental, untested in the game."),
+            .tip("Fight an enemy for too long and it calls in one weaker enemy, once. A Stalfos brings a weak Stalfos, a Wolfos two Keese. Bosses and minibosses never call."),
         Setting::toggle(d::NO_HEARTS_NUM, d::NO_HEARTS, "difficulty", "No heart drops", false)
-            .tip("Enemies, pots, grass and other random drops never give recovery hearts. Hearts that are placed as shuffled items are still there. Experimental, untested in the game."),
+            .tip("Enemies, pots and grass never drop recovery hearts. Hearts placed as items in the seed are still there."),
         Setting::toggle(d::NO_FAIRIES_NUM, d::NO_FAIRIES, "difficulty", "No gossip fairies", false)
-            .tip("Playing a song to a gossip stone no longer calls a fairy that heals you. Experimental, untested in the game."),
+            .tip("Playing a song at a gossip stone no longer brings out a healing fairy."),
         Setting::toggle(d::NO_AMMO_NUM, d::NO_AMMO, "difficulty", "No ammo drops", false)
-            .tip("Enemies, pots, grass and other random drops never give arrows, Deku Seeds, bombs, Deku Nuts or Deku Sticks. Ammo from shops, chests and shuffled items is still there. The seed logic does not change, so make sure you can buy what you need. With Shopsanity special deals a shelf that sold ammo can be replaced by a deal. Experimental, untested in the game."),
+            .tip("Enemies, pots and grass never drop arrows, seeds, bombs, nuts or sticks. Shops and chests still have them, and the logic does not plan for this. Tested on grass only."),
         Setting::toggle(d::LOSE_HEART_NUM, d::LOSE_HEART, "difficulty", "Lose heart on death", false)
-            .tip("Each time you get a game over and continue, you lose one heart container, down to a minimum of three hearts. Being revived by a fairy in a bottle is not a game over. Experimental, untested in the game."),
+            .tip("Each game over costs a heart container, down to three. Being saved by a bottled fairy does not count. Quitting to the title screen gives the hearts back."),
         Setting::toggle(d::NO_BOTTLES_NUM, d::NO_BOTTLES, "difficulty", "No bottles during combat", false)
-            .tip("You cannot drink from a bottle or let out its contents while an enemy is after you. The game is read as being in combat while the enemy battle music plays or during a boss battle, so with this setting on, the enemies that normally fight without battle music, Leevers and Moblins, now start it. Experimental, untested in the game."),
+            .tip("You can't use a bottle while the battle music plays or in a boss fight. A bottled fairy still revives you."),
         Setting::toggle(d::NO_TARGET_NUM, d::NO_TARGET, "difficulty", "No Z-targeting", false)
-            .tip("You cannot lock on to enemies or bosses, so the camera and Link no longer stay turned toward them. Aim assist for the bow, slingshot, hookshot and boomerang is unchanged. Talking to people, reading signs, the training rocks and locking on to anything that is not an enemy still work, and so does holding the button with no target. A few bosses turn the camera to themselves at set moments and may still do so. Experimental, untested in the game."),
+            .tip("You can't lock on to enemies or bosses. Aim assist and targeting people and signs still work."),
         Setting::toggle(d::NO_DUPES_NUM, d::NO_DUPES, "difficulty", "No dupe items", false)
-            .tip("You cannot carry the same thing in two bottles. If one bottle already holds a Red Potion, a Fairy, Milk, a Fish, Bugs, Blue Fire, a Poe or any other content, a second bottle is not filled with it. Different contents in different bottles are fine and empty bottles are never refused. Shop shelves, Talon and the old potion woman turn you away as if you had no empty bottle. Deku Scrubs, cows and the Market potion shop gift go through their scene without filling the bottle or taking Rupees. A refused catch may still use up the fairy, fish or Poe you swung at. Not covered: bottle contents handed out by chests and other shuffled items, and Milk next to half drunk Milk, which count as different things. Experimental, untested in the game."),
+            .tip("Two bottles can't hold the same thing, so no second fairy, potion or Poe. Different things in different bottles are fine."),
         Setting::number(d::MORE_NUM, d::MORE, "difficulty", "More enemies", d::NORMAL, d::MORE_RANGE.0, d::MORE_RANGE.1)
             .multiplier(d::MORE_STEP, d::NORMAL)
-            .tip("How many enemies each area holds, from the usual number (1x, off) to ten times as many (10x). At 1.5x about half of the ordinary enemies get one extra copy standing next to them, and at 2x every one of them does. Only enemies that no door, chest, enemy counter or event is tied to are copied, so a room that opens when its enemies are beaten still counts only the original ones. Any value above 1x also brings the special encounters: a Dead Hand in two hidden holes, an Iron Knuckle in Hyrule Field that gets up when you come close, Like Likes around Lake Hylia, extra Guays over child Hyrule Field, and the rare Skulltula, crawling hand or Poe from cut grass and broken pots, with some flying pots in disguise. Above 2x each area is filled toward that many times its usual number of enemies, at most 240 in one map and 120 within the range around Link where enemies are active, on walkable ground read from the game's own navigation data: flat ground for the enemies that need it, gentle slopes for Like Likes and the like, fliers in the air, Octoroks in the water near the ones already there and, in dungeons, Skulltulas and Wallmasters. From 5x kinds that never live in the area join in, in groups, with the odd miniboss (Stalfos, Dinolfos, a silver Iron Knuckle that gets up when you come close, a white Wolfos) on open flat ground. Boss and miniboss rooms, shops, houses, towns, minigames and the peaceful places (child Kokiri Forest, Kakariko Village, child Market, Hyrule Castle, Gerudo Fortress, Zora's Domain, Goron City, Lon Lon Ranch, the Temple of Time) get no added enemies. The same seed gives the same enemies. Added enemies are not remembered, so they are back when you return. Experimental, untested in the game."),
+            .tip("How many enemies each area has, up to 10x. From 5x, new kinds join in. Above 1x you also get special encounters, such as a Skulltula ambush in Zora's Domain once you have a sword, and rare enemies from grass and pots (untested). Towns and boss rooms get none."),
         Setting::toggle(d::RESPAWN_NUM, d::RESPAWN, "difficulty", "Enemies respawn sooner", false)
-            .tip("Most ordinary enemies you beat are no longer remembered as beaten, so they should be back when you leave their room or area and return. Without this they only come back after you leave the whole dungeon or region. Bosses, minibosses, Gold Skulltulas, Poes, Deku Scrubs and a few enemies that share their data with a boss are unchanged. Doors and chests that a cleared room already gave you should stay, but that is not confirmed. Experimental, untested in the game."),
+            .tip("Beaten enemies come back when you leave the room or area and return, not only after leaving the dungeon or region. Bosses and minibosses stay beaten. Experimental, untested in the game."),
         Setting::toggle(d::MINIBOSSES_NUM, d::MINIBOSSES, "difficulty", "Bosses spawn minibosses", false)
-            .tip("A strong enemy waits in the boss room and fights alongside the boss. It leaves when the boss is beaten, so it never blocks the heart container or the way out. In Gohma's room it is not there until the door has shut behind you, as the boss introduction starts; in the other rooms it is there when you enter. Covers Queen Gohma (Stalfos), Barinade (Stalfos), Phantom Ganon (Stalfos) and Twinrova (Dinolfos). King Dodongo is unchanged because his dungeon would not load with a miniboss added. Volvagia, Morpha, Bongo Bongo, Ganondorf and Ganon are unchanged because their arenas have no safe ground for it, and so are the dream world boss fights. Experimental, untested in the game."),
+            .tip("A Stalfos or a Dinolfos joins the fight with Gohma, Barinade, Phantom Ganon and Twinrova. It appears when the fight starts and leaves when the boss is beaten. Played with Gohma and Phantom Ganon; the other bosses are untested."),
         Setting::toggle(d::MINIONS_NUM, d::MINIONS, "difficulty", "Bosses spawn minions", false)
-            .tip("Dungeon bosses have a few weak enemies with them. Three Keese fly around the rooms of Gohma, Phantom Ganon, Morpha and Bongo Bongo, three Fire Keese around Volvagia, two Fire Keese and two Ice Keese around Twinrova and three Biri float around Barinade. King Dodongo calls Baby Dodongos from the start of his fight and calls more of them later on. The Keese in Gohma's room are not there until the door has shut behind you, as the boss introduction starts, and the others are in the boss room whenever you are. They stay after the boss is beaten. Ganondorf, Ganon and the dream world boss stages are unchanged. Experimental, untested in the game."),
-        Setting::toggle(d::BEAN_PITCH_NUM, d::BEAN_PITCH, "difficulty", "Bean Seller's sales pitch", false)
-            .tip("Just for fun. One talk in five, the Bean Seller by Zora's River says \"Chomp Chomp... would you like some Difficulty Mods?\" before he carries on with his usual talk and his beans. Nothing else changes, and the line is in English in every language. Experimental, untested in the game."),
-        Setting::toggle(d::ZORA_AMBUSH_NUM, d::ZORA_AMBUSH, "difficulty", "Zora's Domain ambush", false)
-            .tip("The hole in Zora's Domain that holds nothing but a few rupees gets company. A wall Skulltula sits on the far wall of each of its three side caves, and once you walk into a side cave a Skulltula appears at its mouth behind you, so it is waiting on your way out. They come back when the area is loaded again. Experimental, untested in the game."),
+            .tip("Bosses bring a few Keese or Biri, and King Dodongo calls more Baby Dodongos. They appear when the fight starts (Bongo Bongo's are there from the start) and leave when the boss is beaten. Ganondorf and Ganon are unchanged. Played with Gohma and Phantom Ganon; the other bosses are untested."),
         Setting::toggle(d::GATES_NUM, d::GATES, "difficulty", "Enemies block the way", false)
-            .tip("At a few choke points an invisible wall stands in the way while the enemies guarding it are alive, and goes away when they are beaten. If they are too hard, retreat and come back stronger. Nothing is saved: when the area loads again and the enemies are back, so is the wall. The enemies stand in the wall, so they can be hit from both sides and nobody is shut in. Only the two Deku Babas on the path from Kokiri Forest to the Deku Tree for now. It is skipped with an open forest or shuffled entrances, where it could add a requirement the seed does not expect. Experimental, untested in the game."),
+            .tip("At ten narrow spots a barrier blocks the way until you beat its guards. It comes back when the area reloads. As a child they only appear once you have the Kokiri Sword. Off with shuffled entrances."),
         Setting::toggle(d::CUCCO_NUM, d::CUCCO, "difficulty", "Cuccos take revenge at once", false)
-            .tip("Hurting a Cucco, even with a single light hit, makes the whole flock of Cuccos come after you. Normally the game wants a few hits before they get angry. Picking a Cucco up, carrying it and throwing it do not count as hurting it. The Cuccos you catch for Anju in Kakariko Village and the ones the game has you find keep their normal temper, so those quests are not made harder. Experimental, untested in the game."),
-        Setting::toggle(d::SPAWN_COMBO_NUM, d::SPAWN_COMBO, "difficulty", "Spawn enemies with L + R + D-pad", false)
-            .tip("Just for fun and for practice. Hold both sticks pressed in (left stick click and right stick click) and press the D-pad Down: a random ordinary enemy appears a few steps in front of Link. Hold both sticks in and press the D-pad Up: the same kind of enemy appears again. The pool has 43 kinds, from Stalfos and Lizalfos to Poes, Gibdos, Freezards and the silver Iron Knuckle. An enemy whose data the current area has not loaded will not appear, at most twelve spawned enemies are kept at once, and nothing happens during cutscenes. Spawned enemies are not part of the room, so they do not count for doors or counters. Experimental, untested in the game."),
+            .tip("Hit a Cucco once and the whole flock attacks, instead of after a few hits. Anju's Cuccos and the ones you have to find keep their usual temper."),
+        Setting::toggle(d::BOWLING_NUM, d::BOWLING, "difficulty", "Unbreakable Bombchu Bowling grass", false)
+            .tip("The grass in the Bombchu Bowling lanes can't be broken, so steer your Bombchus around it."),
+        Setting::toggle(d::FIREBALLS_NUM, d::FIREBALLS, "difficulty", "Fireball storms", false)
+            .tip("Burning rocks rain down on a few quiet stretches of Hyrule Field and the Hyrule Castle garden, like on Death Mountain. Dodge them."),
+        Setting::toggle(d::SPAWN_COMBO_NUM, d::SPAWN_COMBO, "difficulty", "Spawn enemies (sticks + D-pad)", false)
+            .tip("For fun and practice. Hold both sticks in and press D-pad Down for a random enemy in front of Link, or Up for the same kind again. Up to twelve at once."),
         Setting::toggle(d::FAIRY_HELPS_NUM, d::FAIRY_HELPS, "difficulty", "Fairies help enemies too", false)
-            .tip("When you let a fairy out of a bottle to heal, or a fairy in a bottle revives you, every enemy and boss that is awake at that moment is healed to full health as well. The enemy you beat last is not brought back, because that cannot be done by editing the game files. Fairies you touch in the world heal only you. Experimental, untested in the game."),
+            .tip("When you use a bottled fairy, or one revives you, every awake enemy and boss heals to full too."),
     ]
 }
 
@@ -417,6 +419,8 @@ pub fn build() -> Schema {
     s.extend(bridge());
     s.extend(crate::medal_gate::settings());
     s.extend(crate::door_gate::settings());
+    s.extend(crate::nocturne_gate::settings());
+    s.extend(crate::prelude_gate::settings());
     s.push(
         Setting::toggle(30, crate::ganon_trials::SKIP, "goal", "Skip Ganon's Trials", false)
             .tip("The barrier in Ganon's Castle starts dispelled, so the tower is open without clearing any of the six trials. The trial rooms stay open and their chests and pots can still be checked. Experimental, untested in the game."),
@@ -709,6 +713,10 @@ pub fn build() -> Schema {
         Setting::toggle(crate::deku_bridge::NUM, crate::deku_bridge::KEY, "world", "Deku Tree bridge never breaks", false)
             .wire_as(Value::Bool(false))
             .tip("The wooden bridge in the Deku Tree slingshot room stays up when Link walks, rolls or jumps on it, so you never drop into the pit below it. Nothing else in the dungeon changes and the logic is the same, because the room never needed the bridge to break. Without the Slingshot the jump across has a window of about nine frames, so this keeps the room fair when the chests there hold other items. A bridge that already broke in a save stays broken. Experimental, untested in the game."),
+    );
+    s.push(
+        Setting::toggle(crate::debug_names::NUM, crate::debug_names::SETTING, "world", "Show location names", false)
+            .tip("For checking the location data. After an item get, a text box shows the internal name of the location the item came from, such as [KF Midos Top Left Chest]. Covers chests, NPC, song and event rewards, Gold Skulltulas and items on the ground. Items on the ground need a button press, and a placed item missing from the location list says so. Experimental."),
     );
     s.push(starting_items());
     s.push(starting_songs());

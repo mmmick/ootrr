@@ -6,6 +6,7 @@ use crate::difficulty::wake;
 use crate::difficulty::ambush::{actor, euler, floats, fresh, link, list, text, vec3};
 use crate::error::{Error as E, Res};
 use crate::flow_locations::dict_id;
+use crate::gerudo_card::{bool_node, multi_node};
 use crate::murmur::murmur3_32;
 use crate::placement::hash_of;
 use crate::qol::Have;
@@ -36,6 +37,8 @@ pub const AREA: &str = "Area";
 pub const AREA_NODE: &str = "ActorLogicAreaActor";
 pub const HIT_NODE: &str = "HoldActorObserverBySensorHitInfo";
 pub const AND_NODE: &str = "OperateANDFixInputTrue";
+pub const SWORD_AND: &str = crate::gerudo_card::AND;
+pub const SWORD: &str = "IsGet.Weapon_Sword_Kokiri";
 pub const POINTER: &str = "const void";
 pub const IGNORE: [&str; 9] = [
     "Enemy_Scrub_Mad_Leaf",
@@ -78,6 +81,25 @@ pub struct Gate {
 }
 
 pub const HELD: [u8; 1] = [7];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Shuffle {
+    Off,
+    Dungeons,
+    Wide,
+}
+
+impl Shuffle {
+    pub fn from_setting(v: &str) -> Shuffle {
+        match v {
+            "off" => Shuffle::Off,
+            "dungeons" => Shuffle::Dungeons,
+            _ => Shuffle::Wide,
+        }
+    }
+}
+
+pub const BEYOND_DUNGEON_DOOR: [u8; 3] = [1, 2, 6];
 pub const GATES: [Gate; 11] = [
     Gate { id: 1, name: "the passage out of the Sacred Forest Meadow's scrub lane", map: "SacredForestMeadow_Child", a: [-8.13, 114.46, -82.57], b: [-5.03, 114.47, -82.57], spot: [-6.4, 104.81, -53.4], more: &[], also: &[], sink: 0.0, radius: RADIUS, new_kind: SCRUB_GUARD, closed_forest_only: false },
     Gate { id: 2, name: "the Death Mountain Trail below the Dodongo's Cavern path", map: "DeathMountainTrail_Child", a: [-52.85, 106.91, -2.46], b: [-47.86, 106.93, -0.56], spot: [-54.67, 105.8, 6.39], more: &[], also: &[], sink: 0.0, radius: RADIUS, new_kind: DODONGO_GUARD, closed_forest_only: false },
@@ -246,8 +268,22 @@ pub fn approach(g: &Gate, back: f32) -> [f32; 3] {
     [g.spot[0] + (g.spot[0] - m[0]) / d * back, g.spot[1], g.spot[2] + (g.spot[2] - m[2]) / d * back]
 }
 
-pub fn active(g: &Gate, forest_open: bool, mido_gone: bool, entrances: bool) -> bool {
-    !entrances && !(g.closed_forest_only && (forest_open || mido_gone))
+pub fn active(g: &Gate, forest_open: bool, mido_gone: bool, entrances: Shuffle) -> bool {
+    let shuffle_ok: bool = match entrances {
+        Shuffle::Off => true,
+        Shuffle::Dungeons => !BEYOND_DUNGEON_DOOR.contains(&g.id),
+        Shuffle::Wide => false,
+    };
+    shuffle_ok && !(g.closed_forest_only && (forest_open || mido_gone))
+}
+
+pub fn shuffle_note(entrances: Shuffle) -> Option<String> {
+    let off: Vec<String> = GATES.iter().filter(|g| !HELD.contains(&g.id) && !active(g, false, false, entrances)).map(|g| format!("{} (gate {})", g.name, g.id)).collect();
+    match entrances {
+        Shuffle::Off => None,
+        Shuffle::Dungeons => Some(format!("Because dungeon entrances are shuffled, these gates are left out, as a dungeon door lies beyond them: {}.", off.join(", "))),
+        Shuffle::Wide => Some(format!("Because overworld entrances are shuffled, every gate is left out: {}.", off.join(", "))),
+    }
 }
 
 fn dist(a: [f32; 3], b: [f32; 3]) -> f32 {
@@ -357,6 +393,7 @@ pub struct Plan {
     pub hands: Vec<String>,
     pub area: String,
     pub counters: Vec<(usize, String)>,
+    pub sword: bool,
 }
 
 pub fn id_for(gyaml: &str, seed: &str, taken: &[String]) -> String {
@@ -395,7 +432,7 @@ pub fn names(g: &Gate, kinds: &[String], modes: &[Mode], hand_kinds: &[String]) 
     }
     let tag: u32 = murmur3_32(format!("{SEED} gate {} module", g.id).as_bytes(), 0) & 0xffff;
     let name: String = format!("{PREFIX}{:02}_{tag:04x}", g.id);
-    Plan { module: format!("Logic/Module/{PREFIX}{:02}/{name}.logic.module.ain", g.id), graph: format!("Logic/{name}.logic.module.ainb"), guards, modes: modes.to_vec(), hands, area, counters }
+    Plan { module: format!("Logic/Module/{PREFIX}{:02}/{name}.logic.module.ain", g.id), graph: format!("Logic/{name}.logic.module.ainb"), guards, modes: modes.to_vec(), hands, area, counters, sword: g.map.ends_with("_Child") }
 }
 
 fn pair(a: u64, b: u64) -> Node {
@@ -487,7 +524,7 @@ fn named(a: &Ainb, id: &str) -> Vec<usize> {
     (0..a.els.len()).filter(|&i| a.prop_str(i, NAME) == Some(id)).collect()
 }
 
-fn actor_node(a: &mut Ainb, id: &str, mode: Mode, inside_at: usize, dead: bool) -> Res<usize> {
+fn actor_node(a: &mut Ainb, id: &str, mode: Mode, inside_at: usize, armed: Option<usize>, dead: bool) -> Res<usize> {
     let n: Vec<u8> = a.pool.add(id).to_le_bytes().to_vec();
     let one: Vec<u8> = 1u32.to_le_bytes().to_vec();
     let zero: Vec<u8> = 0u32.to_le_bytes().to_vec();
@@ -495,7 +532,10 @@ fn actor_node(a: &mut Ainb, id: &str, mode: Mode, inside_at: usize, dead: bool) 
     let mut s: Spec = Spec::node(NODE, &seed).prop(STR, NAME, n);
     s = match mode {
         Mode::Trigger => s.linked(BOOL, CREATE, inside_at, 1),
-        Mode::Always => s.idle(BOOL, CREATE, one),
+        Mode::Always => match armed {
+            Some(at) => s.linked(BOOL, CREATE, at, 0),
+            None => s.idle(BOOL, CREATE, one),
+        },
         Mode::Never => s.idle(BOOL, CREATE, zero.clone()),
     };
     s = s.idle(BOOL, DELETE, zero.clone()).idle(BOOL, RESPAWN, zero);
@@ -543,19 +583,24 @@ pub fn wire(a: &mut Ainb, p: &Plan) -> Res<usize> {
         .spare_ptr("ContactActorLinkPtr", POINTER);
     hit.role = QUERY;
     let hit_at: usize = a.add_node(&hit)?;
+    let armed: Option<usize> = if p.sword { Some(bool_node(a, SWORD, &format!("{SEED} {} sword", p.area))?) } else { None };
     let mut inside: Spec = Spec::node(AND_NODE, &seed_i)
         .linked(BOOL, "BoolMulti", hit_at, 0)
         .idle(BOOL, "UpdateOnce", zero.clone())
         .spare(BOOL, "False")
         .out(BOOL, "True");
     inside.role = QUERY;
-    let inside_at: usize = a.add_node(&inside)?;
+    let held_at: usize = a.add_node(&inside)?;
+    let inside_at: usize = match armed {
+        Some(sword_at) => multi_node(a, SWORD_AND, &format!("{seed_i} sword"), &[(held_at, 1), (sword_at, 0)])?,
+        None => held_at,
+    };
     let mut at: Vec<usize> = Vec::new();
     for (j, id) in p.guards.iter().enumerate() {
-        at.push(actor_node(a, id, p.modes[j], inside_at, true)?);
+        at.push(actor_node(a, id, p.modes[j], inside_at, armed, true)?);
     }
     for id in &p.hands {
-        actor_node(a, id, Mode::Trigger, inside_at, false)?;
+        actor_node(a, id, Mode::Trigger, inside_at, armed, false)?;
     }
     for (j, id) in &p.counters {
         let n: Vec<u8> = a.pool.add(id).to_le_bytes().to_vec();
@@ -795,12 +840,53 @@ mod tests {
 
     #[test]
     fn the_gates_follow_the_forest_and_entrance_settings() {
-        assert!(GATES.iter().all(|g| active(g, false, false, false)));
-        assert!(GATES.iter().all(|g| !active(g, false, false, true)));
+        assert!(GATES.iter().all(|g| active(g, false, false, Shuffle::Off)));
+        assert!(GATES.iter().all(|g| !active(g, false, false, Shuffle::Wide)));
+        let kept: Vec<u8> = GATES.iter().filter(|g| active(g, false, false, Shuffle::Dungeons)).map(|g| g.id).collect();
+        assert_eq!(kept, vec![3, 4, 5, 7, 9, 11, 12, 13]);
         let closed: Vec<u8> = GATES.iter().filter(|g| g.closed_forest_only).map(|g| g.id).collect();
         assert_eq!(closed, vec![6]);
-        assert_eq!(GATES.iter().filter(|g| active(g, true, false, false)).count(), GATES.len() - 1);
-        assert_eq!(GATES.iter().filter(|g| active(g, false, true, false)).count(), GATES.len() - 1);
+        assert_eq!(GATES.iter().filter(|g| active(g, true, false, Shuffle::Off)).count(), GATES.len() - 1);
+        assert_eq!(GATES.iter().filter(|g| active(g, false, true, Shuffle::Off)).count(), GATES.len() - 1);
+        assert_eq!(Shuffle::from_setting("off"), Shuffle::Off);
+        assert_eq!(Shuffle::from_setting("dungeons"), Shuffle::Dungeons);
+        assert_eq!(Shuffle::from_setting("everything"), Shuffle::Wide);
+        assert_eq!(Shuffle::from_setting("nonsense"), Shuffle::Wide);
+        assert!(shuffle_note(Shuffle::Off).is_none());
+        let n: String = shuffle_note(Shuffle::Dungeons).unwrap();
+        assert!(n.contains("gate 6") && n.contains("gate 1)") && n.contains("gate 2)") && !n.contains("gate 9"), "{n}");
+        assert!(shuffle_note(Shuffle::Wide).unwrap().contains("gate 9"));
+    }
+
+    fn side(a: [f32; 3], b: [f32; 3], p: [f64; 3]) -> bool {
+        let dx: f64 = (b[0] - a[0]) as f64;
+        let dz: f64 = (b[2] - a[2]) as f64;
+        dx * (p[2] - a[2] as f64) - dz * (p[0] - a[0] as f64) > 0.0
+    }
+
+    #[test]
+    fn a_gate_is_left_out_exactly_when_a_dungeon_door_lies_beyond_its_wall() {
+        let j: crate::json::Json = crate::json::parse(crate::entr::data::CATALOG).unwrap();
+        let mut beyond: Vec<u8> = Vec::new();
+        for e in j.get("entrances").and_then(|v| v.as_arr()).unwrap() {
+            if e.get("cat").and_then(|v| v.as_str()) != Some("dungeon") {
+                continue;
+            }
+            let map: &str = e.get("map").and_then(|v| v.as_str()).unwrap();
+            let pos: Vec<f64> = e.get("pos").and_then(|v| v.as_arr()).unwrap().iter().map(|x| x.as_f64().unwrap()).collect();
+            let p: [f64; 3] = [pos[0], pos[1], pos[2]];
+            for g in GATES.iter().filter(|g| g.map == map) {
+                let guard: [f64; 3] = [g.spot[0] as f64, g.spot[1] as f64, g.spot[2] as f64];
+                let mut walls: Vec<([f32; 3], [f32; 3])> = vec![(g.a, g.b)];
+                walls.extend_from_slice(g.also);
+                if walls.iter().any(|(a, b)| side(*a, *b, p) != side(*a, *b, guard)) {
+                    beyond.push(g.id);
+                }
+            }
+        }
+        beyond.sort();
+        beyond.dedup();
+        assert_eq!(beyond, BEYOND_DUNGEON_DOOR.to_vec());
     }
 
     #[test]
@@ -1049,7 +1135,7 @@ mod tests {
             assert!(audit(&a).is_empty());
             let and_create = |i: usize| -> bool {
                 let c: crate::ainb::Input = a.input(BOOL, a.find_in(i, BOOL, CREATE).unwrap()).unwrap();
-                c.src >= 0 && c.plug == 1 && a.el_name(c.src as usize) == AND_NODE
+                c.src >= 0 && c.plug == 1 && (a.el_name(c.src as usize) == AND_NODE || a.el_name(c.src as usize) == SWORD_AND)
             };
             let counters: Vec<usize> = (0..a.els.len()).filter(|&i| a.prop_str(i, NAME).is_some_and(|n| n.starts_with(BARRIER))).collect();
             assert!(!counters.is_empty());
@@ -1061,12 +1147,16 @@ mod tests {
             }
             let id: u8 = o.path["Logic/Gimmick_EnemyGate_".len()..][..2].parse().unwrap();
             let gate: &Gate = GATES.iter().find(|g| g.id == id).unwrap();
+            let swords: usize = (0..a.els.len()).filter(|&i| a.el_name(i) == SWORD_AND).count();
+            assert_eq!(swords > 0, gate.map.ends_with("_Child"), "gate {id}: a child gate waits for the Kokiri Sword, an adult one does not");
             let foes: Vec<usize> = (0..a.els.len()).filter(|&i| a.el_name(i) == NODE && a.prop_str(i, NAME).is_some_and(|n| n.starts_with("Enemy_"))).collect();
             assert!(!foes.is_empty());
             for i in foes {
                 let c: crate::ainb::Input = a.input(BOOL, a.find_in(i, BOOL, CREATE).unwrap()).unwrap();
                 if makes(gate) {
                     assert!(and_create(i), "gate {id}: a new guard is created by the trigger that raises the barrier");
+                } else if gate.map.ends_with("_Child") {
+                    assert!(c.src >= 0 && !and_create(i), "gate {id}: an existing guard is created by the sword flag alone");
                 } else {
                     assert!(c.src < 0, "gate {id}: an existing guard is not created by the trigger");
                 }

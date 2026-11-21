@@ -26,6 +26,12 @@ pub const FLOOR: f32 = -16.0;
 pub const BACK: f32 = 1.5;
 pub const DEEP: f32 = 2.0;
 pub const HIGH: f32 = 6.0;
+pub const SWORD_KEY: &str = "sword";
+pub const NOTE: &str = "Once you have a sword, the empty hole in Zora's Domain hides a wall Skulltula in each side cave, and a Skulltula drops behind you as you reach the back. They come back whenever the area reloads.";
+
+pub fn needs_sword(map: &str) -> bool {
+    map.ends_with("_Child")
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Nook {
@@ -53,12 +59,20 @@ impl Nook {
         [self.wide, HIGH, DEEP]
     }
 
-    pub fn plan(&self) -> Plan {
-        let hang: String = id_for(HANG, &format!("{SEED} {} hang", self.name), &[]);
-        let area: String = id_for(AREA, &format!("{SEED} {} area", self.name), &[hang.clone()]);
-        let tag: u32 = murmur3_32(format!("{SEED} {} module", self.name).as_bytes(), 0) & 0xffff;
-        let name: String = format!("{PREFIX}{}_{tag:04x}", self.name);
-        Plan { module: format!("Logic/Module/{PREFIX}{}/{name}.logic.module.ain", self.name), graph: format!("Logic/{name}.logic.module.ainb"), guards: vec![hang], modes: vec![Mode::Trigger], hands: Vec::new(), area, counters: Vec::new() }
+    pub fn plan(&self, sword: bool) -> Plan {
+        let key: String = if sword { format!("{} {SWORD_KEY}", self.name) } else { self.name.to_string() };
+        let hang: String = id_for(HANG, &format!("{SEED} {key} hang"), &[]);
+        let mut guards: Vec<String> = vec![hang];
+        let mut modes: Vec<Mode> = vec![Mode::Trigger];
+        if sword {
+            guards.push(id_for(WALL, &format!("{SEED} {key} wall"), &guards));
+            modes.push(Mode::Always);
+        }
+        let area: String = id_for(AREA, &format!("{SEED} {key} area"), &guards);
+        let tag: u32 = murmur3_32(format!("{SEED} {key} module").as_bytes(), 0) & 0xffff;
+        let stem: String = if sword { format!("{}_{SWORD_KEY}", self.name) } else { self.name.to_string() };
+        let name: String = format!("{PREFIX}{stem}_{tag:04x}");
+        Plan { module: format!("Logic/Module/{PREFIX}{stem}/{name}.logic.module.ain"), graph: format!("Logic/{name}.logic.module.ainb"), guards, modes, hands: Vec::new(), area, counters: Vec::new(), sword }
     }
 }
 
@@ -182,7 +196,8 @@ pub fn place(y: &mut Byml, f: &Frame, raws: &[&[u8]], map: &str) -> Res<usize> {
         let hang: u64 = fresh(raws, &format!("{seed} hang"));
         let area: u64 = fresh(raws, &format!("{seed} area"));
         let group: u64 = fresh(raws, &format!("{seed} group"));
-        let plan: Plan = k.plan();
+        let sword: bool = needs_sword(map);
+        let plan: Plan = k.plan(sword);
         let mut h: Node = actor(HANG, hang, f.point(k.hang), euler(0.0, f.turn(k.out)));
         h.set("Dynamic", Node::Map(vec![(FREE.to_string(), Node::Bool(true))]));
         let mut s: Node = actor(AREA, area, f.point(k.area()), euler(0.0, f.turn(k.out)));
@@ -195,19 +210,27 @@ pub fn place(y: &mut Byml, f: &Frame, raws: &[&[u8]], map: &str) -> Res<usize> {
         let mut g: Node = Node::Map(Vec::new());
         g.set("Hash", Node::U64(group));
         g.set("Logic", Node::Str(plan.module.clone()));
-        g.set("References", Node::Arr(vec![link(&plan.guards[0], hang), link(&plan.area, area)]));
+        let mut refs: Vec<Node> = vec![link(&plan.guards[0], hang)];
+        if sword {
+            refs.push(link(&plan.guards[1], wall));
+        }
+        refs.push(link(&plan.area, area));
+        g.set("References", Node::Arr(refs));
         let gs: &mut Vec<Node> = list(y, "AiGroups")?;
         let i: usize = gs.iter().position(|x| hash_of(x).is_some_and(|v| v > group)).unwrap_or(gs.len());
         gs.insert(i, g);
         for name in GROUPS {
             list(y, name)?.push(Node::Arr(vec![Node::U64(hang.min(area)), Node::U64(hang.max(area))]));
+            if sword {
+                list(y, name)?.push(Node::Arr(vec![Node::U64(wall.min(area)), Node::U64(wall.max(area))]));
+            }
         }
     }
     Ok(n)
 }
 
-pub fn graph(raw: &[u8], k: &Nook) -> Res<Out> {
-    let p: Plan = k.plan();
+pub fn graph(raw: &[u8], k: &Nook, sword: bool) -> Res<Out> {
+    let p: Plan = k.plan(sword);
     let mut a: Ainb = Ainb::parse(raw)?;
     wire(&mut a, &p)?;
     let g: Vec<u8> = a.write()?;
@@ -241,8 +264,10 @@ fn one(rf: &mut Romfs, have: Have, map: &str) -> Res<Out> {
 pub fn stage(rf: &mut Romfs, have: Have) -> Res<Vec<Out>> {
     let was: Vec<u8> = source(rf, have, SOURCE)?;
     let mut outs: Vec<Out> = Vec::new();
-    for k in &NOOKS {
-        outs.push(graph(&was, k)?);
+    for sword in [false, true] {
+        for k in &NOOKS {
+            outs.push(graph(&was, k, sword)?);
+        }
     }
     for map in MAPS {
         outs.push(one(rf, have, map)?);
@@ -330,7 +355,7 @@ mod tests {
             let rs: &[Node] = g.get("References").unwrap().as_arr().unwrap();
             let ids: Vec<&str> = rs.iter().map(|r| text(r, "Id")).collect();
             assert!(ids[0].starts_with(HANG) && ids[1].starts_with(AREA));
-            let plan: Plan = NOOKS.iter().map(|k| k.plan()).find(|p| p.module == text(g, "Logic")).unwrap();
+            let plan: Plan = NOOKS.iter().map(|k| k.plan(false)).find(|p| p.module == text(g, "Logic")).unwrap();
             assert_eq!(ids, vec![plan.guards[0].as_str(), plan.area.as_str()]);
             let own = |r: &Node, name: &str| acts.iter().any(|a| text(a, "Gyaml") == name && a.get("Hash") == r.get("Reference"));
             assert!(own(&rs[0], HANG) && own(&rs[1], AREA));
@@ -397,13 +422,16 @@ mod tests {
 
     #[test]
     fn the_nooks_get_private_graphs_with_the_gate_construct() {
-        let names: Vec<Plan> = NOOKS.iter().map(|k| k.plan()).collect();
+        let names: Vec<Plan> = [false, true].iter().flat_map(|w| NOOKS.iter().map(|k| k.plan(*w))).collect();
         for (i, p) in names.iter().enumerate() {
             assert!(p.graph.starts_with(&format!("Logic/{PREFIX}")) && p.graph.ends_with(".logic.module.ainb"));
-            assert_eq!((p.guards.len(), p.hands.len(), p.counters.len()), (1, 0, 0));
+            let n: usize = if p.sword { 2 } else { 1 };
+            assert_eq!((p.guards.len(), p.modes.len(), p.hands.len(), p.counters.len()), (n, n, 0, 0));
             assert!(names.iter().enumerate().all(|(j, q)| i == j || (q.graph != p.graph && q.module != p.module)));
         }
-        assert_eq!(names[0], NOOKS[0].plan());
+        assert_eq!(names[0], NOOKS[0].plan(false));
+        assert!(names[..3].iter().all(|p| !p.sword) && names[3..].iter().all(|p| p.sword && p.guards[1].starts_with(WALL)));
+        assert!(needs_sword("ZoraDomain_Child") && !needs_sword("ZoraDomain_Adult") && !needs_sword("ZoraDomain_Adult_Alternative"));
     }
 
     fn dump() -> Option<std::path::PathBuf> {
@@ -429,7 +457,7 @@ mod tests {
         let all: Vec<Out> = stage(&mut rf, &none).unwrap();
         let (graphs, outs): (Vec<Out>, Vec<Out>) = all.into_iter().partition(|o| o.path.ends_with(".ainb"));
         assert_eq!(outs.iter().map(|o| o.path.clone()).collect::<Vec<String>>(), MAPS.iter().map(|m| file(m, "Static")).collect::<Vec<String>>());
-        assert_eq!(graphs.iter().map(|o| o.path.clone()).collect::<Vec<String>>(), NOOKS.iter().map(|k| k.plan().graph).collect::<Vec<String>>());
+        assert_eq!(graphs.iter().map(|o| o.path.clone()).collect::<Vec<String>>(), [false, true].iter().flat_map(|w| NOOKS.iter().map(|k| k.plan(*w).graph)).collect::<Vec<String>>());
         for o in &outs {
             let was: Byml = rf.read_byml(&o.path).unwrap();
             let now: Byml = Byml::parse(&rf.zs.decompress(&o.z).unwrap()).unwrap();
@@ -467,6 +495,81 @@ mod tests {
                 let near: f32 = dist(b) - vec3(b, "Scale").unwrap()[2];
                 assert!(near > drops, "a trigger box sits at {} from the entrance", dist(b));
             }
+        }
+    }
+
+    #[test]
+    fn in_the_child_map_the_wall_spiders_join_the_group_that_waits_for_the_sword() {
+        let mut y: Byml = map();
+        let f: Frame = frame(&y).unwrap();
+        assert_eq!(place(&mut y, &f, &[], "Test_Child").unwrap(), 9);
+        let acts: &[Node] = y.root.get("Actors").unwrap().as_arr().unwrap();
+        let gs: &[Node] = y.root.get("AiGroups").unwrap().as_arr().unwrap();
+        for g in &gs[..3] {
+            let plan: Plan = NOOKS.iter().map(|k| k.plan(true)).find(|p| p.module == text(g, "Logic")).unwrap();
+            let rs: &[Node] = g.get("References").unwrap().as_arr().unwrap();
+            let ids: Vec<&str> = rs.iter().map(|r| text(r, "Id")).collect();
+            assert_eq!(ids, vec![plan.guards[0].as_str(), plan.guards[1].as_str(), plan.area.as_str()]);
+            let own = |r: &Node, name: &str| acts.iter().any(|a| text(a, "Gyaml") == name && a.get("Hash") == r.get("Reference"));
+            assert!(own(&rs[0], HANG) && own(&rs[1], WALL) && own(&rs[2], AREA));
+        }
+        for name in GROUPS {
+            assert_eq!(y.root.get(name).unwrap().as_arr().unwrap().len(), 6);
+        }
+    }
+
+    #[test]
+    fn the_game_graphs_create_the_child_ambush_only_with_the_kokiri_sword() {
+        use crate::ainb::Input;
+        use crate::difficulty::gates::{BOOL, CREATE, HIT_NODE, NAME, SWORD, SWORD_AND};
+        let Some(root) = dump() else {
+            eprintln!("skipped: set OOTRR_ROMFS");
+            return;
+        };
+        let mut rf: Romfs = Romfs::open(&root).unwrap();
+        let all: Vec<Out> = stage(&mut rf, &none).unwrap();
+        for sword in [false, true] {
+            for k in &NOOKS {
+                let p: Plan = k.plan(sword);
+                let o: &Out = all.iter().find(|o| o.path == p.graph).unwrap();
+                let a: Ainb = Ainb::parse(&o.z).unwrap();
+                assert!(crate::ainb::audit(&a).is_empty());
+                let is_sword = |e: usize| -> bool { a.el_name(e) == crate::gerudo_card::GET_BOOL && a.in_str(e, "GameDataNameBool") == Some(SWORD) };
+                let flags: usize = (0..a.els.len()).filter(|&e| is_sword(e)).count();
+                assert_eq!(flags, usize::from(sword), "{}", p.graph);
+                let made = |id: &str| -> Input {
+                    let i: usize = (0..a.els.len()).find(|&i| a.prop_str(i, NAME) == Some(id)).unwrap();
+                    a.input(BOOL, a.find_in(i, BOOL, CREATE).unwrap()).unwrap()
+                };
+                let hang: Input = made(&p.guards[0]);
+                assert!(hang.src >= 0 && hang.plug == 1);
+                if !sword {
+                    continue;
+                }
+                let and: usize = hang.src as usize;
+                assert_eq!(a.el_name(and), SWORD_AND, "{}: the dropper waits for the area and the sword", p.graph);
+                let g: Input = a.input(BOOL, a.find_in(and, BOOL, "BoolMulti").unwrap()).unwrap();
+                let start: usize = (-100 - g.src as i64) as usize;
+                let ins: Vec<(u16, u16)> = (start..start + g.plug as usize).map(|j| crate::door_open::multi_entry(&a, j).unwrap()).collect();
+                assert_eq!(ins.len(), 2);
+                let held: usize = ins[0].0 as usize;
+                assert!(a.el_name(held) == crate::difficulty::gates::AND_NODE && ins[0].1 == 1 && is_sword(ins[1].0 as usize), "{}: the area hit is held once seen, then joined with the sword", p.graph);
+                let h: Input = a.input(BOOL, a.find_in(held, BOOL, "BoolMulti").unwrap()).unwrap();
+                assert!(h.src >= 0 && a.el_name(h.src as usize) == HIT_NODE, "{}", p.graph);
+                let wall: Input = made(&p.guards[1]);
+                assert!(wall.src >= 0 && is_sword(wall.src as usize) && wall.plug == 0, "{}: the wall spider is created by the sword flag", p.graph);
+            }
+        }
+        let child: &Out = all.iter().find(|o| o.path == file("ZoraDomain_Child", "Static")).unwrap();
+        let y: Byml = Byml::parse(&rf.zs.decompress(&child.z).unwrap()).unwrap();
+        let mods: Vec<String> = y.root.get("AiGroups").unwrap().as_arr().unwrap().iter().map(|g| text(g, "Logic").to_string()).filter(|m| m.starts_with(&format!("Logic/Module/{PREFIX}"))).collect();
+        assert_eq!(mods.len(), 3);
+        assert!(NOOKS.iter().all(|k| mods.contains(&k.plan(true).module)), "the child map runs the graphs that wait for the sword");
+        for m in ["ZoraDomain_Adult", "ZoraDomain_Adult_Alternative"] {
+            let o: &Out = all.iter().find(|o| o.path == file(m, "Static")).unwrap();
+            let y: Byml = Byml::parse(&rf.zs.decompress(&o.z).unwrap()).unwrap();
+            let n: usize = y.root.get("AiGroups").unwrap().as_arr().unwrap().iter().filter(|g| NOOKS.iter().any(|k| k.plan(false).module == text(g, "Logic"))).count();
+            assert_eq!(n, 3, "{m} keeps the ambush without the sword");
         }
     }
 }

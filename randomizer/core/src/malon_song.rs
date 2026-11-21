@@ -106,7 +106,7 @@ mod tests {
         let mut rf: Romfs = Romfs::open(&root).unwrap();
         let t = crate::story_skip::SONG_TRIGGERS.iter().find(|t| t.loc == "Song from Malon").unwrap();
         let writes = crate::story_skip::scene_writes(&mut rf, t.give).unwrap();
-        let gives = vec![crate::story_skip::SceneGive { actor: "Item_Bottle".to_string(), family: None, key: None }];
+        let gives = vec![crate::story_skip::SceneGive { actor: "Item_Bottle".to_string(), family: None, key: None, line: None }];
         let mut b: Bf = Bf::parse(&rf.read_zs(&format!("Event/EventFlow/{}.bfevfl.zs", t.flow)).unwrap()).unwrap();
         crate::story_skip::patch_song_trigger(&mut b, t, &writes, &gives).unwrap();
         let f = b.flows.iter().find(|x| x.name == t.flow).unwrap();

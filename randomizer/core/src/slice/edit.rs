@@ -413,6 +413,7 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
                 }
             }),
             key: gift_keys.iter().find(|g| g.location == loc).map(|g| (g.item, g.dungeon)),
+            line: if p.debug_names { crate::debug_names::scene_line(&d, loc) } else { None },
         }
     };
     if p.story {
@@ -456,6 +457,7 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
         crate::short_get::stage(&mut rf, &mut late, &work)?;
     }
     crate::open_world::stage_last(&mut rf, &mut late, &work)?;
+    let mut debug_missed: Vec<String> = Vec::new();
     let mut paths: BS<&str> = BS::new();
     if let Some(o) = late.iter().find(|o| !paths.insert(o.path.as_str())) {
         return Err(E::Msg(format!("build: {} is edited twice in the late files, and the later edit would drop the earlier one", o.path)));
@@ -480,11 +482,46 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
             crate::difficulty::backup::size(&mut rf, t)?;
         }
     }
+    // The merged carpenter schedules need their parsed size, not their file growth.
+    if rst.is_none() {
+        rst = Some(rsizetable::load(&mut rf)?);
+    }
+    if let Some(t) = rst.as_mut() {
+        grown += crate::open_world::fortress::budget(&mut rf, t)?;
+    }
     extra += crate::slice::skull_kit::write(&mut rf, &pk, &mut rst, &skull_drops, kit_pool)?;
     let (cow_files, cow_lines): (usize, Vec<String>) = crate::cow_clone::write(&mut rf, &pk, &mut rst)?;
     extra += cow_files;
     if p.open.epona {
         extra += crate::open_world::write_epona_event(&mut rf, &pk, &mut rst)?;
+    }
+    if p.debug_names {
+        let mut tail: Vec<crate::staging::Out> = Vec::new();
+        let sales: Vec<(String, String)> = scrub_jobs.iter().map(|j| (j.sale.entry.clone(), j.scrub.location.clone())).collect();
+        let mut scenes: BS<&str> = BS::new();
+        if p.story {
+            scenes.extend([crate::lacs_key::LOC, crate::slice::flow_rules::SARIA, crate::story_skip::RAURU_LOC]);
+            scenes.extend(crate::story_skip::FAIRIES.iter().map(|f| f.0));
+            for t in &crate::story_skip::SONG_TRIGGERS {
+                scenes.insert(t.loc);
+                scenes.extend(t.also.iter().copied());
+            }
+        }
+        if p.endings {
+            scenes.extend(crate::story_skip::REWARD_SCENES.iter().map(|r| r.0));
+        }
+        debug_missed = crate::debug_names::stage_flows(&mut rf, &d, &work, &mut tail, &scenes, &sales)?;
+        crate::debug_names::stage_sweep(&mut rf, &d, &work, &mut tail)?;
+        for o in tail {
+            pk.write_romfs(&o.path, &o.z)?;
+            extra += 1;
+            if rst.is_none() {
+                rst = Some(rsizetable::load(&mut rf)?);
+            }
+            if let Some(t) = rst.as_mut() {
+                grown += crate::staging::grow_out(&mut rf, t, &o)?;
+            }
+        }
     }
     let loads: Option<(crate::staging::Out, crate::flow_extra::analyzed::Added)> = crate::flow_extra::analyzed::worked(&mut rf, &pk.work.join("romfs"))?;
     if let Some((o, _)) = &loads {
@@ -521,6 +558,9 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
         flows: flows.len() + placed.len(),
     };
     let mut notes: Vec<String> = p.notes.clone();
+    if !debug_missed.is_empty() {
+        notes.push(format!("Debug location names could not hook: {}", debug_missed.join(", ")));
+    }
     if ocarina_held {
         notes.push(crate::ocarina_hold::NOTE.to_string());
     }

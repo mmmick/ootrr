@@ -388,11 +388,19 @@ mod tests {
         assert!(plan(&base().with("colors", "neon".into())).is_err());
         let parts = |o: Json| plan(&base().with("color_parts", o));
         let p: Plan = parts(Json::obj().with("boots", "#804020".into()).with("kokiri", "original".into()).with("gloves", "random".into())).unwrap();
-        assert_eq!(p.cos.parts.len(), 2);
+        assert_eq!(p.cos.parts.len(), 3);
         assert_eq!(p.cos.parts.get("boots"), Some(&colors::Pick::Rgb([0x80, 0x40, 0x20])));
         assert!(!p.cos.any());
         let c: Plan = plan(&base().with("colors", "custom".into()).with("color_parts", Json::obj().with("boots", "#804020".into()))).unwrap();
-        assert!(c.cos.any() && c.cos.colors == Colors::Custom);
+        assert!(c.cos.any() && c.cos.colors == Colors::Custom && !c.cos.rolls());
+        let kept: Plan = plan(&base().with("colors", "custom".into()).with("color_parts", Json::obj().with("boots", "original".into()))).unwrap();
+        assert!(!kept.cos.any());
+        let mut all: Json = Json::obj();
+        for i in &colors::ITEMS {
+            all.put(i.id, "#102030".into());
+        }
+        let locked: Plan = plan(&base().with("colors", "random".into()).with("color_parts", all)).unwrap();
+        assert!(locked.cos.any() && !locked.cos.rolls());
         assert!(parts(Json::obj().with("cape", "random".into())).is_err());
         assert!(parts(Json::obj().with("boots", "brown".into())).is_err());
         assert!(parts(Json::obj().with("boots", true.into())).is_err());

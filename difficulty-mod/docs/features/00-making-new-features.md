@@ -76,3 +76,12 @@ What this could verify without you playing: lose heart on death (read max health
 ## Status of every feature
 
 Only enemy health scaling has been seen working in the game (rc 1). Bottles, drops and lose heart were seen failing in rc 1 and were fixed in rc 2, but the fixes have not been played. Everything else has never been played.
+
+## Learned on 20 Nov
+
+- **Flags:** we can read the game's own saved flags in AI and event graphs (`HoldGameDataGetBoolSimple`), for example `IsGet.Weapon_Sword_Kokiri` or `HavePlayedEvent.Dm_<dungeon>_BossIn`. We cannot add new saved flags, so any "remember this" feature has to reuse a game flag or be stateless.
+- **Fight start:** a boss's fight-start marker is the game's own `HavePlayedEvent.<intro>` flag. A door-shut scene is a poor trigger, because a warp skips it.
+- **Effects:** `OneShotXLinkSearchAndEmit` only finds keys under the running actor's own user in the shared `ELink2` file. An emitter in the `static` bundle shows on every map. The Deku Nut stun flash key is shared by 42 enemy kinds.
+- **Cloning an actor:** a new actor name works like the game's `Dm_` actors: an ActorParam whose parent is the original, plus `RSDB/ActorInfo`, `GameActorInfo` and `Tag` rows and size table entries, as in `cow_clone` and `difficulty/volvagia.rs`.
+- **Drops:** boss supply comes through named drop tables (`DropTable_Enemy_RangedWeapon_02`, `Drop_ResourceSupply_BeforeBoss*`, `DropTable_ResourceSupply_FinalBattle`). Spawned pots carry a fixed rupee drop, so test drop changes on pots the map places.
+- **Testing:** the bridge's `enemies` list includes actors a map holds but has not created, so "listed" is not "present".

@@ -11,7 +11,7 @@ export const state = {
   plando: [],
   paths: { game: "", update: "", mod: "", name: "My Seed", host: "eden" },
   include_update: false,
-  cosmetic: { music: "off", sfx: "off", colors: "off", seed: "", title: true, parts: {}, groups: {} },
+  cosmetic: { music: "off", sfx: "off", seed: "", title: true, parts: {}, locks: {}, reroll: false, style: "random" },
   game_check: null,
   mod_check: null,
   result: null,
@@ -75,29 +75,15 @@ export function restore(schema) {
   if (s && s.cosmetic && typeof s.cosmetic === "object") {
     if (["off", "grouped", "anywhere"].includes(s.cosmetic.music)) state.cosmetic.music = s.cosmetic.music;
     if (["off", "grouped", "anywhere"].includes(s.cosmetic.sfx)) state.cosmetic.sfx = s.cosmetic.sfx;
-    if (["off", "custom", "random", "shared"].includes(s.cosmetic.colors)) state.cosmetic.colors = s.cosmetic.colors;
     if (typeof s.cosmetic.seed === "string") state.cosmetic.seed = s.cosmetic.seed.slice(0, 64);
     if (typeof s.cosmetic.title === "boolean") state.cosmetic.title = s.cosmetic.title;
-    if (s.cosmetic.parts && typeof s.cosmetic.parts === "object") {
-      const known = new Set(((state.info && state.info.color_parts) || []).map((p) => p.id));
-      for (const [k, v] of Object.entries(s.cosmetic.parts).slice(0, 64)) {
-        if (known.has(k) && typeof v === "string" && /^(original|random|#[0-9a-f]{6})$/.test(v)) state.cosmetic.parts[k] = v;
-      }
-    }
-    if (s.cosmetic.groups && typeof s.cosmetic.groups === "object") {
-      const known = new Set(((state.info && state.info.color_parts) || []).map((p) => p.group));
-      for (const [k, v] of Object.entries(s.cosmetic.groups).slice(0, 16)) {
-        if (known.has(k) && ["original", "random", "custom"].includes(v)) state.cosmetic.groups[k] = v;
-      }
-    }
+    restore_colors(s.cosmetic);
   }
   const r = take(sessionStorage, RKEY);
   if (r && typeof r.seed_text === "string") state.result = r;
   if (!state.vals) state.vals = defaults(schema);
 }
 
-// Colour parts come from the server, grouped by tunic or kind.
-export const SOLO = "Other";
 export function color_groups() {
   const groups = new Map();
   for (const p of (state.info && state.info.color_parts) || []) {
@@ -107,19 +93,49 @@ export function color_groups() {
   return groups;
 }
 
-// The part colours a build is sent, used only in the custom colour mode: whole groups by
-// their choice, picked groups and single parts by their own.
-export function color_picks(cos) {
+const PICK = /^(random|#[0-9a-f]{6})$/;
+
+function old_picks(o) {
   const out = {};
-  if (cos.colors !== "custom") return out;
-  const gs = cos.groups || {};
-  const own = cos.parts || {};
+  const own = o.parts && typeof o.parts === "object" ? o.parts : {};
+  const gs = o.groups && typeof o.groups === "object" ? o.groups : {};
   for (const [g, ps] of color_groups()) {
-    const mode = g === SOLO ? "custom" : gs[g] || "original";
+    const mode = g === "Other" ? "custom" : gs[g] || "original";
     for (const p of ps) {
       if (mode === "random") out[p.id] = "random";
-      else if (mode === "custom" && own[p.id]) out[p.id] = own[p.id];
+      else if (mode === "custom" && typeof own[p.id] === "string" && PICK.test(own[p.id])) out[p.id] = own[p.id];
     }
   }
   return out;
+}
+
+function restore_colors(o) {
+  const cos = state.cosmetic;
+  const known = new Set(((state.info && state.info.color_parts) || []).map((p) => p.id));
+  if (typeof o.reroll !== "boolean") {
+    if (o.colors === "random" || o.colors === "shared") {
+      cos.reroll = true;
+      cos.style = o.colors;
+    } else if (o.colors === "custom") cos.parts = old_picks(o);
+    return;
+  }
+  cos.reroll = o.reroll;
+  cos.style = o.style === "shared" ? "shared" : "random";
+  if (o.parts && typeof o.parts === "object") {
+    for (const [k, v] of Object.entries(o.parts).slice(0, 64)) if (known.has(k) && typeof v === "string" && PICK.test(v)) cos.parts[k] = v;
+  }
+  if (o.locks && typeof o.locks === "object") {
+    for (const [k, v] of Object.entries(o.locks).slice(0, 64)) if (known.has(k) && v === true) cos.locks[k] = true;
+  }
+}
+
+export function color_request(cos) {
+  const parts = cos.parts || {};
+  const out = {};
+  if (cos.reroll) {
+    for (const [k, v] of Object.entries(cos.locks || {})) if (v) out[k] = parts[k] || "original";
+    return { colors: cos.style === "shared" ? "shared" : "random", color_parts: out };
+  }
+  for (const [k, v] of Object.entries(parts)) if (PICK.test(v)) out[k] = v;
+  return { colors: Object.keys(out).length ? "custom" : "off", color_parts: out };
 }

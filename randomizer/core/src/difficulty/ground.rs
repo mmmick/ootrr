@@ -16,6 +16,10 @@ pub const MESH: &str = "hkaiNavMesh";
 pub const FIELDS: [&str; 3] = ["faces", "edges", "vertices"];
 pub const SIZES: [usize; 3] = [12, 24, 16];
 pub const GRAIN: u64 = 1 << 20;
+pub const SHORE_STEP: f32 = 0.5;
+pub const SHORE_RAYS: usize = 16;
+pub const SHORE_UP: f32 = 1.5;
+pub const SHORE_DOWN: f32 = 3.0;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Mesh {
@@ -400,6 +404,26 @@ impl Ground {
         self.floors(x, z).into_iter().filter(|f| f.0 <= y + up && y - f.0 <= down).min_by(|a, b| (a.0 - y).abs().total_cmp(&(b.0 - y).abs()))
     }
 
+    pub fn shore(&self, p: [f32; 3], max: f32) -> f32 {
+        let mut best: f32 = max + SHORE_STEP;
+        for k in 0..SHORE_RAYS {
+            let a: f32 = k as f32 * std::f32::consts::TAU / SHORE_RAYS as f32;
+            let mut r: f32 = SHORE_STEP;
+            while r < best.min(max + SHORE_STEP) {
+                if self.floor_near(p[0] + r * a.cos(), p[1], p[2] + r * a.sin(), SHORE_UP, SHORE_DOWN).is_some() {
+                    best = best.min(r);
+                    break;
+                }
+                r += SHORE_STEP;
+            }
+        }
+        best
+    }
+
+    pub fn roof(&self, p: [f32; 3], within: f32) -> bool {
+        self.floors(p[0], p[2]).into_iter().any(|f| f.0 > p[1] + SHORE_UP && f.0 <= p[1] + within)
+    }
+
     pub fn clear(&self, p: [f32; 3]) -> f32 {
         let mut best: f32 = CLEAR_MAX;
         let r: i32 = (CLEAR_MAX / CELL).ceil() as i32;
@@ -524,6 +548,17 @@ mod tests {
         assert_eq!(g.floors(5.0, 5.0).len(), 2);
         assert!((g.floor_near(5.0, 31.0, 5.0, 2.0, 2.0).unwrap().0 - 30.0).abs() < 1e-4);
         assert_eq!(g.patch_area.len(), 2);
+    }
+
+    #[test]
+    fn shore_and_roof_tell_a_pool_from_the_void() {
+        let g: Ground = Ground::build(&[square([0.0, 10.0, 0.0], 10.0, 0.0), square([0.0, 18.0, 30.0], 10.0, 0.0), square([0.0, 15.0, 0.0], 4.0, 0.0)]);
+        assert!(g.shore([14.0, 10.0, 5.0], 9.0) <= 4.5);
+        assert!(g.shore([30.0, 10.0, 5.0], 9.0) > 9.0);
+        assert!(g.shore([5.0, 10.0, 25.0], 9.0) > 9.0);
+        assert!(g.roof([2.0, 10.0, 2.0], 10.0));
+        assert!(!g.roof([2.0, 10.0, 2.0], 4.0));
+        assert!(!g.roof([8.0, 10.0, 8.0], 10.0));
     }
 
     #[test]

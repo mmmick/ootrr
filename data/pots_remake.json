@@ -89,7 +89,7 @@
    "folder": "FireTemple",
    "via": "drop",
    "age": "both",
-   "region": "Fire Temple Near Boss",
+   "region": "Fire Temple Big Lava Room",
    "rule": "True",
    "refs": [
     {
@@ -114,7 +114,7 @@
    "folder": "FireTemple",
    "via": "drop",
    "age": "both",
-   "region": "Fire Temple Near Boss",
+   "region": "Fire Temple Big Lava Room",
    "rule": "True",
    "refs": [
     {
@@ -139,7 +139,7 @@
    "folder": "FireTemple",
    "via": "drop",
    "age": "both",
-   "region": "Fire Temple Near Boss",
+   "region": "Fire Temple Big Lava Room",
    "rule": "True",
    "refs": [
     {
@@ -164,7 +164,7 @@
    "folder": "ForestTemple",
    "via": "drop",
    "age": "both",
-   "region": "Forest Temple Outdoors High Balconies",
+   "region": "Forest Temple Well",
    "rule": "True",
    "refs": [
     {
@@ -189,7 +189,7 @@
    "folder": "ForestTemple",
    "via": "drop",
    "age": "both",
-   "region": "Forest Temple Outdoors High Balconies",
+   "region": "Forest Temple Well",
    "rule": "True",
    "refs": [
     {
@@ -364,7 +364,7 @@
    "folder": "ShadowTemple",
    "via": "drop",
    "age": "both",
-   "region": "Shadow Temple Invisible Spikes",
+   "region": "Shadow Temple Wind Tunnel",
    "rule": "True",
    "refs": [
     {
@@ -389,7 +389,7 @@
    "folder": "ShadowTemple",
    "via": "drop",
    "age": "both",
-   "region": "Shadow Temple Invisible Spikes",
+   "region": "Shadow Temple Wind Tunnel",
    "rule": "True",
    "refs": [
     {
@@ -439,7 +439,7 @@
    "folder": "WaterTemple",
    "via": "drop",
    "age": "both",
-   "region": "Water Temple Before Boss",
+   "region": "Water Temple Cracked Wall",
    "rule": "can_use(Longshot)",
    "refs": [
     {
@@ -464,7 +464,7 @@
    "folder": "WaterTemple",
    "via": "drop",
    "age": "both",
-   "region": "Water Temple Before Boss",
+   "region": "Water Temple Cracked Wall",
    "rule": "can_use(Longshot)",
    "refs": [
     {
@@ -827,7 +827,7 @@
    "folder": "BottomOfTheWell",
    "via": "drop",
    "age": "both",
-   "region": "Bottom of the Well Behind Locked Doors",
+   "region": "Bottom of the Well Behind Fake Walls",
    "rule": "True",
    "refs": [
     {
@@ -841,7 +841,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "room 7 check Bottom of the Well GS Like Like Cage, took the harder region (sphere 15)"
+   "basis": "room 7, the Like Like cage room, reached past the fake walls without a key, seen in the walkthrough video"
   },
   {
    "name": "Bottom of the Well Behind Locked Doors Remake Pot 2",
@@ -983,7 +983,7 @@
    "folder": "BottomOfTheWell",
    "via": "drop",
    "age": "both",
-   "region": "Bottom of the Well Main Area",
+   "region": "Bottom of the Well Dead Hand Area",
    "rule": "True",
    "refs": [
     {
@@ -997,7 +997,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "nearby check Bottom of the Well Invisible Chest, took the harder region (sphere 13)"
+   "basis": "room 12, below the drained water by the Dead Hand pit"
   },
   {
    "name": "Bottom of the Well Main Area Remake Pot 4",
@@ -1009,7 +1009,7 @@
    "folder": "BottomOfTheWell",
    "via": "drop",
    "age": "both",
-   "region": "Bottom of the Well Main Area",
+   "region": "Bottom of the Well Dead Hand Area",
    "rule": "True",
    "refs": [
     {
@@ -1023,7 +1023,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "nearby check Bottom of the Well Invisible Chest, took the harder region (sphere 13)"
+   "basis": "room 12, below the drained water by the Dead Hand pit"
   },
   {
    "name": "Bottom of the Well Main Area Remake Pot 5",
@@ -1061,7 +1061,7 @@
    "folder": "BottomOfTheWell",
    "via": "drop",
    "age": "both",
-   "region": "Bottom of the Well Main Area",
+   "region": "Bottom of the Well Dead Hand Area",
    "rule": "True",
    "refs": [
     {
@@ -1075,7 +1075,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "nearby check Bottom of the Well Invisible Chest, took the harder region (sphere 13)"
+   "basis": "room 12, below the drained water by the Dead Hand pit"
   },
   {
    "name": "Child Spirit Temple Beyond Metal Bridges Remake Pot 1",
@@ -1555,7 +1555,7 @@
    "folder": "FireTemple",
    "via": "drop",
    "age": "both",
-   "region": "Fire Temple Boulder Maze Upper",
+   "region": "Fire Temple Elevator Room",
    "rule": "True",
    "refs": [
     {
@@ -1581,7 +1581,7 @@
    "folder": "FireTemple",
    "via": "drop",
    "age": "both",
-   "region": "Fire Temple Flame Maze",
+   "region": "Fire Temple Flame Maze Far Side",
    "rule": "can_break_crate",
    "refs": [
     {
@@ -1607,7 +1607,7 @@
    "folder": "FireTemple",
    "via": "drop",
    "age": "both",
-   "region": "Fire Temple Flame Maze",
+   "region": "Fire Temple Flame Maze Far Side",
    "rule": "True",
    "refs": [
     {
@@ -1633,7 +1633,7 @@
    "folder": "FireTemple",
    "via": "drop",
    "age": "both",
-   "region": "Fire Temple Flame Maze",
+   "region": "Fire Temple Flame Maze Far Side",
    "rule": "True",
    "refs": [
     {
@@ -4207,7 +4207,7 @@
    "folder": "ShadowTemple",
    "via": "drop",
    "age": "both",
-   "region": "Shadow Temple Before Boss",
+   "region": "Shadow Temple Beyond Boat Scarecrow",
    "rule": "True",
    "refs": [
     {
@@ -4221,7 +4221,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "room 17 check Shadow Temple Near Boss Pot 2, took the harder region (sphere 30) over Shadow Temple After Wind (29), Shadow Temple Boat (30)"
+   "basis": "room 17, by the second Pierre past the boat"
   },
   {
    "name": "Shadow Temple Before Boss Remake Pot 2",
@@ -4233,7 +4233,7 @@
    "folder": "ShadowTemple",
    "via": "drop",
    "age": "both",
-   "region": "Shadow Temple Before Boss",
+   "region": "Shadow Temple Boat",
    "rule": "True",
    "refs": [
     {
@@ -4247,7 +4247,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "room 17 check Shadow Temple Near Boss Pot 2, took the harder region (sphere 30) over Shadow Temple After Wind (29), Shadow Temple Boat (30), Shadow Temple Falling Spikes (26)"
+   "basis": "room 17, on the ship dock, seen in the walkthrough video"
   },
   {
    "name": "Shadow Temple Before Boss Remake Pot 3",
@@ -4285,7 +4285,7 @@
    "folder": "ShadowTemple",
    "via": "drop",
    "age": "both",
-   "region": "Shadow Temple Before Boss",
+   "region": "Shadow Temple Boat",
    "rule": "True",
    "refs": [
     {
@@ -4299,7 +4299,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "room 17 check Shadow Temple Near Boss Pot 2, took the harder region (sphere 30) over Shadow Temple After Wind (29), Shadow Temple Boat (30)"
+   "basis": "room 17, on the ship dock, seen in the walkthrough video"
   },
   {
    "name": "Shadow Temple Before Boss Remake Pot 5",
@@ -4311,7 +4311,7 @@
    "folder": "ShadowTemple",
    "via": "drop",
    "age": "both",
-   "region": "Shadow Temple Before Boss",
+   "region": "Shadow Temple Boat",
    "rule": "True",
    "refs": [
     {
@@ -4325,7 +4325,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "room 17 check Shadow Temple Near Boss Pot 2, took the harder region (sphere 30) over Shadow Temple After Wind (29), Shadow Temple Boat (30)"
+   "basis": "room 17, on the ship dock, seen in the walkthrough video"
   },
   {
    "name": "Shadow Temple Before Boss Remake Pot 6",
@@ -4337,7 +4337,7 @@
    "folder": "ShadowTemple",
    "via": "drop",
    "age": "both",
-   "region": "Shadow Temple Before Boss",
+   "region": "Shadow Temple Ship Ledge",
    "rule": "True",
    "refs": [
     {
@@ -4351,7 +4351,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "room 17 check Shadow Temple Near Boss Pot 2, took the harder region (sphere 30) over Shadow Temple After Wind (29), Shadow Temple Boat (30)"
+   "basis": "room 17, on the ledge where Pierre stands by the ship"
   },
   {
    "name": "Shadow Temple Beginning Remake Flying Pot 1",
@@ -4493,7 +4493,7 @@
    "folder": "ShadowTemple",
    "via": "drop",
    "age": "both",
-   "region": "Shadow Temple Beyond Boat",
+   "region": "Shadow Temple Huge Pit",
    "rule": "True",
    "refs": [
     {
@@ -4507,7 +4507,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "tracker guess Shadow Temple Invisible Floormaster Pot 1, room 10 check Shadow Temple Spike Walls Pot, took the harder region (sphere 30) over Shadow Temple Beginning (22)"
+   "basis": "room 10, the passage to the invisible blades room"
   },
   {
    "name": "Shadow Temple Falling Spikes Remake Pot 1",
@@ -4571,7 +4571,7 @@
    "folder": "ShadowTemple",
    "via": "drop",
    "age": "both",
-   "region": "Shadow Temple Invisible Spikes",
+   "region": "Shadow Temple Beginning",
    "rule": "True",
    "refs": [
     {
@@ -4585,7 +4585,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "nearby check Shadow Temple Freestanding Key, took the harder region (sphere 27)"
+   "basis": "room 0, the first hall"
   },
   {
    "name": "Spirit Temple Anubis Room Remake Pot 1",
@@ -5039,7 +5039,7 @@
    "folder": "WaterTemple",
    "via": "drop",
    "age": "both",
-   "region": "Water Temple Central Bow Target",
+   "region": "Water Temple Cracked Wall",
    "rule": "True",
    "refs": [
     {
@@ -5053,7 +5053,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "tracker guess Water Temple Central Bow Target Pot 1, took the harder region (sphere 16) over Water Temple River (15)"
+   "basis": "room 25, the 2F east skulltula room behind the cracked wall, seen in the walkthrough video"
   },
   {
    "name": "Water Temple Dive Remake Pot 1",
@@ -5065,7 +5065,7 @@
    "folder": "WaterTemple",
    "via": "drop",
    "age": "both",
-   "region": "Water Temple Dive",
+   "region": "Water Temple Central Pillar Basement",
    "rule": "True",
    "refs": [
     {
@@ -5079,7 +5079,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "tracker guess Water Temple Near Compass Pot 2, took the harder region (sphere 14) over Water Temple Lobby (14), Water Temple Lowered Water Levels (14), Water Temple Middle Water Level (14)"
+   "basis": "room 2, the central pillar basement, seen in the walkthrough video"
   },
   {
    "name": "Water Temple Dive Remake Pot 2",
@@ -5091,7 +5091,7 @@
    "folder": "WaterTemple",
    "via": "drop",
    "age": "both",
-   "region": "Water Temple Dive",
+   "region": "Water Temple Central Pillar Basement",
    "rule": "True",
    "refs": [
     {
@@ -5105,7 +5105,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "tracker guess Water Temple Near Compass Pot 3, took the harder region (sphere 14) over Water Temple Lobby (14), Water Temple Lowered Water Levels (14), Water Temple Middle Water Level (14)"
+   "basis": "room 2, the central pillar basement, seen in the walkthrough video"
   },
   {
    "name": "Water Temple North Basement Remake Pot 1",
@@ -5117,7 +5117,7 @@
    "folder": "WaterTemple",
    "via": "drop",
    "age": "both",
-   "region": "Water Temple North Basement",
+   "region": "Water Temple River",
    "rule": "True",
    "refs": [
     {
@@ -5131,7 +5131,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "room 21 check Water Temple GS Near Boss Key Chest, took the harder region (sphere 17) over Water Temple River (15)"
+   "basis": "room 21, the river, seen in the walkthrough video"
   },
   {
    "name": "Water Temple North Basement Remake Pot 2",
@@ -5143,7 +5143,7 @@
    "folder": "WaterTemple",
    "via": "drop",
    "age": "both",
-   "region": "Water Temple North Basement",
+   "region": "Water Temple River",
    "rule": "True",
    "refs": [
     {
@@ -5157,7 +5157,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "room 21 check Water Temple GS Near Boss Key Chest, took the harder region (sphere 17) over Water Temple Central Bow Target (16), Water Temple River (15)"
+   "basis": "room 21, the river, seen in the walkthrough video"
   },
   {
    "name": "Water Temple North Basement Remake Pot 3",
@@ -5169,7 +5169,7 @@
    "folder": "WaterTemple",
    "via": "drop",
    "age": "both",
-   "region": "Water Temple North Basement",
+   "region": "Water Temple River",
    "rule": "True",
    "refs": [
     {
@@ -5183,7 +5183,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "room 21 check Water Temple GS Near Boss Key Chest, took the harder region (sphere 17) over Water Temple River (15)"
+   "basis": "room 21, the river, seen in the walkthrough video"
   },
   {
    "name": "Water Temple River Remake Pot 1",
@@ -5195,7 +5195,7 @@
    "folder": "WaterTemple",
    "via": "drop",
    "age": "both",
-   "region": "Water Temple River",
+   "region": "Water Temple Cracked Wall",
    "rule": "True",
    "refs": [
     {
@@ -5209,7 +5209,7 @@
     "remake"
    ],
    "grade": "guess",
-   "basis": "room 25 check Water Temple GS River, took the harder region (sphere 15) over Water Temple Dive (14)"
+   "basis": "room 25, the 2F east skulltula room behind the cracked wall, seen in the walkthrough video"
   },
   {
    "name": "Zora River Adult Remake Pot 1",

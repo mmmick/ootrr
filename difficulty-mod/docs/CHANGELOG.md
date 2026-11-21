@@ -2,6 +2,27 @@
 
 One entry per release candidate (rc), newest first. Each rc is one commit on the `difficulty` branch. "Played" means seen in the running game, by hand or by a script through Longshot's control bridge (see [TESTING.md](TESTING.md)). Feature details are in [features/](features/).
 
+## rc 16
+
+On top of upstream 0.8.0 (06cc58f). Adds the features that were tested since rc 15. Branch `release/rc16`.
+
+**Already on `difficulty` since rc 15** (in pull request #52 or just after it):
+- Shorter, plainer tooltips and notes; the "untested" notes removed where things were tested. The user reviewed the settings page.
+- Bean Seller's pitch retired (setting 128 stays retired and off). Zora's Domain ambush is no longer its own setting (127 retired): it is part of more enemies, once you have a sword.
+- Child gates wait for the Kokiri Sword. Played by hand (session 4): no gates without the sword, gates with it, a guard kill drops the barrier.
+- Gates and the Zora ambush no longer vanish when you walk up close: the trigger stays held once Link has entered. Found by hand in session 3, fix played by hand in session 4.
+
+**New in this rc:**
+- **Boss adds arrive with the boss introduction.** The miniboss and minions of "Bosses spawn minibosses" and "Bosses spawn minions" appear when the fight starts (Gohma: after you look up at her) and leave when the boss is beaten. By hand: Phantom Ganon and Gohma. By script: Phantom Ganon and Twinrova (the adds wait through the intro and attack within 1 s of the fight); Try Again goes back to the dungeon entrance and the adds come back once. The Shadow Temple loaded to a black screen in the scripted test; Bongo Bongo's Keese are now kept where they were (in the room from the start, not from the intro). The temple has not been loaded with that fix. Not played: Barinade, Volvagia, Morpha, Bongo Bongo. See [features/11](features/11-boss-minibosses.md) and [features/12](features/12-boss-minions.md).
+- **Green heal effect.** When an enemy regenerates or a fairy heals it, it shows Farore's Wind's green effect (ring, column and orb), sized to the enemy. A backup call shows a white flash. By hand (session 6): the game's own effects still work, and the full green heal shows on enemies, including the full fairy heal. The backup flash was not looked at on its own. See [features/09](features/09-enemy-regen.md).
+- **Fireball storms** (new setting 140, Hazards section, off by default). Burning rocks rain down, as on Death Mountain, while you stand in three quiet stretches of Hyrule Field or the child Hyrule Castle garden. By hand: the middle road and the castle garden (the guards behave). Not played: the other two field stretches, the adult field. Frame rate in child Hyrule Field was about 30 to 37 with 5x more enemies plus the storm. See [features/29](features/29-fireball-storms.md).
+- **Unbreakable Bombchu Bowling grass** (new setting 139, Minigames section, off by default). The lane obstacles can't be broken. Idea by Sabriel: thank you. Passed by hand. See [features/27](features/27-unbreakable-bowling-grass.md).
+- **Harmless scrubs never call for backup** (business, stage and leaf scrubs, the Deku Scrub brothers). By script: a business scrub called nobody in 40 s. The fighting Deku Scrub still calls.
+- **Gates with dungeon entrance shuffle.** Gates stay on, except the three with a dungeon door beyond the wall (1, 2, 6). By script: the Lost Woods gate is there and holds Link, the Death Mountain Trail gate is not. Not tested: gates 1 and 6 absent.
+- **Jabu-Jabu water spawns** only go in open pools near a shore. By script: 10 Octoroks at water level in the scrub room pool, none seen in a wall. Not checked by eye: ceilings.
+
+**Not in this rc** (not tested enough, or their own pull request): enemy randomizer, limited ammo, skip area intros and first pickup text (#53), Volvagia in Hyrule Field, faster blocks (own pull request, setting 141), random fuses.
+
 ## rc 15
 
 Changes from the first hands-on session with rc 14 (19 Nov, at 10x). A second hands-on session the same day played this build: "everything I tested was perfect", with the spawn buttons and the extra enemies named; it was not recorded which other items below were looked at, so only those marked "by hand" count as seen.

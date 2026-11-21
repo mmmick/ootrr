@@ -113,13 +113,6 @@ textarea { min-height: 96px; resize: vertical; font-family: var(--mono); font-si
 input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 .pathrow { display: flex; gap: 8px; }
 .pathrow input { flex: 1 1 auto; min-width: 0; }
-.cparts { display: grid; gap: 6px; }
-.cgroup { color: var(--muted); font-size: 0.875rem; font-weight: 600; margin-top: 10px; }
-.cpart { display: grid; grid-template-columns: minmax(8rem, 1fr) auto; gap: 8px; align-items: center; }
-.cname small { color: var(--muted); font-weight: normal; }
-.cpick { display: flex; gap: 8px; align-items: center; }
-.cpick input[type="color"] { width: 44px; height: 32px; padding: 0; border: 1px solid var(--line, #888); border-radius: 6px; background: none; cursor: pointer; }
-.cpick input[type="color"][hidden] { display: none; }
 
 .btn {
   appearance: none; font: inherit; font-weight: 600; cursor: pointer; min-height: 44px; padding: 8px 18px;

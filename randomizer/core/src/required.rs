@@ -86,6 +86,7 @@ pub fn unpack(d: &Data, sound: bool) -> Unpack {
     let mut files: BS<String> = list(d).into_iter().collect();
     files.extend(crate::colors::files());
     files.extend(crate::gerudo_card::MEMBERS.iter().map(|n| crate::gerudo_card::schedule_path(n)));
+    files.extend(crate::open_world::fortress::CARPENTERS.iter().map(|n| crate::open_world::fortress::own_schedule(n)));
     if let Ok(p) = crate::title_logo::patch() {
         files.extend(crate::title_logo::touched(&p));
     }

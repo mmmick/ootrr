@@ -91,6 +91,31 @@ mod tests {
     }
 
     #[test]
+    fn the_forest_east_courtyard_opens_from_the_well_and_not_from_the_hall() {
+        let d: Data = Data::load().unwrap();
+        let w: World = world_with(&d, &[("open_door_of_time", "open")]).unwrap();
+        let east: &str = "Forest Temple NE Outdoors";
+        let p: Placement = stripped(&w, &d, &["Song of Time"]);
+        assert!(adult_at(&w, &p, &["Bow"], "Forest Temple Block Push Room"));
+        assert!(!adult_at(&w, &p, &["Bow"], east));
+        assert!(adult_at(&w, &p, &["Bow", "Song of Time"], east));
+        assert!(adult_at(&w, &p, &["Song of Time"], "Forest Temple Well"));
+    }
+
+    #[test]
+    fn the_forest_raised_island_skulltula_waits_past_the_frozen_eye() {
+        let d: Data = Data::load().unwrap();
+        let w: World = world_with(&d, &[("open_door_of_time", "open")]).unwrap();
+        let p: Placement = stripped(&w, &d, &["Bow"]);
+        assert!(reached(&w, &p, &[], "Forest Temple Well Chest"));
+        assert!(reached(&w, &p, &[], "Forest Temple Map Chest"));
+        for spot in ["Forest Temple GS Raised Island Courtyard", "Forest Temple Falling Ceiling Room Chest"] {
+            assert!(!reached(&w, &p, &[], spot), "{spot}");
+            assert!(reached(&w, &p, &["Bow"], spot), "{spot}");
+        }
+    }
+
+    #[test]
     fn child_bosses_want_the_kokiri_sword_and_not_sticks() {
         let d: Data = Data::load().unwrap();
         let w: World = world(&d).unwrap();

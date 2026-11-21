@@ -201,6 +201,7 @@
   "logic_zora_with_cucco": false,
   "logic_zora_with_hovers": false,
   "medallion_gates": false,
+  "prelude_medallion": false,
   "open_door_of_time": "stones_sot",
   "open_forest": "closed",
   "open_kakariko": "closed",

@@ -266,7 +266,16 @@ mod tests {
         let kits: BS<&str> = actors(&ds);
         // Every seed also builds the song and Ocarina pickups the story skips hold up (crate::ocarina_hold).
         let scene: BS<String> = crate::ocarina_hold::wanted(&d, &seed).into_iter().map(|(_, p)| p.pack).filter(|p| !kits.contains(p.as_str())).collect();
-        assert_eq!(ys[0].root.as_arr().unwrap().len(), 8363 + kits.len() + scene.len());
+        // An item the seed lays on the ground brings its own pickup pack too (Obj_Range_Bow for a Bow).
+        let base: Byml = Byml::parse(&rf.read_zs(TABLES[0]).unwrap()).unwrap();
+        let placed: BS<String> = seed
+            .placements
+            .values()
+            .filter_map(|i| d.item(i).and_then(|x| x.actor.as_deref()))
+            .map(crate::pickup_pack::default_name)
+            .filter(|n| !kits.contains(n.as_str()) && !scene.contains(n) && rows::find(&ys[0], n).is_some() && rows::find(&base, n).is_none())
+            .collect();
+        assert_eq!(ys[0].root.as_arr().unwrap().len(), 8363 + kits.len() + scene.len() + placed.len());
         for a in &kits {
             let raw: Vec<u8> = rf.zs.decompress(&fs::read(romfs.join(pack_of(a))).unwrap()).unwrap();
             assert_eq!(verify(&sarc::parse(&raw).unwrap(), a, &token).unwrap().len(), 3, "{a}");

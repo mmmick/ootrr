@@ -1,6 +1,6 @@
 import { h, fill, save_text } from "./dom.js";
 import { viewer } from "./viewer.js";
-import { color_picks } from "./store.js";
+import { color_request } from "./store.js";
 import { effective, enabled, match_preset, value_label } from "./rules.js";
 
 const RULE = "=".repeat(60);
@@ -38,8 +38,9 @@ export function full_text(res, ctx) {
     if (rows.length) out.push(`[${p.heading} › ${p.label}]`, ...rows, "");
   }
   const cos = ctx.cosmetic || {};
-  out.push("[Cosmetics]", `  Music shuffle: ${cos.music || "off"}`, `  Sound effect shuffle: ${cos.sfx || "off"}`, `  Colour mode: ${cos.colors || "off"}`);
-  for (const [k, v] of Object.entries(color_picks(cos))) out.push(`  Colour of ${k}: ${v}`);
+  const col = color_request(cos);
+  out.push("[Cosmetics]", `  Music shuffle: ${cos.music || "off"}`, `  Sound effect shuffle: ${cos.sfx || "off"}`, `  Colour mode: ${col.colors}`);
+  for (const [k, v] of Object.entries(col.color_parts)) out.push(`  Colour of ${k}: ${v}`);
   if (cos.seed) out.push(`  Cosmetic seed: ${cos.seed}`);
   out.push("");
   if (ctx.plando && ctx.plando.length) {

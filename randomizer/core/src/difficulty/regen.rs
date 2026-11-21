@@ -2,6 +2,7 @@ use std::collections::BTreeSet as Set;
 
 use crate::ainb::build::Spec;
 use crate::ainb::Ainb;
+use crate::difficulty::fx;
 use crate::difficulty::hook::{self, flag, switch, Hook};
 use crate::error::Res;
 use crate::qol::Have;
@@ -22,7 +23,7 @@ pub const AMOUNT: i32 = 1;
 pub const ADD: i32 = 0;
 pub const HEAP_EXTRA: i32 = 0x4000;
 pub const LABEL: &str = "enemy regen";
-pub const ADDED: usize = 14;
+pub const ADDED: usize = 14 + 1 + fx::HURT_ADDED;
 
 pub const HOOK: Hook = Hook { label: LABEL, taken, build };
 
@@ -34,14 +35,11 @@ pub fn build(a: &mut Ainb, tag: &str) -> Res<usize> {
     let s = |n: &str| -> String { format!("{tag} {n}") };
     let has: usize = a.add_node(&Spec::query(HAS_LIFE, &s("has life")).out(1, "Bool"))?;
     let dead: usize = a.add_node(&Spec::query(IS_DEAD, &s("is dead")).spare(0, "DeathReason").spare(0, "SubDeathReason").out(1, "IsDead"))?;
-    let heal: usize = a.add_node(
-        &Spec::node(HEAL, &s("heal"))
-            .prop(1, "ExecuteEveryFrame", flag(false))
-            .constant(0, "SetType", ADD.to_le_bytes().to_vec())
-            .constant(0, "SetValue", AMOUNT.to_le_bytes().to_vec()),
-    )?;
+    let heal: usize = a.add_node(&heal_spec(&s("heal")))?;
+    let topped: usize = a.add_node(&heal_spec(&s("heal at full")))?;
+    let shown: usize = fx::when_hurt(a, &s("heal"), topped, heal)?;
     let gone: usize = a.add_node(&Spec::node(IDLE, &s("idle dead")))?;
-    let alive: usize = a.add_node(&switch(&s("alive"), dead, gone, heal))?;
+    let alive: usize = a.add_node(&switch(&s("alive"), dead, gone, shown))?;
     let bare: usize = a.add_node(&Spec::node(IDLE, &s("idle no life")))?;
     let gate: usize = a.add_node(&switch(&s("gate"), has, alive, bare))?;
     let wait: usize = a.add_node(&Spec::node(IDLE, &s("idle wait")))?;
@@ -51,6 +49,13 @@ pub fn build(a: &mut Ainb, tag: &str) -> Res<usize> {
     let hit: usize = a.add_node(&Spec::query(HIT, &s("hit")).out(1, "Bool"))?;
     let struck: usize = a.add_node(&Spec::node(IDLE, &s("idle hit")))?;
     a.add_node(&switch(&s("recently hit"), hit, struck, quiet))
+}
+
+fn heal_spec(seed: &str) -> Spec<'_> {
+    Spec::node(HEAL, seed)
+        .prop(1, "ExecuteEveryFrame", flag(false))
+        .constant(0, "SetType", ADD.to_le_bytes().to_vec())
+        .constant(0, "SetValue", AMOUNT.to_le_bytes().to_vec())
 }
 
 fn counter<'a>(seed: &'a str, frames: f32, looped: bool, not_finished: usize, finished: usize) -> Spec<'a> {

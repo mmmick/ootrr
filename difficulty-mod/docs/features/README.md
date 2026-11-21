@@ -24,6 +24,13 @@ All 19 are in rc 4 (`<builds>\rc-4\`).
 | 16 | [Fairies help enemies too](16-fairies-help-enemies.md) | `fairy_helps_enemies` | No (respawn half not possible) |
 | 17 | [Enemies call for backup](17-enemies-call-for-backup.md) | `enemy_backup` | No |
 | 18 | [Zora's Domain ambush](18-zora-ambush.md) | `zora_ambush` | No |
-| 19 | [Bean Seller's sales pitch](19-bean-sellers-pitch.md) | `bean_pitch` | No |
+| 19 | [Bean Seller's sales pitch](19-bean-sellers-pitch.md) | `bean_pitch` | Retired (setting kept off) |
+| 20 | [Enemies block the way](20-enemies-block-the-way.md) | `enemy_gates` | Yes, by hand |
+| 22 | [Special encounters](22-special-encounters.md) | part of `more_enemies` | Partly |
+| 23 | [Grass and pot surprises](23-grass-and-pot-surprises.md) | part of `more_enemies` | Yes, by hand |
+| 24 | [Cuccos take revenge at once](24-cucco-revenge.md) | `cucco_revenge` | Yes |
+| 25 | [Spawn enemies](25-spawn-enemies-combo.md) | `enemy_spawn_combo` | Yes, by hand |
+| 27 | [Unbreakable Bombchu Bowling grass](27-unbreakable-bowling-grass.md) (idea by Sabriel) | `unbreakable_bowling_grass` | Yes, by hand |
+| 29 | [Fireball storms](29-fireball-storms.md) | `fireball_storms` | Yes, by hand (two of four spots) |
 
 Features 01 to 08 I built directly. Features 09 to 19 were built by sub-agents; what those files say about investigation and testing comes from the agents' reports, which I did not re-run except where noted.

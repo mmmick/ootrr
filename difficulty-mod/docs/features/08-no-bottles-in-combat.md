@@ -40,3 +40,21 @@ rc 2's fix has not been played. To test:
 
 ## Seen in the game
 Not tested (batch 1 stopped early; no filled bottle was set up).
+
+## Combat query research (19 Nov, agent combat-check): no data query found
+
+Request: use the game's own combat check (the one that makes the Business Scrub refuse) instead of battle music, and show the game's notice when refused.
+
+What the game does for the Business Scrub (all names are from the game's data):
+- The scrub is a pouch item, "Item_ScrubBusinessSeed". Using it runs the player scheduler `Player.scheduler.usescrubbisinessseed.module` (selector node `SelectorPlayerSchedulerUseScrubBusinessSeed`, verb 61) and `Player.action.usescrubbusinessseed.module` (action node `ExecutePlayerUseScrubBusinessSeed`). Both are in `Player_Base/Child/Adult.pack.zs`. The selector and action are native nodes with no inputs that name a condition.
+- The refusals are two notices in `LayoutMsg/SimpleInfo_00.msbt`: `CannotUseScrubBusinessSeedBattle` ("You cannot call the Business Scrub during combat.") and `CannotUseScrubBusinessSeedNoSpace`. The labels appear in no ainb, bgyml, byml or event flow anywhere in the romfs (searched Pack, AI, Event, GameParameter, Logic, Sequence, System, UI, Component, Banc), so they are chosen inside native code, together with the combat test. The combat test itself is therefore not a node, query or flag that data can call.
+- The summoned scrub's own flow (`Enemy_Scrub_Business_Seed`) and AI contain no combat test.
+
+What I searched for and did not find (a reusable combat query):
+- Event flow queries (all 330 `EventQuery*` names in `Node.Product.111.aidefn`): none about battle, combat, enemies near or aggro. Closest: `EventQueryCheckPlayerState` (State enum 0..41, a player action state, no battle value seen in any flow), `EventQueryCheckTerrorLevel` (NPC panic), `EventQueryIsPlayingBgmName` (what we use now), `EventQueryUserPerceptionIsInsideSphere`.
+- AI graph queries: `QueryGameBalanceClientHasMeleeBattlePermission*` (enemy attack-token system, per enemy, not "player is in combat"), `QueryGenericGetIsMultiBattleArea`, `QueryEnemyCounterDstActorCount`, `QueryPlayerIsOnNoResetFlag` and `QueryPlayerIsOnMainActionStatus` (enum values not in data; no battle flag seen set by any graph). None is reachable from a bottle flow.
+- Save/game data: only `BossBattle` and `BattleOnShip` (already known `IsBossBattle`). `SeqQueryIsEnemyMuseum` is the Hall of Fallen Foes, not combat.
+
+The notice mechanism IS reachable from data: `UISystemActor.EventTriggerRequestOpenSimpleInfo {Type=N}` (used by `Dm_SY_Ocarina` Type 11, `Dm_SY_Ocarina_EponaSong` 10, `WarpEvent` 14, `SubEvent_GetSwordBigGoron` 18 and 19). `Type` is a native enum (`game::ui::SimpleInfoType`); its value-to-label table is not in the data, so the number for `CannotUseScrubBusinessSeedBattle` is unknown (it would need to be probed in the game), and that text says "Business Scrub", which is wrong for bottles. A bottle-specific text cannot be added cleanly because the label is picked by native code from the enum.
+
+Result: part A (reuse the scrub's combat query) is not possible from data. No code was changed. Decision for the user: keep the music check, or accept a different signal.

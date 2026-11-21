@@ -107,7 +107,7 @@ v4 in the game: gate 3 worked exactly as designed (nothing until near, barrier r
 - Gate 1's extra scrub: the game's Mad Scrubs are already owned by a vanilla AiGroup. v4 added a second node for them with `Logic_Create` constant true, so the engine created them again. Now a guard that a vanilla group references gets a node with `Logic_Create` constant false (creates nothing); a guard nothing owns (the withered Deku Babas moved from the dynamic map) keeps a constant true, as before. Tektites (gate 2) and scrubs (gate 1) are owned, so they get false. Unverified: that the false node still reports `Dead` when the vanilla owner kills the enemy. If gate 1 or 2 never opens, that is the cause.
 - Marks: gate 3 is replaced by wall 14 (left -60.62 100.11 -8.67, right -64.0 99.85 -7.09, guard -64.05 99.71 -14.09). Gate 5 keeps its wall, with two Lizalfos at the marks (34.73, 106.31, -24.81) and (29.84, 106.68, -20.6), both created by the trigger; each has its own barrier stack, so both must die.
 - Private graph per gate: each gate writes its own copy of the logic graph (`Logic/Gimmick_EnemyGate_NN_xxxx.logic.module.ainb`, module `Logic/Module/Gimmick_EnemyGate_NN/...`) and its AiGroup points at it. The vanilla `Gimmick_AllDay_Skulltula_115c` graph is no longer written. A new file has no size table entry, so `staging::grow_out` now adds one for a path that is missing from the table when `old` is 0.
-- Gate 6 (review finding 2 and 3): skipped when the forest is open, and when `open_kakariko` is open with a forest that is not closed (that story state takes Mido away, so the child could reach the babas with no sword). With a closed forest or Closed Deku and Mido present, the child has already shown Mido the Kokiri Sword, so a weapon is guaranteed. Not done: the other gates whose guards need a weapon (3 to 5, 7, 9 to 13) do not tell the logic; they sit on routes a child or adult with the usual gear passes, and this stays an accepted requirement, to be reviewed.
+- Gate 6 (review finding 2 and 3): skipped when the forest is open, and when `open_kakariko` is open with a forest that is not closed (that story state takes Mido away, so the child could reach the babas with no sword). With a closed forest or Closed Deku and Mido present, the child has already shown Mido the Kokiri Sword, so a weapon is guaranteed. The other gates were not told to the logic at that point; see "Sword condition" at the end.
 - Gate 4: left built. Its guard is beyond the wall for a player walking up-river, so the barrier rises behind them; harmless now that the guard is created with it, but the user should re-mark it.
 
 ### A barrier with no living guard
@@ -159,3 +159,43 @@ Gates 2 (Death Mountain Trail) and 9 (the small Lost Woods room, one guard, two 
 ## rc 13 scripted check (19 Nov)
 - Gate 2 (Death Mountain Trail): the map loads with the mod; after a warp to (-54.67, 106.0, 10.4) on the guard's side an `Enemy_Dodongo` (hp 6) stood at (-54.4, 106.4, 3.2) and moved under 1 unit in 25 s. Barrier and fight not observed. Details: `playtest
 c13\RESULTS.md`.
+
+## Entrance shuffle (19 Nov, branch `feature/gates-er`, not played)
+User: "none of the enemy gates should block in such a way that it conflicts with the rando." Before, any `shuffle_entrances` other than off turned every gate off (a Dungeons seed lost the Lost Woods gate). Now `active` takes the value (`Shuffle::Off`, `Dungeons`, `Wide`; Wide is overworld, everything or an unreadable value, which fail closed).
+
+| Entrances | Gates on | Gates off |
+|---|---|---|
+| Vanilla | all (7 still held) | none |
+| Dungeons | 3, 4, 5, 9, 11, 12, 13 (7 held) | 1, 2, 6 |
+| Overworld, Everything | none | all (these values are refused by the build today) |
+
+Why 1, 2 and 6 go: each stands in a map that holds a dungeon door, and the door is on the far side of the wall from the guard (Forest Temple at z -121.7 beyond the wall at z -82.6; Dodongo's Cavern at z -31 beyond z -2; Deku Tree at x 92 beyond x 45). A dungeon exit, or a blue warp (blue warps stay put when dungeons are shuffled), lands you on that far side. The logic treats the way from there to the rest of the area as free, the barrier is not in the logic, and for gate 6 the closed-forest guarantee (the child has shown Mido the Kokiri Sword) no longer holds once another dungeon's exit can drop you east of the babas. The other gates sit in maps with no dungeon door (Zora's River, Lost Woods, Market, Gerudo Valley), or, gate 13, in Hyrule Field with the Water Temple door 300 units away at Lake Hylia on the guard's side of the wall, so the player meets that barrier exactly as in vanilla. Dungeon shuffle changes no overworld route, so these gates add what they add with entrances off.
+The rule is computed from the entrance catalog in a test (`a_gate_is_left_out_exactly_when_a_dungeon_door_lies_beyond_its_wall`), and the constant `BEYOND_DUNGEON_DOOR` must match it. The build report names the gates left out and why (`shuffle_note`).
+
+Logic conflict: unchanged by entrance shuffle for the gates that stay. A gate adds "beat the guards"; a child never meets a gate before holding the sword (see "Sword condition" below).
+
+How tested: `cargo test -p ootrr-core difficulty` (187) and `settings` (106) with `OOTRR_ROMFS`; a real build with `enemy_gates` and Entrances Dungeons: report lists gates 3, 4, 5, 9, 11, 12, 13 and names 1, 2, 6 as left out; the mod holds `Gimmick_EnemyGate_09_*.logic.module.ainb` and its `LostWood_Child_Static` map reads back with 4 barrier pieces (`Obj_EnemyCounter_A_08`) and 1 `Enemy_Stalfos`. Not played.
+In the game: Entrances Dungeons plus the gates, child, walk into the Lost Woods small room (gate 9: barrier at both doors, one Stalfos). Check Kokiri Forest path to the Deku Tree, Death Mountain Trail and the Meadow scrub lane have no barrier. Overworld and Everything are refused by the build, so they cannot be played yet.
+
+## Sword condition (20 Nov, branch `feature/gate-sword`, not played)
+Your decision (20 Nov), replacing the earlier logic requirement: "put some logic so that all the enemy gates don't spawn until you've got the sword at least". A gate (its barrier pieces and its guards) does not exist while the player has no sword. Once the player holds one, the gate behaves as before: guards die, the barrier goes. Because a swordless player is never blocked, the item logic needs no weapon requirement; the earlier `gate_logic.rs` module and its `enemy_gates_logic` hook were reverted.
+
+Condition: the saved game flag `IsGet.Weapon_Sword_Kokiri` (a Bool, saved, default false; found in the game's flag list, and read by the game itself for the Kokiri house door and the forest tutorial). It is an inventory-possession flag set when the sword is obtained, not "equipped", so taking the sword off or swapping to Sticks does not remove the gates. Each child gate graph gets one `HoldGameDataGetBoolSimple` node reading it (index -1) and:
+- the trigger AND node ("player inside the guard box") becomes `OperateAND(player inside, sword flag)`, a two-input multi AND built with the same helpers as the Gerudo card gate. The new guards (gates 1 to 5, 9, the child ones) and the barrier pieces are created from that node, so without the flag none is created;
+- the vanilla Deku Babas of gate 6, which were created always, are created from the sword flag node instead;
+- adult gates (11, 12, 13) are unchanged: the adult always holds the Master Sword. Biggoron's and the Giant's Knife are not checked: a child cannot own them, and an adult already has the Master Sword.
+Gate-off output and default seeds are unchanged.
+
+When the sword is obtained: the flag is read by the graph, so the gate may appear at once on the map the player stands in, or only when the map next loads. Both are acceptable (a gate whose trigger is somewhere else cannot fire until the player walks into the box anyway). To be confirmed in the game.
+
+Risks: (1) a Kokiri Sword from the Starting items option is pushed into the pouch at new game and no `IsGet` flag is set by us for it (the existing tests insist on that). If the game's pouch push does not set `IsGet.Weapon_Sword_Kokiri`, such a player would see no gates at all; the failure is safe (easier), not a block. To confirm in the game with the control bridge. (2) `IsGet.*` is the flag the item logic simulation also assumes to be set on pickup.
+
+Guards the child's sword may not kill: none was found by reading. The logic's own enemy rules said the Kokiri Sword kills the Lizalfos, the Stalfos, the Dodongo (gate 2) and the Mad Scrub (gate 1); that is rule text and has not been checked in the game for the remake. Gate 2 (Dodongo) is the one to watch.
+
+How tested: `cargo test -p ootrr-core difficulty` and `settings`, `cargo test --workspace` with `OOTRR_ROMFS`. Every gate graph built from the game files is checked: each child barrier and each new guard has its Create input on a two-input AND of the area hit node and the sword flag node; gate 6's babas read the sword flag node; adult gates keep the plain trigger; the graph audits clean; the flag is a saved Bool in the game's flag list. Played: nothing. See `playtest/gate-sword/PLAN.md` for the scripted test.
+
+## Release (rc 16, 20 Nov)
+In rc 16: the entrance-shuffle rule above, on top of the sword condition (child gates wait for the Kokiri Sword; `gate_logic.rs` is not included). Shortened build note: "Because dungeon entrances are shuffled, these gates are left out, as a dungeon door lies beyond them: ...".
+
+- **By script** (checks-1120, entrances Dungeons, closed forest): gate 9 in the Lost Woods is present and holds Link at its barrier; gate 2 on Death Mountain Trail is absent.
+- **Not tested:** that gates 1 and 6 are absent (vanilla enemies stand at both spots, so a script could not tell).

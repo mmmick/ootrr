@@ -28,7 +28,7 @@ All 19 are in rc 4 (`<builds>\rc-4\`).
 | 20 | [Enemies block the way](20-enemies-block-the-way.md) | `enemy_gates` | Yes, by hand |
 | 22 | [Special encounters](22-special-encounters.md) | part of `more_enemies` | Partly |
 | 23 | [Grass and pot surprises](23-grass-and-pot-surprises.md) | part of `more_enemies` | Yes, by hand |
-| 24 | [Cuccos take revenge at once](24-cucco-revenge.md) | `cucco_revenge` | Yes |
+| 24 | [Short-Tempered Cuccos](24-cucco-revenge.md) | `cucco_revenge` | Yes |
 | 25 | [Spawn enemies](25-spawn-enemies-combo.md) | `enemy_spawn_combo` | Yes, by hand |
 | 27 | [Unbreakable Bombchu Bowling grass](27-unbreakable-bowling-grass.md) (idea by Sabriel) | `unbreakable_bowling_grass` | Yes, by hand |
 | 29 | [Fireball storms](29-fireball-storms.md) | `fireball_storms` | Yes, by hand (two of four spots) |

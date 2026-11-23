@@ -38,7 +38,7 @@ export function section(label, kids, full) {
   return h("div", { class: `msec${full ? " full" : ""}` }, h("h4", null, label), kids);
 }
 
-function settings_page(p) {
+function settings_secs(p) {
   const by_id = new Map(state.schema.settings.map((s) => [s.id, s]));
   let stubs = 0;
   const secs = p.sections.map((sec) => {
@@ -64,6 +64,11 @@ function settings_page(p) {
     });
     return section(sec.label, kids, ss.some(is_wide));
   });
+  return { secs, stubs };
+}
+
+function settings_page(p) {
+  const { secs, stubs } = settings_secs(p);
   const n = p.sections.reduce((a, s) => a + s.ids.length, 0);
   const sub = `${p.heading} · ${n} setting${n === 1 ? "" : "s"}${stubs ? ` · ${stubs} not supported yet` : ""}`;
   const warn = p.warning ? h("p", { class: "notice warn mwarn" }, p.warning) : null;
@@ -202,6 +207,8 @@ function config_page(id, title, sub) {
     }
     secs.push(section(label, kids, id === "cosmetics" && label === "Colours"));
   }
+  const own = id === "cosmetics" ? pages.find((p) => p.id === "cosmetics") : null;
+  if (own) secs.push(...settings_secs(own).secs.filter(Boolean));
   return [head(title), h("div", { class: "mgrid" }, secs)];
 }
 
@@ -277,6 +284,7 @@ function nav_items() {
   const out = [{ heading: "Configuration", id: "config", label: "Configuration" }];
   if (state.result || busy()) out.push({ heading: "Configuration", id: "seed", label: "Seed" });
   for (const p of pages) {
+    if (p.id === "cosmetics") continue;
     out.push({ heading: p.heading, id: p.id, label: p.label });
     if (p.id === "excluded") out.push({ heading: p.heading, id: "plando", label: "Plandomizer" });
     if (p.id === "hints") out.push({ heading: p.heading, id: "cosmetics", label: "Cosmetics" });
@@ -458,7 +466,7 @@ export function start_menu() {
   register("cosmetics", screen(() => config_page("cosmetics", "Cosmetics", "Changes the mod you build, never the seed")));
   register("seed", screen(() => [head("Seed", state.result ? `Seed ${state.result.seed}` : ""), ...render_seed(show)]));
   register("plando", screen(plando_page));
-  for (const p of pages) register(p.id, screen(() => settings_page(p)));
+  for (const p of pages) if (p.id !== "cosmetics") register(p.id, screen(() => settings_page(p)));
   set_first("config");
   on_show(() => {
     draw_nav();

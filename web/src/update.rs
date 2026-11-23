@@ -30,9 +30,13 @@ pub fn parts(v: &str) -> Option<[u32; 3]> {
     Some(out)
 }
 
+fn prerelease(v: &str) -> bool {
+    v.split('+').next().unwrap_or("").contains('-')
+}
+
 pub fn newer(current: &str, latest: &str) -> bool {
     match (parts(current), parts(latest)) {
-        (Some(a), Some(b)) => b > a,
+        (Some(a), Some(b)) => b > a || (b == a && prerelease(current) && !prerelease(latest)),
         _ => false,
     }
 }
@@ -150,6 +154,15 @@ mod tests {
         assert!(!newer("0.2.0", "0.1.9"));
         assert!(!newer("0.1.0", "nightly"));
         assert!(newer("0.1.0", "0.2.0-beta"));
+    }
+
+    #[test]
+    fn a_nightly_hears_about_the_release_it_leads_to() {
+        assert!(newer("0.8.3-nightly.20261121.57", "v0.8.3"));
+        assert!(newer("0.8.3-nightly.20261121.57", "v0.8.4"));
+        assert!(!newer("0.8.3-nightly.20261121.57", "v0.8.2"));
+        assert!(!newer("0.8.3-nightly.20261121.57", "v0.8.3-nightly.20261122.58"));
+        assert!(!newer("0.8.3", "v0.8.3"));
     }
 
     #[test]

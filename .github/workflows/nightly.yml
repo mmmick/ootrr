@@ -1,0 +1,151 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Build even when main has not changed since the last nightly
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: nightly-build
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.p.outputs.build }}
+      version: ${{ steps.p.outputs.version }}
+      since: ${{ steps.p.outputs.since }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: p
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          head="$(git rev-parse HEAD)"
+          last="$(git for-each-ref --format='%(refname:strip=4)' 'refs/remotes/origin/nightly/' | sort -t. -k4,4n -k5,5n | tail -n 1)"
+          since=""
+          if [ -n "$last" ]; then
+            since="$(git rev-parse "refs/remotes/origin/nightly/$last")"
+          fi
+          echo "since=$since" >> "$GITHUB_OUTPUT"
+          if [ "$since" = "$head" ] && [ "$FORCE" != "true" ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "No new commits on main since nightly $last (${head:0:10}), so nothing was built." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          version="$(python3 -I tools/nightly_version.py next "$(date -u +%Y%m%d).${GITHUB_RUN_NUMBER}")"
+          echo "build=true" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building nightly $version from ${head:0:10}." >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/release.yml
+    with:
+      nightly: ${{ needs.plan.outputs.version }}
+
+  publish:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      SINCE: ${{ needs.plan.outputs.since }}
+      KEEP: ${{ vars.NIGHTLY_KEEP || '14' }}
+      GH_TOKEN: ${{ github.token }}
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_NIGHTLY_WEBHOOK }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Anchor
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" > /dev/null; then
+            exit 0
+          fi
+          blob="$(printf '%s\n' \
+            "# OOTRR nightly build" \
+            "" \
+            "This commit only holds the $RELEASE_TAG tag. GitHub sorts releases by the date of their tagged commit, and this one is dated 2000, so the nightly release always sorts below the stable releases and the app's update check never offers it." \
+            "" \
+            "The source of each nightly is on its nightly/<version> branch." | git hash-object -w --stdin)"
+          tree="$(printf '100644 blob %s\tREADME.md\n' "$blob" | git mktree)"
+          export GIT_AUTHOR_NAME="github-actions[bot]" GIT_COMMITTER_NAME="github-actions[bot]"
+          export GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com" GIT_COMMITTER_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+          export GIT_AUTHOR_DATE="2000-01-01T00:00:00Z" GIT_COMMITTER_DATE="2000-01-01T00:00:00Z"
+          commit="$(git commit-tree "$tree" -m "Anchor for the $RELEASE_TAG release")"
+          git push origin "$commit:refs/tags/$RELEASE_TAG"
+      - name: Release
+        id: r
+        run: |
+          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}"
+          python3 -I tools/nightly_post.py notes "$VERSION" "$SINCE" "$url" "$RUNNER_TEMP/notes.md"
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' |
+              while read -r old; do
+                [ -e "dist/$old" ] || gh release delete-asset "$RELEASE_TAG" "$old" --repo "$GITHUB_REPOSITORY" --yes
+              done
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "OOTRR nightly $VERSION" \
+              --notes-file "$RUNNER_TEMP/notes.md" \
+              --prerelease
+          else
+            gh release create "$RELEASE_TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "OOTRR nightly $VERSION" \
+              --notes-file "$RUNNER_TEMP/notes.md" \
+              --prerelease \
+              --latest=false
+          fi
+          newest="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=1" --jq '.[0].tag_name')"
+          if [ "$newest" = "$RELEASE_TAG" ]; then
+            echo "The nightly release sorts as the newest release, so the app's update check would see it" >&2
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Published $url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Source branch
+        run: |
+          git push origin "$GITHUB_SHA:refs/heads/nightly/$VERSION"
+          git ls-remote --heads origin 'refs/heads/nightly/*' | awk '{print $2}' | sed 's#^refs/heads/nightly/##' |
+            sort -t. -k4,4n -k5,5n | head -n "-$KEEP" |
+            while read -r old; do
+              git push origin --delete "refs/heads/nightly/$old"
+            done
+      - name: Discord
+        if: env.DISCORD_WEBHOOK != ''
+        env:
+          URL: ${{ steps.r.outputs.url }}
+        run: |
+          python3 -I tools/nightly_post.py discord "$VERSION" "$SINCE" "$URL" "$RUNNER_TEMP/discord.json"
+          curl -fsS -H "Content-Type: application/json" --data @"$RUNNER_TEMP/discord.json" "$DISCORD_WEBHOOK"

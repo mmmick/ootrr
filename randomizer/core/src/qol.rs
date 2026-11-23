@@ -3,6 +3,7 @@ pub mod blocks;
 pub mod chest_anim;
 pub mod bunny;
 pub mod navi_return;
+pub mod owl;
 pub mod poe;
 pub mod skip;
 
@@ -39,13 +40,14 @@ pub struct Opts {
     pub bunny: bunny::Mode,
     pub big_chests: bool,
     pub blocks: bool,
+    pub owls: bool,
 }
 
 pub type Have<'a> = &'a dyn Fn(&str) -> Option<Vec<u8>>;
 
 impl Opts {
     pub fn any(&self) -> bool {
-        self.skip != Skip::Off || self.anju || self.poe || self.navi != navi_return::Mode::Off || self.bunny != bunny::Mode::Off || self.big_chests || self.blocks
+        self.skip != Skip::Off || self.anju || self.poe || self.navi != navi_return::Mode::Off || self.bunny != bunny::Mode::Off || self.big_chests || self.blocks || self.owls
     }
 
     pub fn logic(&self) -> Vec<(&'static str, &'static str)> {
@@ -88,6 +90,9 @@ impl Opts {
         if self.blocks {
             out.push(blocks::NOTE.to_string());
         }
+        if self.owls {
+            out.push(owl::NOTE.to_string());
+        }
         out
     }
 }
@@ -116,6 +121,7 @@ pub fn read(s: &Settings, bad: &mut Vec<String>) -> Opts {
     let poe: bool = flag(POE);
     let big_chests: bool = flag(chest_anim::SETTING);
     let blocks: bool = flag(blocks::SETTING);
+    let owls: bool = flag(owl::SETTING);
     let navi: navi_return::Mode = match s.text(NAVI) {
         Ok("off") => navi_return::Mode::Off,
         Ok("dungeons") => navi_return::Mode::Dungeons,
@@ -142,7 +148,7 @@ pub fn read(s: &Settings, bad: &mut Vec<String>) -> Opts {
             bunny::Mode::Off
         }
     };
-    Opts { skip, anju, poe, navi, bunny, big_chests, blocks }
+    Opts { skip, anju, poe, navi, bunny, big_chests, blocks, owls }
 }
 
 pub fn files() -> Vec<String> {
@@ -198,6 +204,9 @@ pub fn stage(rf: &mut Romfs, o: &Opts, have: Have) -> Res<Vec<Out>> {
     if o.blocks {
         outs.extend(blocks::stage(rf, have)?);
     }
+    if o.owls {
+        owl::stage(rf, have, &mut outs)?;
+    }
     Ok(outs)
 }
 
@@ -252,7 +261,7 @@ mod tests {
         let mut bad: Vec<String> = Vec::new();
         let o: Opts = read(&s, &mut bad);
         assert!(bad.is_empty());
-        assert_eq!(o, Opts { skip: Skip::Story, anju: true, poe: true, navi: navi_return::Mode::Off, bunny: bunny::Mode::Off, big_chests: false, blocks: false });
+        assert_eq!(o, Opts { skip: Skip::Story, anju: true, poe: true, navi: navi_return::Mode::Off, bunny: bunny::Mode::Off, big_chests: false, blocks: false, owls: false });
         s.set(BUNNY, Value::s("jump")).unwrap();
         assert_eq!(read(&s, &mut bad).bunny, bunny::Mode::Jump);
         assert_eq!(read(&s, &mut bad).notes().len(), 4);

@@ -14,6 +14,7 @@ AppUpdatesURL={#RepoUrl}/releases
 DefaultDirName={autopf}\OOTRR
 DefaultGroupName=OOTRR
 UninstallDisplayIcon={app}\ootrr.exe
+SetupIconFile=ootrr.ico
 UninstallDisplayName={#AppName} {#AppVersion}
 LicenseFile=..\..\LICENSE
 InfoBeforeFile=before.txt

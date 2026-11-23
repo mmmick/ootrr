@@ -13,7 +13,7 @@ pub fn run(a: &[String]) -> Res<()> {
     let root: &str = arg(a, 0, "missing romfs_root")?;
     let load: &str = arg(a, 1, "missing load_dir")?;
     let name: &str = arg(a, 2, "missing mod_name")?;
-    let o: Opts = match arg(a, 3, "missing option (skip-story, skip-all, anju, poe, navi-dungeons, navi-everywhere, bunny-speed, bunny-jump or big-chest-anim)")? {
+    let o: Opts = match arg(a, 3, "missing option (skip-story, skip-all, anju, poe, navi-dungeons, navi-everywhere, bunny-speed, bunny-jump, big-chest-anim or owl-warps)")? {
         "skip-story" => Opts { skip: Skip::Story, ..Opts::default() },
         "skip-all" => Opts { skip: Skip::All, ..Opts::default() },
         "anju" => Opts { anju: true, ..Opts::default() },
@@ -22,6 +22,7 @@ pub fn run(a: &[String]) -> Res<()> {
         "navi-everywhere" => Opts { navi: Mode::Everywhere, ..Opts::default() },
         "bunny-speed" => Opts { bunny: bunny::Mode::Speed, ..Opts::default() },
         "bunny-jump" => Opts { bunny: bunny::Mode::Jump, ..Opts::default() },
+        "owl-warps" => Opts { owls: true, ..Opts::default() },
         "big-chest-anim" => Opts { big_chests: true, ..Opts::default() },
         x => return Err(Error::Msg(format!("unknown option {x}"))),
     };

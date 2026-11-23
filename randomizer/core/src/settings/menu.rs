@@ -750,9 +750,10 @@ pub const MENU: &[Page] = &[
         label: "Time savers",
         heading: GAMEPLAY,
         sections: &[
-            sec("Cutscenes", &["skip_intro", "skip_cutscenes", "skip_story_scenes", "faster_chests", "skip_first_pickup_text"]),
-            sec("Side quests", &["skip_mask_quest", "anju_one_cucco", "easy_fishing"]),
+            sec("Cutscenes", &["skip_intro", "skip_cutscenes", "skip_story_scenes", "faster_chests", "skip_first_pickup_text", "skip_area_intros"]),
+            sec("Side quests", &["skip_mask_quest", "anju_one_cucco", "easy_fishing", "skulls_by_day"]),
             sec("Dungeons", &["deku_bridge_safe"]),
+            sec("Travel", &["owl_warps"]),
             sec("Puzzles", &["faster_blocks"]),
         ],
     },
@@ -760,7 +761,7 @@ pub const MENU: &[Page] = &[
         id: "tweaks",
         label: "Tweaks",
         heading: GAMEPLAY,
-        sections: &[sec("Time of day", &["time_always_passes", "early_beds", "skulls_by_day"]), sec("Link and Navi", &["navi_return", "bunny_hood"])],
+        sections: &[sec("Time of day", &["time_always_passes", "early_beds"]), sec("Link and Navi", &["navi_return", "bunny_hood"])],
     },
     Page { id: "hints", label: "Hints", heading: GAMEPLAY, sections: &[sec("Hints", &["gossip_hints", "chests_match_contents", "misc_hints", "scrub_hint_text"])] },
     Page {
@@ -768,16 +769,16 @@ pub const MENU: &[Page] = &[
         label: "Difficulty",
         heading: GAMEPLAY,
         sections: &[
-            sec("Enemies", &["enemy_health", "enemy_damage", "enemy_speed", "enemy_regen", "enemy_backup", "no_z_targeting", "more_enemies", "enemies_respawn_sooner", "enemy_gates", "cucco_revenge"]),
+            sec("Enemies", &["enemy_health", "enemy_damage", "damage_taken", "enemy_speed", "enemy_regen", "enemy_backup", "more_enemies", "enemy_randomizer", "enemy_sizes", "enemy_sizes_health", "enemies_respawn_sooner", "enemy_gates", "volvagia_roams"]),
+            sec("Player", &["no_z_targeting", "lose_heart_on_death", "random_fuses"]),
+            sec("Environment", &["cucco_revenge", "fireball_storms", "shorter_timers"]),
             sec("Drops and healing", &["no_heart_drops", "no_ammo_drops", "no_gossip_fairies", "no_bottles_in_combat", "no_dupe_items", "fairy_helps_enemies"]),
             sec("Boss fights", &["boss_minibosses", "boss_minions"]),
-            sec("Hazards", &["fireball_storms"]),
-            sec("Game over", &["lose_heart_on_death"]),
-            sec("Minigames", &["unbreakable_bowling_grass"]),
-            sec("Just for fun", &["enemy_spawn_combo"]),
+            sec("Minigames", &["unbreakable_bowling_grass", "harder_talon_cuccos"]),
         ],
     },
-    Page { id: "debug", label: "Debug", heading: DEBUG, sections: &[sec("Debug", &["debug_location_names"])] },
+    Page { id: "cosmetics", label: "Cosmetics", heading: GAMEPLAY, sections: &[sec("Looks", &["mega_like_likes"])] },
+    Page { id: "debug", label: "Debug", heading: DEBUG, sections: &[sec("Debug", &["debug_location_names"]), sec("Spawn enemies", &["enemy_spawn_combo"])] },
 ];
 
 pub fn problems(sch: &Schema) -> Vec<String> {

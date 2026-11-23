@@ -677,6 +677,7 @@ const LOCATIONS_TAB: &[PortSection] = &[
         &[
             Entry::Plain("shuffle_treasure_reward"),
             Entry::Plain("shuffle_potion_shop"),
+            Entry::Plain("shuffle_scarecrow_song"),
             Entry::Plain("shuffle_trade_checks"),
             Entry::View(&COWS),
             Entry::Plain("shuffle_frog_songs"),
@@ -750,7 +751,7 @@ pub const MENU: &[Page] = &[
         heading: GAMEPLAY,
         sections: &[
             sec("Cutscenes", &["skip_intro", "skip_cutscenes", "skip_story_scenes", "faster_chests", "skip_first_pickup_text", "skip_area_intros"]),
-            sec("Side quests", &["skip_mask_quest", "anju_one_cucco", "skulls_by_day"]),
+            sec("Side quests", &["skip_mask_quest", "anju_one_cucco", "easy_fishing", "skulls_by_day"]),
             sec("Dungeons", &["deku_bridge_safe"]),
             sec("Travel", &["owl_warps"]),
             sec("Puzzles", &["faster_blocks"]),

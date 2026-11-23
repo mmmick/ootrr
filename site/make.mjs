@@ -34,7 +34,7 @@ function must(text, find, put) {
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
-cpSync(assets, out, { recursive: true, filter: (p) => !/[\\/]fonts$/.test(p) && !/tracker[^\\/]*\.(html|css|js)$/.test(p) });
+cpSync(assets, out, { recursive: true, filter: (p) => !/[\\/]fonts$/.test(p) && !/tracker[^\\/]*\.(html|css|js)$/.test(p) && !/[\\/]now[^\\/]*\.(html|css|js)$/.test(p) });
 mkdirSync(join(out, "fonts"));
 const fonts = {
   "cinzel.woff2": "cinzel-latin-wght-normal.woff2",

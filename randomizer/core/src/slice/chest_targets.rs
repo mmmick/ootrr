@@ -89,7 +89,9 @@ pub(crate) fn actors_for(d: &Data, seed: &SeedFile) -> Res<BM<String, String>> {
             dests.entry(item.clone()).or_default().push(loc.clone());
         }
     }
-    let stripped: bool = crate::start_items::pool::active(&plan(&seed.settings()?.settings)?);
+    let pl: crate::slice::support::Plan = plan(&seed.settings()?.settings)?;
+    let stripped: bool = crate::start_items::pool::active(&pl);
+    let crow: bool = crate::slice::scarecrow::pooled(&pl);
     let mut out: BM<String, String> = BM::new();
     for (item, locs) in &dests {
         let mut acts: Vec<String> = pool.get(item).cloned().unwrap_or_default();
@@ -97,6 +99,9 @@ pub(crate) fn actors_for(d: &Data, seed: &SeedFile) -> Res<BM<String, String>> {
         adjust(d, item, net, &mut acts);
         if stripped {
             crate::start_items::pool::fit_actors(d, item, locs.len(), &mut acts);
+        }
+        if crow {
+            crate::slice::scarecrow::balance(item, locs.len(), &mut acts);
         }
         if acts.len() != locs.len() {
             return Err(E::Msg(format!(

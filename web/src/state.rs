@@ -22,7 +22,9 @@ pub struct Shared {
 
 impl Shared {
     pub fn new(guard: Guard, updates: bool) -> Shared {
-        Shared::with_tracker(guard, updates, Arc::new(Tracker::new(datadir::base())))
+        let mut t: Tracker = Tracker::new(datadir::base());
+        t.auto_live = !cfg!(test);
+        Shared::with_tracker(guard, updates, Arc::new(t))
     }
 
     pub fn with_tracker(guard: Guard, updates: bool, tracker: Arc<Tracker>) -> Shared {

@@ -13,6 +13,7 @@ use crate::tracker::peek::{Peek, Place};
 use crate::watch::Handle;
 
 pub const TICK: Duration = Duration::from_millis(100);
+pub const SPOILER_EVERY: Duration = Duration::from_secs(3);
 
 pub fn peek_of(s: &Snap) -> Peek {
     let mut p: Peek = Peek { rows: s.rows.clone(), keys: s.keys.clone(), len: s.rows.len(), place: Place { map: None, child: false, room: None, pos: None } };
@@ -27,6 +28,7 @@ pub fn spawn(me: Arc<Tracker>) -> Res<Handle> {
         let mut r: Reader = Reader::new();
         let mut last: Option<Snap> = None;
         let mut down: Option<String> = None;
+        let mut looked: Option<Instant> = None;
         while !flag.load(Ordering::SeqCst) {
             let now: Instant = Instant::now();
             match r.poll(now) {
@@ -45,6 +47,10 @@ pub fn spawn(me: Arc<Tracker>) -> Res<Handle> {
                     }
                     last = None;
                 }
+            }
+            if looked.is_none_or(|t| now.saturating_duration_since(t) >= SPOILER_EVERY) {
+                looked = Some(now);
+                me.spoiler_check(r.exe().as_deref());
             }
             let spent: Duration = now.elapsed();
             if spent < TICK {

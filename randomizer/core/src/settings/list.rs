@@ -170,6 +170,8 @@ fn starting_items() -> Setting {
             ("three_bottles", "Three Empty Bottles"),
             ("four_bottles", "Four Empty Bottles"),
             ("hylian_shield", "Hylian Shield"),
+            ("bunny_hood", "Bunny Hood"),
+            ("scarecrow_song", "Scarecrow's Song"),
         ])
 }
 
@@ -539,6 +541,10 @@ pub fn build() -> Schema {
             .when_not("shuffle_chests", "off"),
     );
     s.push(
+        Setting::toggle(201, crate::slice::scarecrow::SETTING, "shuffle", "Scarecrow's Song", false)
+            .tip("One Scarecrow's Song joins the item pool and can be found anywhere. Bonooru still teaches it the old way, but the logic never counts on that. Pierre then stands at every scarecrow spot as soon as you hold the song and an ocarina, so no notes are needed. Experimental."),
+    );
+    s.push(
         Setting::toggle(46, crate::flow_extra::potion::SETTING, "shuffle", "Market Potion Shop bottle and Red Potion", false)
             .tip("The Market Potion Shop keeper's free empty bottle and the Red Potion he pours as thanks for the escaped bug become two shuffled checks, and one more Bottle joins the pool. Both checks need a child who has met Zelda, by day, who carries an empty bottle, because while the free bottle holds another item he starts the bug tutorial only for a child with an empty bottle. His shelves still open after the tutorial.")
             .when("shuffle_rewards", "supported"),
@@ -686,6 +692,10 @@ pub fn build() -> Schema {
     s.push(
         Setting::toggle(71, crate::qol::ANJU, "world", "Anju needs one cucco", false)
             .tip("Anju in Kakariko Village counts the cucco game as won when one cucco is in the pen instead of seven. The Bottle reward is the same. The logic needs one cucco too."),
+    );
+    s.push(
+        Setting::toggle(crate::easy_fishing::NUM, crate::easy_fishing::SETTING, "world", "Easy fishing", false)
+            .tip("The fishing pond owner gives his prize for any fish you catch, whatever its size: the Piece of Heart for child Link and the Golden Scale for adult Link, or whatever is placed there. You still pay, cast and land one fish. A loach and the sinking lure work as before. Experimental."),
     );
     s.push(
         Setting::toggle(72, crate::qol::POE, "world", "Big poe bottle at the first big poe", false)

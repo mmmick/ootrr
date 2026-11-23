@@ -286,6 +286,9 @@ pub fn build_with(seed: &SeedFile, romfs: &P, load: &P, mod_name: &str, host: Ho
     if p.songs != Songs::Off {
         crate::song_lessons::stage_flow(&mut rf, &mut staged.files)?;
     }
+    if p.fishing {
+        crate::easy_fishing::stage(&mut rf, &mut staged.files)?;
+    }
     // Dungeon items in reward events: window-only copies of their give routines and the credit
     // (crate::gift_keys). The Light Arrows item get wants the copy of its routine too.
     let arrows_key: bool = gift_keys.iter().any(|g| {

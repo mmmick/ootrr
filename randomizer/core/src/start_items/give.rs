@@ -16,6 +16,8 @@ pub const WALLETS: [&str; 2] = ["Item_Wallet_Medium", "Item_Wallet_Large"];
 pub const MAGIC: [&str; 2] = ["Item_FairyBless_MP", "Item_FairyBless_MPDouble"];
 pub const OCARINAS: [&str; 2] = ["Item_Ocarina_Fairy", "Item_Ocarina_Time"];
 pub const BOTTLES: [&str; 4] = ["BottleA", "BottleB", "BottleC", "BottleD"];
+pub const SCARECROW_SONG: &str = "IsGet.Item_Melody_ScarecrowSong";
+pub const SCARECROW_STEP: (&str, &str) = ("Step_SubEvent_GetScarecrow", "Complete");
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Set {
@@ -140,6 +142,10 @@ fn recipe(k: &mut Kit, g: &Group, tier: u32) {
             }
         }
         Recipe::Count(actor, n) => grant(&mut k.sets, actor, n),
+        Recipe::Scarecrow => {
+            k.sets.push(Set::Bool(SCARECROW_SONG.to_string(), true));
+            k.sets.push(Set::Enum(SCARECROW_STEP.0.to_string(), SCARECROW_STEP.1.to_string()));
+        }
     }
 }
 
@@ -228,6 +234,20 @@ mod tests {
         assert!(bad.is_empty());
         assert_eq!(k, Kit::default());
         assert!(!k.any());
+    }
+
+    #[test]
+    fn the_scarecrow_song_and_bunny_hood_write_what_the_game_sets_and_stay_in_the_pool() {
+        let mut bad: Vec<String> = Vec::new();
+        let k: Kit = read(&with(&["scarecrow_song", "bunny_hood"], &[], 3), &mut bad);
+        assert!(bad.is_empty(), "{bad:?}");
+        assert_eq!(find(&k, SCARECROW_SONG), Some(&Set::Bool(SCARECROW_SONG.to_string(), true)));
+        assert_eq!(find(&k, SCARECROW_STEP.0), Some(&Set::Enum(SCARECROW_STEP.0.to_string(), "Complete".to_string())));
+        assert!(find(&k, "IsGet.Armor_Child_Mask_Bunny").is_some());
+        assert!(find(&k, "Appear_SCARECROW_LAKE_HYLIA_03").is_none());
+        let l: Vec<(&str, u32)> = k.logic();
+        assert!(l.contains(&("Scarecrow Song", 1)) && l.contains(&("Bunny Hood", 1)), "{l:?}");
+        assert!(k.take.iter().all(|t| t.strip == Strip::Keep));
     }
 
     #[test]
